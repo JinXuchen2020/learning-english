@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Seed tokens — Nudge-controllable */
+  --seed-bg: #F8F8F0;
+  --seed-fg: #725D42;
+  --seed-primary: #19C8B9;
+  --seed-accent: #FFCC00;
+  --seed-surface: #F7F3DF;
+  --seed-radius: 24px;
+
+  /* Derived tokens */
+  --color-title: #794F27;
+  --color-muted: #9F927D;
+  --color-disabled: #C4B89E;
+  --color-primary-hover: #3DD4C6;
+  --color-primary-active: #11A89B;
+  --color-primary-wash: #E6F9F6;
+  --color-success: #6FBA2C;
+  --color-success-shadow: #5A9E1E;
+  --color-warning: #F5C31C;
+  --color-danger: #E05A5A;
+  --color-button-shadow: #BDAEA0;
+  --color-input-shadow: #D4C9B4;
+
+  /* Spacing scale */
+  --space-unit: 8px;
+  --space-xs: calc(var(--space-unit) * 0.5);
+  --space-sm: var(--space-unit);
+  --space-md: calc(var(--space-unit) * 2);
+  --space-lg: calc(var(--space-unit) * 3);
+  --space-xl: calc(var(--space-unit) * 4);
+  --space-2xl: calc(var(--space-unit) * 6);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 18px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--seed-bg);
+    color: var(--seed-fg);
+    font-family: var(--font-nunito), -apple-system, BlinkMacSystemFont,
+      "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-weight: 500;
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3 {
+    color: var(--color-title);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+}
+
+@layer components {
+  /* Tactile button base — core cozy-kids identity */
+  .btn-kids {
+    @apply inline-flex items-center justify-center font-bold rounded-control
+      transition-all duration-150 select-none cursor-pointer;
+    min-height: 56px;
+    padding: 0 28px;
+    font-size: 1rem;
+    box-shadow: 0 5px 0 0 var(--color-button-shadow);
+  }
+
+  .btn-kids:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 0 0 var(--color-button-shadow);
+  }
+
+  .btn-kids:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 0 var(--color-button-shadow);
+  }
+
+  .btn-kids:focus-visible {
+    outline: 3px solid var(--seed-accent);
+    outline-offset: 2px;
+  }
+
+  .btn-kids:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 3px 0 0 var(--color-button-shadow);
+  }
+
+  .btn-primary {
+    @apply btn-kids;
+    background-color: var(--seed-primary);
+    color: #ffffff;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--color-primary-hover);
+  }
+
+  .btn-primary:active {
+    background-color: var(--color-primary-active);
+  }
+
+  .btn-success {
+    @apply btn-kids;
+    background-color: var(--color-success);
+    color: #ffffff;
+    box-shadow: 0 5px 0 0 var(--color-success-shadow);
+  }
+
+  .btn-success:hover {
+    box-shadow: 0 6px 0 0 var(--color-success-shadow);
+  }
+
+  .btn-success:active {
+    box-shadow: 0 1px 0 0 var(--color-success-shadow);
+  }
+
+  /* Card base */
+  .card-kids {
+    background-color: var(--seed-surface);
+    border-radius: var(--seed-radius);
+    box-shadow: 0 4px 10px rgba(107, 92, 67, 0.12);
+    padding: var(--space-lg);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card-kids:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(114, 93, 66, 0.15);
+  }
+
+  /* Progress ring */
+  .progress-ring-circle {
+    transition: stroke-dashoffset 0.5s ease;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .touch-target {
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .touch-target-lg {
+    min-width: 64px;
+    min-height: 64px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

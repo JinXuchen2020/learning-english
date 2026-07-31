@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-29T11:20:00.000Z",
+  "brief": {
+    "artifactType": "tablet app UI",
+    "targetPlatform": [
+      "tablet"
+    ],
+    "audience": "children aged 5-10",
+    "businessGoal": "Make daily English vocabulary learning fun and habit-forming for young children through a warm, nature-themed experience with an animal mascot companion, encouraging consistent practice via progress tracking and playful interactions.",
+    "mustHaveContent": [
+      "animal mascot (friendly fox character)",
+      "course progress cards with visual completion indicators",
+      "daily tasks checklist with reward stars",
+      "word progress tracker",
+      "pronunciation hint buttons with speaker icon",
+      "large answer buttons for quiz interactions",
+      "large rounded touch-friendly controls (min 56px tap targets)"
+    ],
+    "pages": [
+      "Home",
+      "Course Detail",
+      "Word Practice"
+    ],
+    "platform": "tablet (landscape, ~1024x768 viewport)",
+    "style": "warm, cute, nature-themed with soft greens, warm yellows, cream backgrounds",
+    "techStack": {
+      "language": "TypeScript",
+      "frontend": "Next.js (App Router) + shadcn/ui + Tailwind CSS",
+      "backend": "NestJS (production planning, not part of this design artifact)"
+    }
+  },
+  "output": {
+    "target": "react-vite",
+    "componentLibrary": "shadcn",
+    "language": "typescript",
+    "framework": "nextjs",
+    "previewStrategy": "Generate Next.js + TypeScript project, start dev server with `next dev`, and connect to Canvas via add_frame with localhost URL."
+  },
+  "artifacts": [
+    {
+      "path": "react-vite/app/layout.tsx",
+      "action": "create",
+      "purpose": "Root layout with Nunito font loading, global metadata, bottom tab navigation, and persistent mascot companion.",
+      "requirements": [
+        "Next.js App Router root layout with <html> and <body>",
+        "Nunito font via next/font/google",
+        "Bottom tab navigation component (Home, Courses, Practice) with large rounded icons",
+        "Persistent fox mascot in corner that reacts to route context",
+        "Landscape tablet layout optimized for 1024x768+",
+        "Import globals.css"
+      ]
+    },
+    {
+      "path": "react-vite/app/page.tsx",
+      "action": "create",
+      "purpose": "Home dashboard showing daily tasks, course progress cards, streak counter, and mascot greeting.",
+      "requirements": [
+        "Mascot greeting banner with speech bubble (e.g. 'Hi! Ready to learn today?')",
+        "Daily tasks section: 3 task cards with checkbox-style completion (listen, speak, write)",
+        "Course progress cards: horizontal scroll of 3-4 course cards with circular progress rings",
+        "Streak/reward display with star icons",
+        "Large touch targets, playful card shapes with soft shadows",
+        "Typed data models for tasks and courses"
+      ]
+    },
+    {
+      "path": "react-vite/app/course/page.tsx",
+      "action": "create",
+      "purpose": "Course detail page showing lesson list, overall progress, and a start/continue button.",
+      "requirements": [
+        "Course header with illustration, title, and overall progress bar",
+        "Lesson list with lock/complete/current states (visual icons)",
+        "Word count and estimated time badges",
+        "Large 'Continue Learning' CTA button (pill-shaped, prominent)",
+        "Mascot encouragement tip at bottom",
+        "Typed lesson and course interfaces"
+      ]
+    },
+    {
+      "path": "react-vite/app/practice/page.tsx",
+      "action": "create",
+      "purpose": "Interactive word practice quiz page with pronunciation hints, answer selection, and progress tracking.",
+      "requirements": [
+        "Word progress bar at top (e.g. 3/10 words)",
+        "Word card with illustration, word text, and pronunciation speaker button",
+        "4 large answer buttons in 2x2 grid (pill/rounded-rect, color-coded)",
+        "Correct/incorrect feedback states with mascot reaction",
+        "Pronunciation hint: speaker icon button that highlights phonics",
+        "End-of-set celebration state with stars and mascot",
+        "Typed quiz state machine (idle, answering, feedback, complete)",
+        "Client component ('use client') for interactive quiz state"
+      ]
+    },
+    {
+      "path": "react-vite/components/Mascot.tsx",
+      "action": "create",
+      "purpose": "Reusable fox mascot SVG component with multiple expression states (happy, thinking, celebrating, encouraging).",
+      "requirements": [
+        "Inline SVG fox character with nature-themed accessories (leaf hat or acorn bag)",
+        "Expression variants: happy, thinking, celebrating, encouraging",
+        "Size variants: small (nav), medium (cards), large (greeting)",
+        "Gentle idle animation (subtle bounce via CSS keyframes)",
+        "TypeScript props interface with expression and size unions"
+      ]
+    },
+    {
+      "path": "react-vite/components/TabNav.tsx",
+      "action": "create",
+      "purpose": "Bottom tab navigation bar with large child-friendly touch targets and active state indicators.",
+      "requirements": [
+        "3 tabs: Home, Courses, Practice with lucide-react icons",
+        "Minimum 64px height tap areas",
+        "Active tab highlighted with primary color pill background",
+        "Client component using next/navigation usePathname",
+        "Rounded top corners, soft shadow elevation"
+      ]
+    },
+    {
+      "path": "react-vite/lib/types.ts",
+      "action": "create",
+      "purpose": "Shared TypeScript type definitions for courses, lessons, words, tasks, and quiz state.",
+      "requirements": [
+        "Course, Lesson, Word interfaces",
+        "DailyTask interface with completion state",
+        "QuizState type union",
+        "MascotExpression and MascotSize types"
+      ]
+    },
+    {
+      "path": "react-vite/lib/mockData.ts",
+      "action": "create",
+      "purpose": "Typed mock data for courses, lessons, words, and daily tasks (child-appropriate English learning content).",
+      "requirements": [
+        "3-4 courses with progress data",
+        "Lesson lists per course with states",
+        "10 vocabulary words with illustration descriptions and phonics",
+        "3 daily tasks",
+        "All content appropriate for 5-10 year old English learners"
+      ]
+    },
+    {
+      "path": "react-vite/app/globals.css",
+      "action": "create",
+      "purpose": "Global styles with seed design tokens, Tailwind directives, and child-friendly component overrides.",
+      "requirements": [
+        "Seed tokens: --seed-bg (warm cream), --seed-fg (soft brown-charcoal), --seed-primary (leaf green), --seed-accent (sunny yellow), --seed-surface (light warm white), --seed-radius (24px)",
+        "Derived tokens via color-mix() for hover, active, muted states",
+        "Tailwind @layer base/component/utilities directives",
+        "Large base font size (18px+), generous spacing",
+        "Soft shadows, no harsh borders",
+        "Touch-friendly minimum sizes enforced",
+        "Mascot bounce keyframe animation"
+      ]
+    },
+    {
+      "path": "react-vite/canvas-design.html",
+      "action": "create",
+      "purpose": "Canvas design-mode HTML entry for visual editing bridge.",
+      "requirements": [
+        "Standard Canvas design HTML shell",
+        "Meta tags for canvas viewport (1024x768 landscape tablet)"
+      ]
+    },
+    {
+      "path": "react-vite/package.json",
+      "action": "create",
+      "purpose": "Next.js project dependencies with TypeScript, Tailwind CSS, shadcn/ui prerequisites, and lucide-react.",
+      "requirements": [
+        "next, react, react-dom",
+        "typescript, @types/react, @types/react-dom, @types/node",
+        "tailwindcss, postcss, autoprefixer",
+        "lucide-react for icons",
+        "class-variance-authority, clsx, tailwind-merge for shadcn utilities",
+        "Scripts: dev (next dev), build (next build), start (next start)"
+      ]
+    },
+    {
+      "path": "react-vite/tsconfig.json",
+      "action": "create",
+      "purpose": "TypeScript configuration for Next.js with strict mode and path aliases.",
+      "requirements": [
+        "strict: true",
+        "jsx: preserve (Next.js handles transform)",
+        "Path alias @/* -> ./*",
+        "moduleResolution: bundler",
+        "plugins: [{ name: 'next' }]",
+        "incremental: true"
+      ]
+    },
+    {
+      "path": "react-vite/next.config.ts",
+      "action": "create",
+      "purpose": "Next.js configuration with TypeScript.",
+      "requirements": [
+        "Minimal config, reactStrictMode: true"
+      ]
+    },
+    {
+      "path": "react-vite/tailwind.config.ts",
+      "action": "create",
+      "purpose": "Tailwind configuration extending theme with seed CSS variables and child-friendly defaults.",
+      "requirements": [
+        "Extend colors to reference var(--seed-*) tokens",
+        "Extend borderRadius with --seed-radius",
+        "Extend fontFamily with Nunito",
+        "Content paths for app/**/*.{ts,tsx} and components/**/*.{ts,tsx}"
+      ]
+    },
+    {
+      "path": "react-vite/postcss.config.mjs",
+      "action": "create",
+      "purpose": "PostCSS configuration for Tailwind CSS processing.",
+      "requirements": [
+        "tailwindcss and autoprefixer plugins"
+      ]
+    }
+  ],
+  "designDirection": {
+    "fidelity": "high-fidelity",
+    "styleSource": "cozy-kids (primary) with education-platform inspiration",
+    "visualTone": [
+      "warm",
+      "playful",
+      "nature-themed",
+      "rounded",
+      "encouraging",
+      "tactile"
+    ],
+    "colorPalette": "Warm cream backgrounds (#FDF8EF), leaf green primary (#4CAF50 / #6FBA2C), sunny yellow accent (#FFCC00), soft coral for alerts (#F8A6B2), warm brown text (#725D42)",
+    "typography": "Nunito (rounded sans-serif) for all text; large sizes (body 18px+, headings 28-36px)",
+    "mascot": "Friendly fox character with leaf/nature accessories, multiple expressions",
+    "controlStyle": "Pill-shaped and large rounded-rect buttons, minimum 56px height, soft shadows, tactile press states"
+  },
+  "structure": {
+    "screens": [
+      {
+        "name": "Home",
+        "route": "/",
+        "sections": [
+          "Mascot greeting banner",
+          "Daily tasks (3 cards)",
+          "Course progress carousel",
+          "Streak/reward row"
+        ]
+      },
+      {
+        "name": "Course Detail",
+        "route": "/course",
+        "sections": [
+          "Course header with progress",
+          "Lesson list (locked/current/complete)",
+          "CTA button",
+          "Mascot tip"
+        ]
+      },
+      {
+        "name": "Word Practice",
+        "route": "/practice",
+        "sections": [
+          "Progress bar",
+          "Word card with illustration + pronunciation",
+          "Answer grid (2x2)",
+          "Feedback/celebration overlay"
+        ]
+      }
+    ],
+    "navigation": "Bottom tab bar with 3 tabs (Home, Courses, Practice), large icons with labels, persistent across routes via layout.tsx"
+  },
+  "interaction": {
+    "primaryFlow": "Home (/) -> tap course card -> Course Detail (/course) -> tap Continue -> Word Practice (/practice) -> complete quiz -> celebration -> back to Home with updated progress",
+    "states": [
+      "Daily task: incomplete / complete (with star animation)",
+      "Lesson item: locked / available / completed",
+      "Answer button: default / selected / correct (green pulse) / incorrect (gentle shake)",
+      "Mascot: idle / happy / thinking / celebrating",
+      "Word practice: in-progress / correct feedback / incorrect feedback / set complete celebration"
+    ]
+  },
+  "quality": {
+    "responsive": true,
+    "accessibility": true,
+    "lintRequired": true,
+    "acceptanceCriteria": [
+      "All interactive controls meet minimum 56px touch target size for children's fingers.",
+      "Color contrast meets WCAG AA for text on all backgrounds.",
+      "Mascot SVG renders correctly in all expression states.",
+      "Navigation between 3 routes works without errors via Next.js App Router.",
+      "Word practice quiz flow completes with correct/incorrect feedback and celebration.",
+      "TypeScript compiles with strict mode and no type errors.",
+      "Design quality check has P0=0 and all P1 issues are fixed or explicitly waived.",
+      "Next.js project builds successfully with npm run build (next build).",
+      "No placeholder lorem ipsum; all copy is child-appropriate English learning content."
+    ]
+  },
+  "risks": [
+    "SVG mascot complexity: keep fox character simple enough to render performantly but expressive enough to feel alive.",
+    "shadcn/ui components need child-friendly overrides (larger radius, bigger tap areas) — plan custom CSS layer.",
+    "Tablet landscape layout must not feel like a stretched phone; use grid layouts that leverage wide viewport.",
+    "Next.js App Router: interactive quiz components need 'use client' directive; keep server components for static content."
+  ],
+  "resources": {
+    "skill": {
+      "id": "mobile-app",
+      "title": "mobile-app",
+      "rationale": "mode matches prototype; trigger: app ui; design intelligence trigger: app ui",
+      "alternatives": [
+        "dashboard",
+        "saas-landing",
+        "web-prototype"
+      ]
+    },
+    "styleReference": {
+      "primary": "cozy-kids",
+      "inspiration": [
+        "education-platform"
+      ],
+      "rationale": "cozy-kids directly matches the brief: child-friendly warm nature colors, rounded pill controls, tactile press states, playful learning tone. education-platform provides structural courseware patterns as inspiration."
+    },
+    "requiredReads": [
+      {
+        "kind": "skill",
+        "id": "mobile-app",
+        "reason": "Selected Canvas skill checklist."
+      },
+      {
+        "kind": "design-system",
+        "id": "cozy-kids",
+        "reason": "Primary style reference for warm nature-themed children's UI."
+      },
+      {
+        "kind": "design-system",
+        "id": "education-platform",
+        "reason": "Inspiration reference for courseware structure patterns."
+      },
+      {
+        "kind": "craft",
+        "id": "anti-ai-slop",
+        "reason": "Baseline AI-slop guardrail for all Canvas design artifacts."
+      },
+      {
+        "kind": "craft",
+        "id": "typography",
+        "reason": "Baseline typography quality rule for visual execution."
+      },
+      {
+        "kind": "craft",
+        "id": "color",
+        "reason": "Baseline color quality rule for visual execution."
+      },
+      {
+        "kind": "protocol",
+        "id": "design-mode-runtime",
+        "reason": "Design Plan Mode execution and runtime contract."
+      },
+      {
+        "kind": "protocol",
+        "id": "skill-protocol",
+        "reason": "Skill metadata and resource selection contract."
+      }
+    ]
+  },
+  "abstract": "为 5-10 岁儿童设计一套高保真英语学习 App 的平板端界面（横屏），包含首页（/）、课程详情（/course）和单词练习（/practice）三个核心页面。整体采用温暖可爱的自然系风格：奶油色背景、树叶绿主色、阳光黄点缀，搭配一只友好的小狐狸吉祥物陪伴学习。界面使用大尺寸圆润控件（最小 56px 触控区域）、Nunito 圆体字体和柔和阴影，确保适合儿童手指操作。技术输出为 Next.js (App Router) + TypeScript + shadcn/ui + Tailwind CSS，后端 NestJS 作为生产部署规划。请重点审核：三个页面的内容结构是否符合儿童学习场景、视觉风格是否足够温暖可爱、以及交互流程是否流畅自然。"
+}

@@ -1,0 +1,63 @@
+# ============================================================================
+# learning-english — root .gitignore (covers Next.js frontend in src/ and
+# NestJS backend in server/, plus project-specific artifacts)
+# ============================================================================
+
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Build outputs ---
+.next/
+out/
+dist/
+build/
+build.log
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# --- Environment & secrets (NEVER commit real keys) ---
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+# --- Test / coverage ---
+coverage/
+*.lcov
+
+# --- Databases ---
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Runtime uploads / generated content ---
+uploads/
+outputs/
+
+# --- Local tooling indexes ---
+.codegraph/
+.omo/
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Editor / IDE ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
