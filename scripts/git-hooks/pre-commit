@@ -1,0 +1,49 @@
+#!/bin/sh
+# feature-builder 质量门 pre-commit 强执 hook（自动安装，跨平台）
+# 暂存区含源码改动时，要求 .quality-gate.json 已暂存 + cleared:true + gates 三字段 PASSED。
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# 仅当存在源码改动（非纯文档/配置）才触发门禁
+has_src=0
+for f in $staged; do
+  case "$f" in
+    docs/*|.quality-gate.json|features/*.md|*.md|README*|CHANGELOG*|LICENSE*|scripts/git-hooks/pre-commit)
+      ;;
+    *)
+      has_src=1
+      break
+      ;;
+  esac
+done
+[ "$has_src" -eq 0 ] && exit 0
+
+# 源码改动 → 要求 .quality-gate.json 已暂存
+if ! printf '%s\n' "$staged" | grep -qx '.quality-gate.json'; then
+  echo "质量门未通过：源码改动必须连同 .quality-gate.json 一起暂存" >&2
+  echo "（feature-builder 自动安装的 pre-commit 强执）" >&2
+  exit 1
+fi
+
+if ! git show :.quality-gate.json >/dev/null 2>&1; then
+  echo "质量门未通过：无法读取暂存区的 .quality-gate.json" >&2
+  exit 1
+fi
+
+gate=$(git show :.quality-gate.json)
+
+if ! printf '%s\n' "$gate" | grep -q '"cleared"[[:space:]]*:[[:space:]]*true'; then
+  echo "质量门未通过：.quality-gate.json 的 cleared 必须为 true" >&2
+  exit 1
+fi
+
+for g in consistency review optimization; do
+  if ! printf '%s\n' "$gate" | grep -q "\"$g\"[[:space:]]*:[[:space:]]*\"PASSED"; then
+    echo "质量门未通过：gates.$g 必须为 PASSED" >&2
+    exit 1
+  fi
+done
+
+exit 0
