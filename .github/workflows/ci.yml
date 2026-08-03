@@ -139,7 +139,7 @@ jobs:
           echo "Waiting for backend (:4000) and frontend (:3000)..."
           READY=0
           for i in $(seq 1 60); do
-            BE_OK=$(curl -sf http://localhost:4000/api/courses >/dev/null 2>&1 && echo 1 || echo 0)
+            BE_OK=$(curl -sf http://localhost:4000/api/health >/dev/null 2>&1 && echo 1 || echo 0)
             FE_OK=$(curl -sf http://localhost:3000/login >/dev/null 2>&1 && echo 1 || echo 0)
             if [ "$BE_OK" = "1" ] && [ "$FE_OK" = "1" ]; then
               echo "Both services are up after ${i} tries."; READY=1; break
@@ -148,7 +148,7 @@ jobs:
           done
           if [ "$READY" -ne 1 ]; then
             echo "::error::Services did not become ready in time."
-            echo "backend: $(curl -sf http://localhost:4000/api/courses >/dev/null 2>&1 && echo UP || echo DOWN)"
+            echo "backend: $(curl -sf http://localhost:4000/api/health >/dev/null 2>&1 && echo UP || echo DOWN)"
             echo "frontend: $(curl -sf http://localhost:3000/login >/dev/null 2>&1 && echo UP || echo DOWN)"
             exit 1
           fi
