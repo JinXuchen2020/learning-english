@@ -1,14 +1,14 @@
 {
-  "phase": "test-101",
+  "phase": "test-102",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit strict 0 errors 含 spec 类型检查; nest build 0 errors; jest --runInBand 17 suites/70 tests 全绿; 无全栈契约需对齐)",
-    "tests": "PASSED (unit: 20 spec files / 74 cases 全绿; 覆盖率 statement 100% / lines 100% / functions 100% / branches 83.42%，jest.config.js 已设 coverageThreshold 兜底 statement/lines/functions≥90%；新增 modules.smoke(全 module+AppModule 装配)、jwt-auth.guard(canActivate 委托)、entities.metadata(关系回调) 三类测试补齐模块/守卫/实体；e2e/bdd: 0 — 测试基建 feature 依硬约束 #6 legacy/infra 豁免，由 TEST-102 专项负责)",
-    "review": "PASSED (0 open; 修复 recordWordAttempt 真实 bug：Repository.create 不套用 DB 默认值导致 attempts/correctCount 初值 NaN，已初始化为 0；mock 边界/空安全/异常分支已覆盖)",
-    "optimization": "PASSED (0 open; 无 stub/调试残留; ts-jest isolatedModules 迁移至 tsconfig 消除弃用警告)"
+    "consistency": "PASSED (前端 next build/前端 dev 就绪 127.0.0.1:3000; 后端 nest build + 启动 :4000 sqlite+seed 全绿; Cucumber+Playwright E2E 串联真实前后端 6 scenarios/27 steps 全绿; 无全栈契约需对齐)",
+    "tests": "PASSED (unit: 0 新文件 — TEST-102 纯 E2E 基建，不新增后端单测; e2e/bdd: 4 features / 6 scenarios / 27 steps 全绿，浏览器用本机 Microsoft Edge 经 channel:'msedge' 启动，无需下载 Chromium; 选择器匹配真实 DOM：data-component=LoginPage / #username / button[aria-pressed] 切换 tab / form button[type=submit] 提交 / AuthGate 拦截 / CourseList 课程卡)",
+    "review": "PASSED (0 open; E2E harness 仅只读扫描式步骤，无源码侵入; step definitions 与真实页面 DOM 一一对应，已修订登录页双 'Sign In' 选择器歧义)",
+    "optimization": "PASSED (0 open; 无 stub/调试残留; 单浏览器 BeforeAll 复用 + 每场景隔离 context 控制资源; hooks 设 60s 超时容错避免 Edge 关闭慢致进程异常退出)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/test-101-gate.md",
-  "notes": "TEST-101 搭建 Jest 测试基建（jest/ts-jest/@nestjs/testing + jest.config.js + tsconfig.spec.json + test/setup.ts）并补齐现有功能单元测试：auth(service/controller/jwt.strategy)/courses/lessons/progress/tasks/words(service+controller)/auth DTO(login/register 校验)/config(database getDbType+buildDataSourceOptions)/ai 接口契约(MockAiProvider)。Repository/JwtService/bcrypt 全部 mock，不连真实库/不加载原生二进制（factory mock + --runInBand 规避 Windows 文件锁）。另修复 ProgressService.recordWordAttempt 的 NaN 缺陷。"
+  "reportRef": "docs/quality/test-102-gate.md",
+  "notes": "TEST-102 建立 BDD/E2E 测试基线：Gherkin .feature (authentication / home-dashboard / task-completion / course-browse) + Cucumber + Playwright (TypeScript step definitions / page objects / hooks / world)。覆盖现有 4 个页面的核心用户旅程；plan/speech/report 旅程按硬约束 #6 留待对应 feature 建页时各自自带 E2E。运行依赖：后端 sqlite+seed (:4000) + 前端 dev (:3000) + 本机 Edge。CI 尚未落地（无 .github/workflows），目前仅本地校验。"
 }
