@@ -62,10 +62,15 @@ class LoginPage {
 
   async getErrorText() {
     const alert = this.page.locator('[role="alert"]');
-    if (await alert.count()) {
-      return (await alert.first().textContent())?.trim() || null;
+    // The error only renders after the async login request rejects and React
+    // re-renders, so wait for it instead of reading immediately — otherwise the
+    // alert element is still absent and we'd report a misleading "null".
+    try {
+      await alert.first().waitFor({ state: "visible", timeout: 10000 });
+    } catch {
+      return null;
     }
-    return null;
+    return (await alert.first().textContent())?.trim() || null;
   }
 }
 
