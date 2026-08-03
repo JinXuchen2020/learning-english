@@ -8,7 +8,10 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "seed": "ts-node src/seed.ts",
-    "typeorm": "typeorm-ts-node-commonjs"
+    "typeorm": "typeorm-ts-node-commonjs",
+    "test": "jest",
+    "test:cov": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
@@ -34,11 +37,15 @@
   "devDependencies": {
     "@nestjs/cli": "^10.3.0",
     "@nestjs/schematics": "^10.1.0",
+    "@nestjs/testing": "^10.3.0",
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
     "@types/bcrypt": "^5.0.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
     "typescript": "^5.5.0",
     "ts-node": "^10.9.2",
     "source-map-support": "^0.5.21"

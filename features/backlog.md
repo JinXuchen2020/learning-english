@@ -28,7 +28,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | backlog | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
+| TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | done | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
 | TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | backlog | ≥3 条核心用户旅程 `.feature` 可跑通并全绿; 启动真实/模拟前后端 (MockProvider 免 key); step definitions 复用页面交互而非直接调 API; BDD 场景即 E2E 验收用例 |
 
 ---

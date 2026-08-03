@@ -57,7 +57,7 @@ export class ProgressService {
     });
 
     if (!progress) {
-      progress = this.wordProgressRepo.create({ userId, wordId });
+      progress = this.wordProgressRepo.create({ userId, wordId, attempts: 0, correctCount: 0 });
     }
 
     progress.attempts += 1;
