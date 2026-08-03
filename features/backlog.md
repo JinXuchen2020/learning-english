@@ -23,12 +23,12 @@
 
 ## 置顶 — 测试基建 (优先于所有 AI 功能)
 
-> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试; TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。
-> **项目约定（硬约束）**: 今后每个新 feature 必须自带单元测试 (`*.spec.ts`) + BDD/E2E (`*.feature`) 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
+> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试(后端全量); TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。**前端测试口径(2026-08-03 修订)**: 新 feature 前端 E2E 必做; 前端仅纯逻辑模块(`lib/api.ts`/hooks/带分支工具函数)需单测, 纯展示型组件/页面不强制(由 E2E 覆盖)。
+> **项目约定（硬约束）**: 今后每个新 feature 必须自带 BDD/E2E (`*.feature`, 必做, 含前端 UI 行为) + 单元测试(覆盖有逻辑分支的源码: 后端 services/controllers/providers/guards/pipes/工具函数; 前端仅纯逻辑模块, **纯展示型组件/页面不强制**), 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | backlog | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
+| TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | done | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
 | TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | backlog | ≥3 条核心用户旅程 `.feature` 可跑通并全绿; 启动真实/模拟前后端 (MockProvider 免 key); step definitions 复用页面交互而非直接调 API; BDD 场景即 E2E 验收用例 |
 
 ---

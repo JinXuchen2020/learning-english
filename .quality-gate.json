@@ -1,14 +1,14 @@
 {
-  "phase": "ai-101",
+  "phase": "test-101",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit strict, 0 errors; type-only file; JSDoc complete; covers LLM/STT/TTS/pronunciation)",
-    "tests": "PASSED (legacy feature AI-101: type-only interface definition, no runtime logic to unit-test; BDD/E2E covered by backlog TEST-101/TEST-102; 0 unit files / 0 e2e scenarios now, exempt per design-doc legacy rule)",
-    "review": "PASSED (0 open; generic adversarial checklist adapted to TS/NestJS: AudioInput encoding, reasoning-model empty text, ProviderName forward-declared contract investigated)",
-    "optimization": "PASSED (0 open; 7-dimension scan adapted; 1 P3 design-decision waived — AudioResult dual-optional vs discriminated union)"
+    "consistency": "PASSED (tsc --noEmit strict 0 errors 含 spec 类型检查; nest build 0 errors; jest --runInBand 17 suites/70 tests 全绿; 无全栈契约需对齐)",
+    "tests": "PASSED (unit: 20 spec files / 74 cases 全绿; 覆盖率 statement 100% / lines 100% / functions 100% / branches 83.42%，jest.config.js 已设 coverageThreshold 兜底 statement/lines/functions≥90%；新增 modules.smoke(全 module+AppModule 装配)、jwt-auth.guard(canActivate 委托)、entities.metadata(关系回调) 三类测试补齐模块/守卫/实体；e2e/bdd: 0 — 测试基建 feature 依硬约束 #6 legacy/infra 豁免，由 TEST-102 专项负责)",
+    "review": "PASSED (0 open; 修复 recordWordAttempt 真实 bug：Repository.create 不套用 DB 默认值导致 attempts/correctCount 初值 NaN，已初始化为 0；mock 边界/空安全/异常分支已覆盖)",
+    "optimization": "PASSED (0 open; 无 stub/调试残留; ts-jest isolatedModules 迁移至 tsconfig 消除弃用警告)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-101-gate.md",
-  "notes": "AI-101 交付 server/src/ai/ai-provider.interface.ts：AiProvider 接口（chat/chatWithImage/transcribe/assessPronunciation/synthesize）+ 全套类型 + AI_PROVIDER_TOKEN + ProviderName。四道通用质量门（一致性/tests/审查/优化）按 NestJS/TS 现实适配后全绿。server/package-lock.json 现已纳入版本控制（lockfileVersion 3，518 个锁定包），依赖可复现，后续装依赖统一用 npm ci。"
+  "reportRef": "docs/quality/test-101-gate.md",
+  "notes": "TEST-101 搭建 Jest 测试基建（jest/ts-jest/@nestjs/testing + jest.config.js + tsconfig.spec.json + test/setup.ts）并补齐现有功能单元测试：auth(service/controller/jwt.strategy)/courses/lessons/progress/tasks/words(service+controller)/auth DTO(login/register 校验)/config(database getDbType+buildDataSourceOptions)/ai 接口契约(MockAiProvider)。Repository/JwtService/bcrypt 全部 mock，不连真实库/不加载原生二进制（factory mock + --runInBand 规避 Windows 文件锁）。另修复 ProgressService.recordWordAttempt 的 NaN 缺陷。"
 }
