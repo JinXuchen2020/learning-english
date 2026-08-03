@@ -23,8 +23,8 @@
 
 ## 置顶 — 测试基建 (优先于所有 AI 功能)
 
-> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试; TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。
-> **项目约定（硬约束）**: 今后每个新 feature 必须自带单元测试 (`*.spec.ts`) + BDD/E2E (`*.feature`) 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
+> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试(后端全量); TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。**前端测试口径(2026-08-03 修订)**: 新 feature 前端 E2E 必做; 前端仅纯逻辑模块(`lib/api.ts`/hooks/带分支工具函数)需单测, 纯展示型组件/页面不强制(由 E2E 覆盖)。
+> **项目约定（硬约束）**: 今后每个新 feature 必须自带 BDD/E2E (`*.feature`, 必做, 含前端 UI 行为) + 单元测试(覆盖有逻辑分支的源码: 后端 services/controllers/providers/guards/pipes/工具函数; 前端仅纯逻辑模块, **纯展示型组件/页面不强制**), 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|

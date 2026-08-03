@@ -1,6 +1,6 @@
 ---
 name: feature-builder
-description: 通用 feature 端到端自主开发流程，自动适配任意技术栈（Node/TS、.NET、Python、Go、Rust、Java、PHP…）。从 features/ 设计枢纽取一个 feature（或用户即时指令），完成实现 + 单元测试 + BDD/E2E + 构建/类型一致性校验 + 四道通用质量门禁（一致性/测试/代码审查/优化），全绿后同步项目文档并自动 git commit（不 push）。**新 feature 必须自带单元测试与 BDD/E2E 并纳入门禁**。启动阶段自动检测并静默安装质量门 pre-commit 强执 hook（幂等、跨平台），使质量门默认真阻断源码提交。This skill should be used when 用户要求「端到端实现一个完整 feature」「从 backlog 取任务做全栈/单栈开发并自动 check-in」「开发联动功能且保证一致性」「做一个功能并自动提交」。
+description: 通用 feature 端到端自主开发流程，自动适配任意技术栈（Node/TS、.NET、Python、Go、Rust、Java、PHP…）。从 features/ 设计枢纽取一个 feature（或用户即时指令），完成实现 + 单元测试 + BDD/E2E + 构建/类型一致性校验 + 四道通用质量门禁（一致性/测试/代码审查/优化），全绿后同步项目文档并自动 git commit（不 push）。**新 feature 必须自带 BDD/E2E（含前端 UI 行为，必做）+ 单元测试（覆盖有逻辑分支的源码；前端仅纯逻辑模块，纯展示型组件不强制）并纳入门禁**。启动阶段自动检测并静默安装质量门 pre-commit 强执 hook（幂等、跨平台），使质量门默认真阻断源码提交。This skill should be used when 用户要求「端到端实现一个完整 feature」「从 backlog 取任务做全栈/单栈开发并自动 check-in」「开发联动功能且保证一致性」「做一个功能并自动提交」。
 agent_created: true
 ---
 
@@ -13,8 +13,8 @@ agent_created: true
 1. **流程纪律与栈无关**：分支硬约束、features/ 设计枢纽、设计文档红线、质量门概念、文档同步、commit 不 push——这些在任何项目都成立。
 2. **技术细节变量化**：所有命令/路径/约定以 `${变量}` 引用，由 Phase 0 探针根据仓库实际写入。绝不在正文写死框架名、端口、Cookie 名、组件名、文档名。
 3. **启动即强执质量门 hook（静默、幂等）**：Phase 0 检测到项目未配置质量门 pre-commit hook 时，skill 自动写入通用 `scripts/git-hooks/pre-commit` 并 `git config core.hooksPath scripts/git-hooks`，使质量门**默认真阻断**源码提交（详见 Phase 0.1b）。已存在等价 hook 则不重复写入；`core.hooksPath` 已指向他处则覆盖并在收尾说明。专职质量 skill 缺失则按通用 checklist 执行（不阻断）。
-4. **质量门纯通用**：四道门（一致性 / **测试** / 代码审查 / 优化）用本 skill 内置 checklist + 构建/类型检查 + 测试运行实现，不依赖任何特定子 skill（如 ddd-*）。若项目已配置专属质量 skill，可**可选**追加，但默认不依赖。
-5. **测试随 feature 交付**：每个新 feature 必须自带单元测试与 BDD/E2E（见硬约束 #6），二者是 `tests` 门的证据，缺测不得 check-in。
+4. **质量门纯通用**：四道门（一致性 / **测试** / 代码审查 / 优化）用本 skill 内置 checklist + 构建/类型检查 + 测试运行实现，不依赖任何特定子 skill（如 ddd-*/ts-code-quality）。若项目已配置专属质量 skill，可**可选**追加，但默认不依赖——TS 项目推荐追加本项目 vendor 的 `ts-code-quality`（覆盖 review/optimization 两道的 TS/NestJS/Next.js 取向深度检查），`.NET` 项目才考虑 `ddd-*`。
+5. **测试随 feature 交付**：每个新 feature 必须自带 BDD/E2E（必做，覆盖用户旅程含前端 UI 行为）与单元测试（覆盖有逻辑分支的源码；前端仅纯逻辑模块，纯展示型组件不强制，见硬约束 #6），二者是 `tests` 门的证据，缺测不得 check-in。
 
 ## 何时用
 
@@ -29,7 +29,7 @@ agent_created: true
 3. **提交信息含 `Quality-Gate:` 行**（约定，便于回溯）。
 4. **每个 feature 独立分支（硬约束）**：任何写操作前先建并切到 `feat/<feature-id>`；分支从当前分支新建，**不主动 merge、不主动 push**（merge/push 由用户决定）。目的：隔离改动便于 review，避免误落他人分支。
 5. **完成后必须同步文档（硬约束）**：代码与质量门全绿后、check-in 前，把「现有项目文档」同步到最新代码，杜绝历史漂移（重点核查检测到的 `${DOC_FILES}`，凡描述已被本 feature 改变的旧机制 → 改为真实实现）。文档改动随本 feature 一起 commit 在 `feat/<feature-id>` 分支。
-6. **测试随 feature 交付（硬约束）**：每个新 feature 必须同时交付（1）**单元测试**——覆盖本 feature 新增/修改的源码，运行 `${TEST_CMD}` 全绿；（2）**BDD/E2E 场景**——用 BDD 框架（如 `@cucumber/cucumber`）写 Gherkin `.feature` 描述**用户可感知的端到端旅程**，由 E2E 驱动（如 Playwright）串联真实/模拟前后端，**不为纯后端 API 写 BDD**（禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景）。二者作为 Phase 4 `tests` 门证据，缺测不得 check-in。历史遗留功能由 backlog TEST-101/TEST-102 统筹补齐，可在设计文档显式标注「legacy 测试豁免」。
+6. **测试随 feature 交付（硬约束）**：每个新 feature 必须同时交付（1）**BDD/E2E 场景**（必做）——用 BDD 框架（如 `@cucumber/cucumber`）写 Gherkin `.feature` 描述**用户可感知的端到端旅程**，由 E2E 驱动（如 Playwright）串联真实/模拟前后端，**不为纯后端 API 写 BDD**（禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景）；前端 UI 行为由 E2E 覆盖。（2）**单元测试**——覆盖本 feature **有逻辑分支的源码**：后端为 services/controllers/providers/guards/pipes/工具函数（参考 TEST-101 全量覆盖），**前端仅纯逻辑模块**（如 `lib/api.ts` 的 fetch 封装、自定义 hooks、带分支的工具函数），**纯展示型组件/页面不强制单测**（其 UI 行为已由 E2E 覆盖）。二者作为 Phase 4 `tests` 门证据，缺测不得 check-in。历史遗留功能由 backlog TEST-101/TEST-102 统筹补齐，可在设计文档显式标注「legacy 测试豁免」。
 
 ## 流程（严格顺序）
 
@@ -79,7 +79,7 @@ agent_created: true
 - API/数据契约：明确请求/响应模型，字段命名遵循项目既有约定（如驼峰/蛇形），用项目既有鉴权标注方式。
 - 不写死密钥/连接串，用配置/环境变量。
 - 不重写基础设施，不重构无关代码。
-- **测试随 feature 交付（硬约束 #6）**：本 feature 新增/修改的源码必须同步编写（1）**单元测试**（`*.spec.ts` / `*.test.*`，Jest/`@nestjs/testing` 或栈对应框架），覆盖正常/边界/异常；（2）**BDD/E2E 场景**（`*.feature` + step definitions，BDD 框架 + E2E 驱动如 Playwright，描述用户可感知的端到端旅程，**不为纯后端 API 写 BDD**）。二者作为 Phase 4 `tests` 门的证据。历史遗留功能（已由 backlog TEST-101/TEST-102 统筹补齐）可在设计文档显式标注「legacy 测试豁免」，否则不得豁免。
+- **测试随 feature 交付（硬约束 #6）**：本 feature 新增/修改的源码必须同步编写（1）**BDD/E2E 场景**（必做，`*.feature` + step definitions，BDD 框架 + E2E 驱动如 Playwright，描述用户可感知的端到端旅程，含前端 UI 行为，**不为纯后端 API 写 BDD**）；（2）**单元测试**（`*.spec.ts` / `*.test.*`，Jest/`@nestjs/testing` 或栈对应框架），覆盖**有逻辑分支的源码**：后端 services/controllers/providers/guards/pipes/工具函数，前端仅纯逻辑模块（`lib/api.ts`/hooks/带分支工具函数），**纯展示型组件/页面不强制**（由 E2E 覆盖），须覆盖正常/边界/异常。二者作为 Phase 4 `tests` 门的证据。历史遗留功能（已由 backlog TEST-101/TEST-102 统筹补齐）可在设计文档显式标注「legacy 测试豁免」，否则不得豁免。
 
 ### Phase 2 — 一致性 / 构建校验（本 skill 核心）
 
@@ -99,11 +99,11 @@ agent_created: true
 纯通用，不依赖任何特定子 skill。依次执行，每道门修复至通过（0 open，设计决策豁免须显式标注）：
 
 1. **一致性门（consistency）**：消费 Phase 2 结果——`${BUILD_CMD}`/`${TYPECHECK_CMD}`/`${TEST_CMD}`/`${E2E_CMD}` 全绿，全栈契约字段对齐。结论写入 `.quality-gate.json` 的 `gates.consistency`。
-2. **测试门（tests）**：本 feature 的测试证据——（a）**单元测试**：本 feature 新增/修改的源码有对应 `*.spec.ts`（或栈对应测试文件），运行 `${TEST_CMD}` 全绿；（b）**BDD/E2E**：本 feature 涉及的用户旅程有对应 `*.feature` + step definitions，运行 `${E2E_CMD}` 跑通（MockProvider/模拟数据免 key 亦可）。**无测试不得 PASSED**（除非设计文档显式标注 legacy 豁免，由 backlog TEST-101/TEST-102 统一补齐）。结论写入 `gates.tests`，注明单元文件数与 E2E 场景数。
+2. **测试门（tests）**：本 feature 的测试证据——（a）**BDD/E2E**（必做）：本 feature 涉及的用户旅程有对应 `*.feature` + step definitions，运行 `${E2E_CMD}` 跑通（MockProvider/模拟数据免 key 亦可），前端 UI 行为须由此覆盖；（b）**单元测试**：本 feature **有逻辑分支的源码**有对应 `*.spec.ts`（或栈对应测试文件），运行 `${TEST_CMD}` 全绿——后端 services/controllers/providers/guards/pipes/工具函数；前端仅纯逻辑模块（`lib/api.ts`/hooks/带分支工具函数），**纯展示型组件/页面不强制**。前端 UI 行为已由 E2E 覆盖故不强求组件单测。**无 BDD/E2E 或纯逻辑源码缺单测不得 PASSED**（除非设计文档显式标注 legacy 豁免，由 backlog TEST-101/TEST-102 统一补齐）。结论写入 `gates.tests`，注明单元文件数与 E2E 场景数。
 3. **代码审查门（review）**：用附录 B 的**通用对抗式 checklist** 逐条自查（边界/空安全/错误处理/注入安全/死代码/魔法值/日志/并发），消灭 open findings 至 0。结论写入 `gates.review`。
 4. **优化门（optimization）**：生产就绪 pass——替换 stub/占位、清理未用导出、统一错误处理、移除临时调试代码，跑到 0 open。结论写入 `gates.optimization`。
 
-> 可选增强：若项目已配置专属质量 skill（如 `ddd-code-reviewer`），可在对应门后追加调用其结论；但**默认不依赖**，缺失按通用 checklist 执行即可。
+> 可选增强：TS 项目推荐在对应门后追加调用本项目 vendor 的 `ts-code-quality` skill（覆盖 review/optimization 两道的 TS/NestJS/Next.js 取向深度检查，含只读静态反模式扫描脚本）；`.NET` 项目才考虑 `ddd-*` 系列。但**默认不依赖**，缺失按通用 checklist 执行即可。
 
 四道门结论写入 `.quality-gate.json`（字段见 `references/quality-gate-contract.md`）：`cleared:true`、`enforced:${HOOKS_ENFORCED}`、`reportRef:docs/quality/<feature-id>-gate.md`、`notes`=实现摘要（含测试证据）。同时写 `docs/quality/<feature-id>-gate.md` 质量报告。
 
@@ -174,7 +174,7 @@ agent_created: true
 <高风险项 + 缓解>
 
 ## 6. 测试计划（硬约束 #6）
-### 单元测试
+### 单元测试（仅覆盖有逻辑分支的源码；前端仅纯逻辑模块，纯展示型组件不强制）
 - <待测源码/模块 + 覆盖路径（正常/边界/异常）>
 ### BDD/E2E 用户旅程
 - <Gherkin 场景：用户可感知的端到端流程，不为纯 API 设计>

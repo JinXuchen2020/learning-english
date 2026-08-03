@@ -34,7 +34,7 @@ skill 在 Phase 0.1b 检测到项目无质量门 hook 时，静默写入 `script
 }
 ```
 
-注：`gates` 四字段内容给人看的摘要，但**字段名本身必须存在**；`cleared` 是唯一的布尔强执点（仅在有 hook 时）。设计决策豁免须在对应门结论里显式标注「N open（M 项设计决策豁免）」，不得静默清零。**`tests` 为硬门槛**：新 feature 缺单元测试或 BDD/E2E 不得标 PASSED，除非设计文档显式标注 legacy 测试豁免（历史功能由 backlog TEST-101/TEST-102 统筹补齐）。
+注：`gates` 四字段内容给人看的摘要，但**字段名本身必须存在**；`cleared` 是唯一的布尔强执点（仅在有 hook 时）。设计决策豁免须在对应门结论里显式标注「N open（M 项设计决策豁免）」，不得静默清零。**`tests` 为硬门槛**：新 feature 缺 BDD/E2E 或有逻辑分支的源码缺单元测试不得标 PASSED；前端纯展示型组件/页面不强制单测（由 E2E 覆盖）。除非设计文档显式标注 legacy 测试豁免（历史功能由 backlog TEST-101/TEST-102 统筹补齐）。
 
 ## 3. 提交信息格式（约定，含 Quality-Gate: 行）
 
@@ -54,7 +54,7 @@ Quality-Gate: consistency + tests + review + optimization PASSED (cleared:true, 
 
 本 skill Phase 4 用通用方式实现，按严格顺序：
 1. **consistency** —— 消费 Phase 2 的构建/类型/测试/契约结果，全绿方可 PASSED。
-2. **tests** —— 本 feature 的测试证据：（a）单元测试——本 feature 新增/修改的源码有对应 `*.spec.ts`（或栈对应测试文件），`${TEST_CMD}` 全绿；（b）BDD/E2E——本 feature 涉及的用户旅程有对应 `*.feature` + step definitions，`${E2E_CMD}` 跑通（MockProvider/模拟数据免 key 亦可）。**无测试不得 PASSED**（除非设计文档显式标注 legacy 豁免）。
+2. **tests** —— 本 feature 的测试证据：（a）**BDD/E2E（必做）**——本 feature 涉及的用户旅程（含前端 UI 行为）有对应 `*.feature` + step definitions，`${E2E_CMD}` 跑通（MockProvider/模拟数据免 key 亦可）；（b）**单元测试**——本 feature 有逻辑分支的源码有对应 `*.spec.ts`（或栈对应测试文件），`${TEST_CMD}` 全绿：后端 services/controllers/providers/guards/pipes/工具函数，前端仅纯逻辑模块（`lib/api.ts`/hooks/带分支工具函数），**纯展示型组件/页面不强制**（由 E2E 覆盖）。**无 BDD/E2E 或纯逻辑源码缺单测不得 PASSED**（除非设计文档显式标注 legacy 豁免）。
 3. **review** —— 用 SKILL.md 附录 B 的通用对抗式 checklist 逐条自查，修复至 0 open。
 4. **optimization** —— 生产就绪 pass（stub 替换/清理/统一错误处理），跑至 0 open。
 

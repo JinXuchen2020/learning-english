@@ -40,12 +40,17 @@
 | `auth/dto/register.dto.ts` | username 3–20、password 4–32、nickname 可选≤20 |
 | `config/database.config.ts` | getDbType（默认 sqlite；postgres/postgresql→postgres；大小写）、buildDataSourceOptions（sqlite 形状 / postgres 端口解析 / 默认兜底） |
 | `ai/ai-provider.interface.ts` | MockAiProvider 实现契约：chat/chatWithImage/transcribe/assessPronunciation/synthesize 五个方法签名与返回形状正确（验证接口可被实现，为 AI-102+ 提供范式） |
+| `common/guards/jwt-auth.guard.ts` | canActivate 正确委托给 passport `jwt` 策略（`jest.spyOn(AuthGuard('jwt').prototype, 'canActivate')` 验证委托） |
+| `config/database.config.ts` | 追加 `buildTypeOrmModuleOptions` 形状断言（与 DataSource options 一致） |
+| `modules.smoke`（新增） | import `AppModule` 顺带执行全部 8 个 feature module + app.module 的 `@Module` 装饰器，覆盖此前为 0% 的模块装配代码（bcrypt 用显式 factory mock，避免 Jest 下加载原生 `.node` 触发 Windows 文件锁） |
+| `entities.metadata`（新增） | 通过 `getMetadataArgsStorage().relations` 直接调用每个 `@OneToMany/@ManyToOne` 关系回调箭头函数，覆盖实体文件此前未执行的 relation 回调（无需真实库连接） |
 
 ## 5. 验收标准
 
 - [ ] Jest 基建就绪，`npm test` 可运行
 - [ ] 上述 17 个 `*.spec.ts` 全部通过（unit 文件数 = 17）
 - [ ] 覆盖率报告可生成（`npm run test:cov`），核心 service 行覆盖合理
+- [x] 覆盖率门槛固化：`jest.config.js` 增 `coverageThreshold`（statement/lines/functions ≥ 90%，branches ≥ 70%），statement 现 100% 全绿，防止回归
 - [ ] 不引入真实数据库 / 真实密钥；所有 Repository / JwtService / bcrypt 均 mock
 
 ## 6. BDD/E2E 说明（豁免）
@@ -61,6 +66,6 @@ TEST-101 是**测试基建类 feature，不新增用户可感知功能**，无�
 ## 8. 质量门（Phase 4 嵌入）
 
 - consistency: PASSED（tsc --noEmit strict 通过；jest 全绿；无全栈契约需对齐）
-- tests: PASSED（unit: 17 files / ~60 cases；e2e/bdd: 0 — 测试基建豁免，见 §6）
+- tests: PASSED（unit: 20 files / 74 cases 全绿；statement 100% / lines 100% / functions 100% / branches 83.42%；coverageThreshold 兜底 ≥90%；e2e/bdd: 0 — 测试基建豁免，见 §6）
 - review: PASSED（0 open；mock 边界/空安全/异常处理已覆盖）
 - optimization: PASSED（0 open；无 stub/调试残留）

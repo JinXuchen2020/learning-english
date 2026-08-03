@@ -1,4 +1,9 @@
-import { getDbType, buildDataSourceOptions, appEntities } from './database.config';
+import {
+  getDbType,
+  buildDataSourceOptions,
+  buildTypeOrmModuleOptions,
+  appEntities,
+} from './database.config';
 
 describe('database.config', () => {
   const OLD_ENV = process.env;
@@ -63,6 +68,15 @@ describe('database.config', () => {
     it('respects DB_SYNCHRONIZE=false', () => {
       process.env.DB_SYNCHRONIZE = 'false';
       expect((buildDataSourceOptions() as any).synchronize).toBe(false);
+    });
+  });
+
+  describe('buildTypeOrmModuleOptions', () => {
+    it('returns the same shape as the DataSource options', () => {
+      delete process.env.DB_TYPE;
+      const opt = buildTypeOrmModuleOptions() as any;
+      expect(opt.type).toBe('better-sqlite3');
+      expect(opt.entities).toBe(appEntities);
     });
   });
 });
