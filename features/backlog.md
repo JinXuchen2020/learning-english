@@ -21,11 +21,23 @@
 
 ---
 
+## 置顶 — 测试基建 (优先于所有 AI 功能)
+
+> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试; TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。
+> **项目约定（硬约束）**: 今后每个新 feature 必须自带单元测试 (`*.spec.ts`) + BDD/E2E (`*.feature`) 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | backlog | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
+| TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | backlog | ≥3 条核心用户旅程 `.feature` 可跑通并全绿; 启动真实/模拟前后端 (MockProvider 免 key); step definitions 复用页面交互而非直接调 API; BDD 场景即 E2E 验收用例 |
+
+---
+
 ## M1 — AI 基建 (W1)
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-101 | **AiProvider 接口定义** — 新建 `server/src/ai/ai-provider.interface.ts`, 定义 `chat / transcribe / assessPronunciation / synthesize` 四个方法签名及 `TranscriptResult / ScoreResult / ChatResult` 类型 | P0 | — | backlog | TS strict 编译通过; 接口有 JSDoc; 类型覆盖 LLM/STT/TTS/发音评测 |
+| AI-101 | **AiProvider 接口定义** — 新建 `server/src/ai/ai-provider.interface.ts`, 定义 `chat / transcribe / assessPronunciation / synthesize` 四个方法签名及 `TranscriptResult / ScoreResult / ChatResult` 类型 | P0 | — | done | TS strict 编译通过; 接口有 JSDoc; 类型覆盖 LLM/STT/TTS/发音评测 |
 | AI-102 | **BigModel provider 实现** — `bigmodel.provider.ts` 实现接口: chat 走智谱 OpenAI 兼容端点 `https://open.bigmodel.cn/api/paas/v4/chat/completions` (Bearer key); 模型经 `BIGMODEL_MODEL` 配置 (默认 `glm-4.7-flash`); ⚠️ 推理模型: 响应含 `reasoning_content`+`content`, provider 只读 `content`, `max_tokens` ≥512, 超时 ≥60s; `chatWithImage` 走 `BIGMODEL_VISION_MODEL` (默认 `glm-4.6v-flash`, base64 image_url 输入); STT/TTS 待评估, 暂用 mock/降级 | P0 | AI-101 | backlog | 真实 key 下跑通一次 chat 并返回 content; 多模态/OCR 调用返回文本; 无效 key 返回清晰错误 |
 | AI-103 | **AiModule 动态装配** — `ai.module.ts` 按 `.env` 的 `AI_PROVIDER` 值注册对应 provider (`bigmodel` \| `nvidia` \| `mock`), 未配置时注册 MockProvider | P0 | AI-102 | backlog | 无 key 时应用可启动; provider 切换只改 env 一处 |
 | AI-104 | **MockProvider** — 返回确定性假数据的 provider (固定 plan/报告文本、假评分), 供开发与测试 | P0 | AI-101 | backlog | 无 key 时前端可跑通全流程演示 |
@@ -115,6 +127,7 @@
 
 | 里程碑 | 包含 | 完成标志 |
 |---|---|---|
+| **测试基线** (置顶优先) | TEST-101 ~ TEST-102 | 单测全绿 + BDD/E2E 核心用户旅程跑通 |
 | **Milestone 1** (W1) | AI-101 ~ AI-108 | AiProvider 三 provider 可用, 无 key 可 mock 演示 |
 | **Milestone 2** (W2) | AI-201 ~ AI-209 | `/plan` 页生成+应用真实/模板计划, 任务联动 |
 | **Milestone 3** (W3-W4) | AI-301 ~ AI-309 | `/speech` 页完整 听→录→评→星 闭环 |
