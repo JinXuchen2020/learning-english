@@ -1,9 +1,15 @@
 // Playwright lifecycle hooks: launch one browser for the whole run,
 // open a fresh isolated context+page per scenario (so registrations don't collide).
-const { Before, After, AfterAll, BeforeAll } = require("@cucumber/cucumber");
-const { chromium } = require("@playwright/test");
+import { Before, After, AfterAll, BeforeAll, setDefaultTimeout } from "@cucumber/cucumber";
+import { chromium, Browser } from "@playwright/test";
+import type E2EWorld from "./world";
 
-let browser;
+// Generous step timeout: real browser navigation + backend round-trips can take
+// longer than Cucumber's implicit 5s, especially on first navigation. CI's
+// bundled Chromium is fast, but this keeps local (Edge) runs from flaking.
+setDefaultTimeout(30000);
+
+let browser: Browser;
 
 BeforeAll({ timeout: 60000 }, async function () {
   // Browser channel is configurable so the same harness runs locally (Edge,
@@ -12,12 +18,14 @@ BeforeAll({ timeout: 60000 }, async function () {
   //   - in CI:    E2E_BROWSER_CHANNEL=""       -> no channel -> bundled Chromium
   const envChannel = process.env.E2E_BROWSER_CHANNEL;
   const channel = envChannel !== undefined ? envChannel : "msedge";
-  const launchOptions = { args: ["--no-sandbox", "--disable-dev-shm-usage"] };
+  const launchOptions: { args: string[]; channel?: string } = {
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  };
   if (channel) launchOptions.channel = channel;
   browser = await chromium.launch(launchOptions);
 });
 
-Before(async function () {
+Before(async function (this: E2EWorld) {
   this.context = await browser.newContext();
   this.page = await this.context.newPage();
   this.page.setDefaultTimeout(15000);
@@ -29,7 +37,7 @@ Before(async function () {
       console.log(`[browser:${type}] ${msg.text()}`);
     }
   });
-  this.page.on("pageerror", (err) => {
+  this.page.on("pageerror", (err: Error) => {
     console.log(`[browser:pageerror] ${err.message}`);
   });
   this.page.on("requestfailed", (req) => {
@@ -37,7 +45,7 @@ Before(async function () {
   });
 });
 
-After(async function () {
+After(async function (this: E2EWorld) {
   if (this.page) await this.page.close();
   if (this.context) await this.context.close();
 });
@@ -46,6 +54,6 @@ AfterAll({ timeout: 60000 }, async function () {
   try {
     if (browser) await browser.close();
   } catch (e) {
-    console.error("browser close warning:", e.message);
+    console.error("browser close warning:", (e as Error).message);
   }
 });

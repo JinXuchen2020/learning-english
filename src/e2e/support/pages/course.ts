@@ -1,20 +1,22 @@
 // Page object for the course screen (src/app/course/page.tsx).
 // List view: data-component="CourseList"; detail view: data-component="CourseDetail"
 // with data-component="LessonList" containing the lesson rows.
-class CoursePage {
-  constructor(page) {
+import { Page } from "@playwright/test";
+
+export default class CoursePage {
+  private page: Page;
+
+  constructor(page: Page) {
     this.page = page;
   }
 
-  async waitDetail() {
+  async waitDetail(): Promise<void> {
     await this.page.waitForSelector('[data-component="CourseDetail"]');
     await this.page.waitForSelector('[data-component="LessonList"]');
   }
 
-  async lessonCount() {
+  async lessonCount(): Promise<number> {
     // Lesson rows are the direct children of the .space-y-3 container inside LessonList.
     return this.page.locator('[data-component="LessonList"] .space-y-3 > *').count();
   }
 }
-
-module.exports = { CoursePage };

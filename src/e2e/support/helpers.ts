@@ -1,9 +1,11 @@
 // Shared helpers: unique test-user generation and the "log in as new user" flow.
-const { LoginPage } = require("./pages/login");
-const { HomePage } = require("./pages/home");
+import LoginPage from "./pages/login";
+import HomePage from "./pages/home";
+import type { Page } from "@playwright/test";
+import type { TestUser } from "./world";
 
 // Generate a collision-free username so repeated runs never hit a 409.
-function makeUser() {
+export function makeUser(): TestUser {
   const suffix = Date.now().toString(36) + Math.floor(Math.random() * 1000);
   return {
     username: `kid_${suffix}`,
@@ -14,7 +16,7 @@ function makeUser() {
 
 // Register a brand-new user via the UI and wait until the home dashboard loads.
 // Returns the credentials so later steps (e.g. a real login) can reuse them.
-async function loginAsNewUser(page, baseUrl) {
+export async function loginAsNewUser(page: Page, baseUrl: string): Promise<TestUser> {
   const user = makeUser();
   const login = new LoginPage(page, baseUrl);
   await login.open();
@@ -23,5 +25,3 @@ async function loginAsNewUser(page, baseUrl) {
   await home.waitLoaded();
   return user;
 }
-
-module.exports = { makeUser, loginAsNewUser };

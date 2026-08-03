@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "e2e": "cucumber-js --config e2e/cucumber.js"
+    "e2e": "cucumber-js --config e2e/cucumber.js",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json --noEmit"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.0",
@@ -27,6 +28,7 @@
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.23.5",
     "typescript": "^5.5.0"
   }
 }
