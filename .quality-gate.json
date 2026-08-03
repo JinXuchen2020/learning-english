@@ -10,5 +10,5 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-101-gate.md",
-  "notes": "AI-101 交付 server/src/ai/ai-provider.interface.ts：AiProvider 接口（chat/chatWithImage/transcribe/assessPronunciation/synthesize）+ 全套类型 + AI_PROVIDER_TOKEN + ProviderName。三道通用质量门（一致性/审查/优化）按 NestJS/TS 现实适配后全绿。"
+  "notes": "AI-101 交付 server/src/ai/ai-provider.interface.ts：AiProvider 接口（chat/chatWithImage/transcribe/assessPronunciation/synthesize）+ 全套类型 + AI_PROVIDER_TOKEN + ProviderName。四道通用质量门（一致性/tests/审查/优化）按 NestJS/TS 现实适配后全绿。server/package-lock.json 现已纳入版本控制（lockfileVersion 3，518 个锁定包），依赖可复现，后续装依赖统一用 npm ci。"
 }
