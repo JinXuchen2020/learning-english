@@ -7,8 +7,10 @@ import { join, relative, extname } from 'node:path';
 
 const args = process.argv.slice(2);
 let root = '.';
+let failOn = null; // e.g. "P1" -> exit 1 if any finding at or above this severity
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--dir') root = args[++i];
+  else if (args[i] === '--fail-on') failOn = String(args[++i]).toUpperCase();
 }
 
 const SKIP_DIRS = new Set([
@@ -146,3 +148,24 @@ if (findings.length) {
 } else {
   console.log('\nNo static anti-patterns detected.');
 }
+
+// CI gate: optionally fail the process when findings reach a severity floor.
+if (failOn) {
+  const rank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const threshold = rank[failOn];
+  if (threshold === undefined) {
+    console.error(`[WARN] Unknown --fail-on value "${failOn}" (expected P0|P1|P2|P3); ignoring gate.`);
+  } else {
+    const blockers = findings.filter((f) => rank[f.severity] <= threshold);
+    if (blockers.length) {
+      console.error(
+        `\n[FAIL] ${blockers.length} finding(s) at or above --fail-on ${failOn} ` +
+          `(P0:${counts.P0} P1:${counts.P1} P2:${counts.P2} P3:${counts.P3}).`,
+      );
+      process.exit(1);
+    }
+    console.log(`\n[OK] No findings at or above --fail-on ${failOn}.`);
+  }
+}
+
+process.exit(0);

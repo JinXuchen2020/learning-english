@@ -6,13 +6,15 @@ const { chromium } = require("@playwright/test");
 let browser;
 
 BeforeAll({ timeout: 60000 }, async function () {
-  // Use the system-installed Microsoft Edge instead of a downloaded Chromium
-  // build (channel: 'msedge' launches the local Edge via CDP). Avoids the
-  // ~150MB Chromium download and works offline.
-  browser = await chromium.launch({
-    channel: "msedge",
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-  });
+  // Browser channel is configurable so the same harness runs locally (Edge,
+  // no Chromium download) and in CI (bundled Chromium on Linux).
+  //   - locally:  E2E_BROWSER_CHANNEL unset  -> defaults to "msedge"
+  //   - in CI:    E2E_BROWSER_CHANNEL=""       -> no channel -> bundled Chromium
+  const envChannel = process.env.E2E_BROWSER_CHANNEL;
+  const channel = envChannel !== undefined ? envChannel : "msedge";
+  const launchOptions = { args: ["--no-sandbox", "--disable-dev-shm-usage"] };
+  if (channel) launchOptions.channel = channel;
+  browser = await chromium.launch(launchOptions);
 });
 
 Before(async function () {
