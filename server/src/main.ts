@@ -7,7 +7,22 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: ['http://127.0.0.1:3000', 'http://localhost:3000'] });
+  // Allow the API to be called from the frontend dev/CI origins. We accept any
+  // localhost/127.0.0.1 origin (any port) so the E2E suite works whether the
+  // frontend is served on :3000 (CI) or another local port, and so a wrong
+  // credential still reaches the 401 branch instead of being blocked by CORS.
+  app.enableCors({
+    origin: (requestOrigin, callback) => {
+      if (
+        !requestOrigin ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestOrigin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+  });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );

@@ -21,6 +21,20 @@ Before(async function () {
   this.context = await browser.newContext();
   this.page = await this.context.newPage();
   this.page.setDefaultTimeout(15000);
+  // Surface client-side failures (CORS blocks, fetch errors, React errors) in
+  // the CI log — without this, a 401 that never reaches the UI is invisible.
+  this.page.on("console", (msg) => {
+    const type = msg.type();
+    if (type === "error" || type === "warning") {
+      console.log(`[browser:${type}] ${msg.text()}`);
+    }
+  });
+  this.page.on("pageerror", (err) => {
+    console.log(`[browser:pageerror] ${err.message}`);
+  });
+  this.page.on("requestfailed", (req) => {
+    console.log(`[browser:requestfailed] ${req.method()} ${req.url()} -> ${req.failure()?.errorText}`);
+  });
 });
 
 After(async function () {

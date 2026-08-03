@@ -65,12 +65,37 @@ class LoginPage {
     // The error only renders after the async login request rejects and React
     // re-renders, so wait for it instead of reading immediately — otherwise the
     // alert element is still absent and we'd report a misleading "null".
+    let appeared = false;
     try {
-      await alert.first().waitFor({ state: "visible", timeout: 10000 });
+      await alert.first().waitFor({ state: "visible", timeout: 15000 });
+      appeared = true;
     } catch {
+      // If we ended up on the home page, the login unexpectedly SUCCEEDED
+      // (e.g. the backend accepted the credentials) instead of failing — that
+      // is a real bug, surface it clearly rather than a cryptic "null".
+      const onHome = await this.page
+        .evaluate(() => location.pathname === "/")
+        .catch(() => false);
+      if (onHome) {
+        throw new Error(
+          "Login unexpectedly succeeded (redirected to /) for credentials expected to fail. " +
+            "Check that the backend rejects this user and that the test uses a non-existent account."
+        );
+      }
       return null;
     }
-    return (await alert.first().textContent())?.trim() || null;
+
+    // Once visible, read the text — but retry briefly: between waitFor resolving
+    // and textContent() running, React may still be painting the node, and
+    // Playwright returns `null` for a momentarily-detached element.
+    if (appeared) {
+      for (let i = 0; i < 10; i++) {
+        const text = (await alert.first().textContent())?.trim();
+        if (text) return text;
+        await this.page.waitForTimeout(100);
+      }
+    }
+    return null;
   }
 }
 
