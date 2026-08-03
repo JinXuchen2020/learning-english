@@ -1,0 +1,9 @@
+{
+  "phase": "ai-101",
+  "reviewer": "ddd-code-reviewer PASSED (adapted to TS; 0 open; 3 risk areas investigated: AudioInput encoding, reasoning-model empty text, ProviderName forward-declared contract)",
+  "structureGate": "ddd-phase-quality-gate PASS (adapted to TS/NestJS; 8-category checklist; P0/P1/P2/P3 = 0 open; DI-completeness & EF-core N/A by design for types-only file)",
+  "codebaseOptimizer": "codebase-optimizer PASSED (Round 1, 0 open; 7-dimension scan adapted; 1 P3 design-decision waived: AudioResult dual-optional vs discriminated union)",
+  "cleared": true,
+  "reportRef": "docs/quality/ai-101-gate.md",
+  "notes": "AI-101 交付 server/src/ai/ai-provider.interface.ts：AiProvider 接口（chat/chatWithImage/transcribe/assessPronunciation/synthesize）+ 全套类型（ChatMessage/ChatResult/TranscriptResult/ScoreResult/AudioResult 等）+ AI_PROVIDER_TOKEN + ProviderName。TS strict 编译通过，JSDoc 完整，覆盖 LLM/STT/TTS/发音评测四类能力。三道 .NET/DDD 质量门按 NestJS/TS 现实等价适配后全绿。"
+}
