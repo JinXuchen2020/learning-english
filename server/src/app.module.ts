@@ -9,11 +9,13 @@ import { WordsModule } from './words/words.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ProgressModule } from './progress/progress.module';
 import { buildTypeOrmModuleOptions } from './config/database.config';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot(buildTypeOrmModuleOptions()),
+    HealthModule,
     AuthModule,
     UsersModule,
     CoursesModule,
