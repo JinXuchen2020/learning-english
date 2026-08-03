@@ -1,6 +1,6 @@
 #!/bin/sh
 # feature-builder 质量门 pre-commit 强执 hook（自动安装，跨平台）
-# 暂存区含源码改动时，要求 .quality-gate.json 已暂存 + cleared:true + gates 三字段 PASSED。
+# 暂存区含源码改动时，要求 .quality-gate.json 已暂存 + cleared:true + gates（consistency/tests/review/optimization）四字段 PASSED。
 set -e
 
 staged=$(git diff --cached --name-only --diff-filter=ACM)
@@ -10,7 +10,7 @@ staged=$(git diff --cached --name-only --diff-filter=ACM)
 has_src=0
 for f in $staged; do
   case "$f" in
-    docs/*|.quality-gate.json|features/*.md|*.md|README*|CHANGELOG*|LICENSE*|scripts/git-hooks/pre-commit)
+    docs/*|.quality-gate.json|features/*.md|*.md|README*|CHANGELOG*|LICENSE*|.gitignore|scripts/git-hooks/pre-commit)
       ;;
     *)
       has_src=1
@@ -39,7 +39,7 @@ if ! printf '%s\n' "$gate" | grep -q '"cleared"[[:space:]]*:[[:space:]]*true'; t
   exit 1
 fi
 
-for g in consistency review optimization; do
+for g in consistency tests review optimization; do
   if ! printf '%s\n' "$gate" | grep -q "\"$g\"[[:space:]]*:[[:space:]]*\"PASSED"; then
     echo "质量门未通过：gates.$g 必须为 PASSED" >&2
     exit 1

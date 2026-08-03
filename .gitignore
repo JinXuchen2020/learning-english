@@ -64,6 +64,6 @@ desktop.ini
 
 # --- Agent-local data (WorkBuddy: private per-clone, never commit) ---
 # 含 memory/、SOUL.md / IDENTITY.md / USER.md / BOOTSTRAP.md 等私有数据
-.workbuddy/
+.workbuddy/*
 # 但保留项目级 skills/ 跟踪，使 feature-builder 工作流（含质量门 hook 约定）可随仓库复现
 !.workbuddy/skills/

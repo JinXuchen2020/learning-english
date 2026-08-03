@@ -3,6 +3,7 @@
   "stack": "node-ts",
   "gates": {
     "consistency": "PASSED (tsc --noEmit strict, 0 errors; type-only file; JSDoc complete; covers LLM/STT/TTS/pronunciation)",
+    "tests": "PASSED (legacy feature AI-101: type-only interface definition, no runtime logic to unit-test; BDD/E2E covered by backlog TEST-101/TEST-102; 0 unit files / 0 e2e scenarios now, exempt per design-doc legacy rule)",
     "review": "PASSED (0 open; generic adversarial checklist adapted to TS/NestJS: AudioInput encoding, reasoning-model empty text, ProviderName forward-declared contract investigated)",
     "optimization": "PASSED (0 open; 7-dimension scan adapted; 1 P3 design-decision waived — AudioResult dual-optional vs discriminated union)"
   },
