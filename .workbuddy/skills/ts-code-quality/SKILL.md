@@ -44,14 +44,14 @@ agent_created: true
 node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir <项目根>
 ```
 
-脚本扫描 `src/**/*.{ts,tsx}`（跳过 `node_modules/.next/dist/build/coverage` 与 `*.spec.*`/`*.test.*`），对以下反模式给出 `File:Line` 报告：`any` 逃逸、`console.*` 残留、`TODO/FIXME/HACK`、空 catch、疑似硬编码密钥、`dangerouslySetInnerHTML`、`eval/new Function`、eslint-disable 抑制。脚本**只读不改**，输出 Markdown 表。默认不阻断流程（exit 0）；加 `--fail-on <P0|P1|P2|P3>` 后，凡达到该严重度（含更高）的 finding 都会让进程 `exit 1`，用于 CI 质量门：
+脚本扫描 `src/**/*.{ts,tsx}`（跳过 `node_modules/.next/dist/build/coverage` 与 `*.spec.*`/`*.test.*`），对以下反模式给出 `File:Line` 报告：`any` 逃逸、`console.*` 残留、`TODO/FIXME/HACK`、空 catch、疑似硬编码密钥、`dangerouslySetInnerHTML`、`eval/new Function`、eslint-disable 抑制。脚本**只读不改**，输出 Markdown 表。默认不阻断流程（exit 0）；加 `--fail-on <P0|P1|P2|P3>` 后，凡达到该严重度（含更高）的 finding 都会让进程 `exit 1`，用于 CI 质量门；加 `--exclude <相对路径,逗号分隔>`（支持 `**`/`*` glob）可跳过测试夹具等目录——例如 E2E harness 中的假口令会误触 `hardcoded-secret`，应排除 `src/e2e`：
 
 ```sh
 # 仅报告（exit 0）
 node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir <项目根>
 
-# CI 门禁：出现 P1 及以上（P0/P1）finding 时 exit 1
-node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir <项目根> --fail-on P1
+# CI 门禁：出现 P1 及以上（P0/P1）finding 时 exit 1，并排除 E2E 测试夹具
+node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir <项目根> --fail-on P1 --exclude "src/e2e"
 ```
 
 它筛出候选，人工/子代理再定夺严重度；`--fail-on` 仅对真实风险模式（硬编码密钥、XSS、注入）这类 P0/P1 上锁，P2/P3（如 NestJS `@Request() req: any`、错误分支 `console.error`）按团队既有容忍度不阻断。

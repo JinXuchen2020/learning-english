@@ -5,7 +5,7 @@ import type { Course, Lesson, Word, DailyTask } from "./types";
  * so this points straight at it. Override with NEXT_PUBLIC_API_URL if the
  * backend lives elsewhere.
  */
-const API_BASE =
+export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 /**
@@ -46,7 +46,7 @@ async function request<T>(
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  let body: any = null;
+  let body: unknown = null;
   const text = await res.text();
   if (text) {
     try {
@@ -57,9 +57,14 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const message =
-      (body && (body.message || body.error)) || `Request failed (${res.status})`;
-    throw new ApiError(Array.isArray(message) ? message.join(", ") : message, res.status);
+    let message = `Request failed (${res.status})`;
+    if (body && typeof body === "object") {
+      const payload = body as Record<string, unknown>;
+      const candidate = payload.message ?? payload.error;
+      if (typeof candidate === "string") message = candidate;
+      else if (Array.isArray(candidate)) message = candidate.map(String).join(", ");
+    }
+    throw new ApiError(message, res.status);
   }
 
   return body as T;

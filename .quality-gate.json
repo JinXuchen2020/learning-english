@@ -1,14 +1,14 @@
 {
-  "phase": "test-102",
+  "phase": "log-101",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (前端 next build/前端 dev 就绪 127.0.0.1:3000; 后端 nest build + 启动 :4000 sqlite+seed 全绿; Cucumber+Playwright E2E 串联真实前后端 6 scenarios/27 steps 全绿; 无全栈契约需对齐)",
-    "tests": "PASSED (unit: 0 新文件 — TEST-102 纯 E2E 基建，不新增后端单测; e2e/bdd: 4 features / 6 scenarios / 27 steps 全绿，浏览器用本机 Microsoft Edge 经 channel:'msedge' 启动，无需下载 Chromium; 选择器匹配真实 DOM：data-component=LoginPage / #username / button[aria-pressed] 切换 tab / form button[type=submit] 提交 / AuthGate 拦截 / CourseList 课程卡)",
-    "review": "PASSED (0 open; E2E harness 仅只读扫描式步骤，无源码侵入; step definitions 与真实页面 DOM 一一对应，已修订登录页双 'Sign In' 选择器歧义)",
-    "optimization": "PASSED (0 open; 无 stub/调试残留; 单浏览器 BeforeAll 复用 + 每场景隔离 context 控制资源; hooks 设 60s 超时容错避免 Edge 关闭慢致进程异常退出)"
+    "consistency": "PASSED (后端 nest build 通过; 后端 jest 91 tests 全绿 + 覆盖率 statement/lines/functions 100%/branches≥70% (门槛≥90% s/l/f, ≥70% b); 前端 next build 通过 (类型+编译); 前端 vitest 7 tests 全绿; 前后端 envelope 字段对齐: 前端 POST {level,message,meta} ↔ 后端 LogEnvelopeDto {level:enum,message:string,meta?:unknown})",
+    "tests": "PASSED (unit: 后端 jest 2 新文件 logger.spec + logs.controller.spec (17 tests); 前端 vitest 2 新文件 logger.spec + api.spec (7 tests); 后端 controller 经 class-validator 覆盖非法 envelope→400; BDD/E2E: 豁免 — 日志基建为跨切面基础设施, 无用户可感知 UI 旅程, 且项目 TEST-102 已确立『不为纯后端 API/基础设施写 BDD』红线, 故不写 BDD/E2E, 仅以单测+集成(前端 POST 被后端同文件接收)为证据, 见设计文档 §6)",
+    "review": "PASSED (0 open; 应用生产代码(后端除 main.ts 启动横幅/seed.ts、前端 src/app+src/lib) 裸 console.* 清零; any 清零: src/lib/api.ts body 由 any 改为 unknown 并收窄错误 message; 日志不泄露敏感; 前端转发 best-effort 且绝不递归记录日志失败)",
+    "optimization": "PASSED (0 open; 无 stub/调试残留; 日志文件异步 best-effort 不阻塞主流程; LogEnvelopeDto 校验经全局 ValidationPipe)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/test-102-gate.md",
-  "notes": "TEST-102 建立 BDD/E2E 测试基线：Gherkin .feature (authentication / home-dashboard / task-completion / course-browse) + Cucumber + Playwright (TypeScript step definitions / page objects / hooks / world)。覆盖现有 4 个页面的核心用户旅程；plan/speech/report 旅程按硬约束 #6 留待对应 feature 建页时各自自带 E2E。运行依赖：后端 sqlite+seed (:4000) + 前端 dev (:3000) + 本机 Edge（本地）/ bundled Chromium（CI）。CI 已落地：.github/workflows/ci.yml 在 PR→master 与 push→master 时自动跑四门禁——后端 build+单测覆盖率(≥90%)、前端 build、全栈 E2E(Cucumber+Playwright，CI 用 E2E_BROWSER_CHANNEL=\"\" 走 bundled Chromium)、静态质量扫描(--fail-on P1 阻断硬编码密钥/XSS/注入)。本地仍以本机 Edge 运行 E2E（hooks 中 E2E_BROWSER_CHANNEL 未设时默认 msedge）。"
+  "reportRef": "docs/quality/log-101-gate.md",
+  "notes": "LOG-101 统一日志基建: 后端 Logger 写 server/logs/app-YYYY-MM-DD.log (error/warn/info/debug, 异步 append + 镜像 console) 并提供 POST /api/log 接收前端日志汇总同一文件; 前端 Logger 封装 console 并 best-effort POST ${API_BASE}/log (浏览器不能写文件故走后端落盘); 约定之后新 feature 仅用 Logger (禁裸 console); 顺带修 src/lib/api.ts 的 any。为落实『前端纯逻辑模块需单测』约定, 引入 vitest (devDependency) + test:unit 脚本 + vitest.config.ts + CI frontend-unit job (跑 vitest); 此前项目前端无单测 runner, 此为首次补齐。E2E 夹具 (src/e2e/**) console 沿用质量门 --exclude src/e2e 豁免。CI 现五门: backend/frontend/frontend-unit/quality/e2e。"
 }

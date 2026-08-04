@@ -1,16 +1,23 @@
 #!/usr/bin/env node
 // ts-code-quality 只读静态反模式扫描器（不修改任何文件）。
 // 扫描 src 下 .ts/.tsx，输出 Markdown 报告。
-// 用法: node code-quality-scan.mjs [--dir <项目根>]
+// 用法: node code-quality-scan.mjs [--dir <项目根>] [--fail-on P0|P1|P2|P3] [--exclude <相对路径,逗号分隔>]
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 
 const args = process.argv.slice(2);
 let root = '.';
 let failOn = null; // e.g. "P1" -> exit 1 if any finding at or above this severity
+const excludePatterns = []; // 相对路径/目录/glob，跳过测试夹具等不应纳入质量门的文件
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--dir') root = args[++i];
   else if (args[i] === '--fail-on') failOn = String(args[++i]).toUpperCase();
+  else if (args[i] === '--exclude') {
+    String(args[++i]).split(',').forEach((x) => {
+      const t = x.trim();
+      if (t) excludePatterns.push(t);
+    });
+  }
 }
 
 const SKIP_DIRS = new Set([
@@ -19,6 +26,29 @@ const SKIP_DIRS = new Set([
 const isTestFile = (name) =>
   name.endsWith('.spec.ts') || name.endsWith('.test.ts') ||
   name.endsWith('.spec.tsx') || name.endsWith('.test.tsx') || name.endsWith('.d.ts');
+
+// 测试夹具（如 E2E harness 中的假口令）应排除在质量门之外——它们本就要含固定凭据。
+// 任何 exclude 项匹配「相对 cwd 的路径」或「相对扫描根的路径」即跳过（支持 **/* glob）。
+function isExcluded(relPath, patterns) {
+  const p = relPath.split('\\').join('/');
+  for (const raw of patterns) {
+    let pat = raw.trim().split('\\').join('/');
+    if (!pat) continue;
+    // 无 glob 字符 -> 按目录前缀匹配（含目录本身）
+    if (!/[*?]/.test(pat) && (p === pat || p.startsWith(pat + '/'))) return true;
+    const re = new RegExp(
+      '^' +
+        pat
+          .replace(/[.+^${}()|[\]\\]/g, '\\$&') // 转义正则元字符（保留 * ?）
+          .replace(/\*\*/g, '.*')
+          .replace(/\*/g, '[^/]*')
+          .replace(/\?/g, '.') +
+        '$',
+    );
+    if (re.test(p)) return true;
+  }
+  return false;
+}
 
 // 每条规则: id / severity / desc / re(全局匹配)
 const rules = [
@@ -86,7 +116,15 @@ function walk(dir, out) {
     } else if (e.isFile()) {
       const ext = extname(e.name);
       if ((ext === '.ts' || ext === '.tsx') && !isTestFile(e.name)) {
-        out.push(join(dir, e.name));
+        const full = join(dir, e.name);
+        if (
+          excludePatterns.length &&
+          (isExcluded(relative(process.cwd(), full), excludePatterns) ||
+            isExcluded(relative(root, full), excludePatterns))
+        ) {
+          continue;
+        }
+        out.push(full);
       }
     }
   }

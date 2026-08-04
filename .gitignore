@@ -43,7 +43,12 @@ outputs/
 
 # --- Logs ---
 logs/
+server/logs/
 *.log
+# 例外：server/src/logs/ 是 LogsController 的【源码目录】，必须跟踪（运行时日志落在 server/logs/，与此不同路径）
+# 关键：必须先 re-include 目录本身（结尾 /，不带 **），git 才会 descend 进去；
+# 否则父目录 server/src/logs/ 被 logs/ 忽略后，文件级 !server/src/logs/** 无法挽救。
+!server/src/logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
