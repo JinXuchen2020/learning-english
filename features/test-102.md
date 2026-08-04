@@ -61,18 +61,21 @@ SQLITE_PATH=/tmp/test102-e2e.sqlite DB_TYPE=sqlite PORT=4000 node dist/main &
 cd src
 npm run dev &
 
-# 3) E2E（需先 npm install 装好 @cucumber/cucumber + @playwright/test；浏览器复用本机 Microsoft Edge，
-#    通过 channel:'msedge' 启动，无需 npx playwright install chromium 下载 Chromium）
+# 3) E2E（浏览器经 env 可配 channel：两种都可用）
+# 本地最快：直接复用本机 Microsoft Edge（Playwright channel:'msedge'，免下载，本机实测可启动 v150.0.4078.99）
 cd src
-npm run e2e
+E2E_BROWSER_CHANNEL=msedge npm run e2e
+# 或 CI 同款 bundled Chromium（首次需下载，空 channel 触发）
+# npx playwright install chromium
+# E2E_BROWSER_CHANNEL="" npm run e2e
 ```
 
-CI 建议（参见未落地的 `.github/workflows/ci.yml` 讨论）：PR 到 master 时跑 `server` 单测 + 上述 E2E，门禁双保险。
+CI 已落地（`.github/workflows/ci.yml` 含 e2e job：build 双端 + `playwright install --with-deps chromium` + `E2E_BROWSER_CHANNEL=""` 跑全栈 E2E）：PR 到 master 自动校验。
 
 ## 8. 质量门（Phase 4 嵌入）
 
 - consistency: PASSED（前端 `next build` / 后端 `nest build` + 启动 :4000 sqlite+seed 全绿；E2E 串联真实前后端全绿）
-- tests: PASSED（unit: 0 新文件 — 纯 E2E 基建；e2e/bdd: **4 features / 6 scenarios / 27 steps 全绿**，浏览器用本机 Edge 经 `channel:'msedge'`，无需下载 Chromium）
+- tests: PASSED（unit: 0 新文件 — 纯 E2E 基建；e2e/bdd: **4 features / 6 scenarios / 27 steps 全绿**；浏览器经 env 可配 channel：CI 用 bundled Chromium（`E2E_BROWSER_CHANNEL=""`），本机验证用系统 Edge（`E2E_BROWSER_CHANNEL=msedge`，Playwright 实测可启动 v150.0.4078.99））
 - review: PASSED（0 open；已修订登录页双 `Sign In` 选择器歧义，改用 `button[aria-pressed]` 切 tab、`form button[type=submit]` 提交）
 - optimization: PASSED（0 open；单浏览器复用 + 每场景隔离 context；hooks 设 60s 超时容错）
 
