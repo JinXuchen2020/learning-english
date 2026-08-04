@@ -1,14 +1,14 @@
 {
-  "phase": "ai-102",
+  "phase": "ai-103",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 errors; jest 23 suites/107 tests all green; no contract drift)",
-    "tests": "PASSED (unit: 1 file [bigmodel.provider.spec.ts, 17 tests, 100% stmts/fn/lines, 85.71% branches]; e2e/bdd: 0 scenarios — headless provider, deferred to consuming features AI-202/AI-303/AI-304/AI-402/AI-606, explicitly exempted in features/ai-102.md §6)",
-    "review": "PASSED (0 open; null-safety/error-clarity/key-not-logged/no-any/logger-used verified)",
-    "optimization": "PASSED (0 open; no stubs, unified AiProviderException, no debug leftovers)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 全量 26 suites/126 tests 全绿; DI 装配测试通过; 无新增契约漂移)",
+    "tests": "PASSED (unit: 3 files / 18 cases 全绿; ai.module+mock-ai.provider 覆盖率 100%; e2e/bdd: 0 scenarios — headless DI 基建豁免, 见 features/ai-103.md §6)",
+    "review": "PASSED (0 open; 空安全/错误清晰/密钥不落日志/无 any/无 stub 残留)",
+    "optimization": "PASSED (0 open; 无占位死代码, 回退路径有 warn 日志无吞错, 不引入新依赖)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-102-gate.md",
-  "notes": "新增 server/src/ai/bigmodel.provider.ts + bigmodel.provider.spec.ts。chat/chatWithImage 对接智谱 OpenAI 兼容端点；transcribe/assessPronunciation/synthesize 返回降级结果。错误清晰化(AiProviderException: 401/429/5xx/504/NETWORK/502)。未引入新依赖，仅用 globalThis.fetch。未创建 AiModule(AI-103)/未做重试(AI-106)/未改 .env.example(AI-105)。"
+  "reportRef": "docs/quality/ai-103-gate.md",
+  "notes": "实现 server/src/ai/ai.module.ts(createAiProvider 工厂 + @Global AiModule) + server/src/ai/mock-ai.provider.ts(MockAiProvider 确定性假数据) + AppModule 导入 AiModule。按 AI_PROVIDER 动态注册 bigmodel/mock，未实现 provider 回退 mock 并告警，保证无 key 可启动。单测 3 文件 18 用例全绿，新文件覆盖率 100%。BDD/E2E 对 headless DI 基建显式豁免。"
 }
