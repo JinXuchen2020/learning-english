@@ -15,24 +15,60 @@ import {
 } from './ai-provider.interface';
 
 /**
- * MockAiProvider —— 确定性假数据 provider（AI-103 建立的基线实现）。
+ * MockAiProvider —— 确定性假数据 provider（AI-103 建立基线，AI-104 扩展夹具）。
  *
  * 用途：
  * - 当 `AI_PROVIDER` 缺失 / 为 `mock` / 或未实现的 `nvidia`·`azure` 时，
  *   `AiModule` 用它注册，保证「无 key 时应用可启动」且前端可跑通全流程演示。
- * - 返回**确定性**结果，便于开发与单测，不依赖任何外部 API。
+ * - 返回**确定性**、**可信演示内容**（固定 plan/报告文本、真实感假评分、示例转写句），
+ *   不依赖任何外部 API，便于开发与单测。
  *
- * 与 AI-104 的关系：AI-104 计划在其基础上扩展更丰富的固定 plan/报告夹具，
- * 本文件即其基线，不另造类（详见 `features/ai-103.md` §5 边界说明）。
+ * 与真实 schema 的边界：AI-203/AI-204 才定义真实 plan JSON Schema；本 provider 的
+ * `chat` 只返回**可读演示文本**（非最终 JSON 结构），避免伪造未定稿 schema 误导消费方。
  */
+
+/** chat 意图分类，决定返回哪类演示夹具。 */
+type ChatIntent = 'plan' | 'report' | 'generic';
+
+/** 计划意图关键词（小写匹配，命中其一即归为 plan）。 */
+const PLAN_KEYWORDS = ['计划', 'plan', '学习计划', 'schedule', '每日', '周计划', '学习方案', '课程'];
+
+/** 报告意图关键词（小写匹配，命中其一即归为 report）。 */
+const REPORT_KEYWORDS = ['报告', 'report', '小结', '日报', '总结', 'summary', '今日', '今日小结'];
+
+/** 固定示例学习计划（演示用，非最终 JSON schema）。 */
+const MOCK_PLAN_TEXT = [
+  '[Mock 计划] 一周趣味学习计划：',
+  '周一：主课《颜色王国》+ 复习颜色单词 + 口语“What color is it?”',
+  '周二：主课《动物朋友》+ 复习动物单词 + 口语“I see a ...”',
+  '周三：复习日（颜色 + 动物）',
+  '周四：主课《数字乐园》+ 口语“How many?”',
+  '周五：主课《水果市场》+ 复习 + 口语“I like ...”',
+  '周末：自由复习 + 看一集动画片',
+].join('\n');
+
+/** 固定示例每日小结（演示用，非最终 JSON schema）。 */
+const MOCK_REPORT_TEXT = [
+  '[Mock 今日小结] 今天你真棒！',
+  '完成：3 个任务，跟读 5 次',
+  '弱项：th / v 两个音',
+  '建议：明天多练 “three” “very”',
+].join('\n');
+
+/** 通用演示回复（非计划/报告意图时的兜底）。 */
+const MOCK_GENERIC_TEXT = '[Mock] 收到！这是模拟回复（演示模式，未连接真实 AI）。';
+
+/** 示例转写句（演示用，含可读英文）。 */
+const MOCK_TRANSCRIPT = '[Mock] I see a red apple on the table.';
+
 export class MockAiProvider implements AiProvider {
   readonly name: ProviderName = 'mock';
 
   async chat(messages: ChatMessage[], _options?: ChatOptions): Promise<ChatResult> {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    const echo = lastUser ? lastUser.content : '';
+    const text = lastUser ? lastUser.content : '';
     return {
-      text: `[Mock] 收到 ${messages.length} 条消息，这是模拟回复。最后用户输入：${echo || '(空)'}`,
+      text: this.pickChatFixture(text),
       model: 'mock-model',
     };
   }
@@ -50,7 +86,7 @@ export class MockAiProvider implements AiProvider {
 
   async transcribe(_audio: AudioInput, _options?: TranscribeOptions): Promise<TranscriptResult> {
     return {
-      text: '[Mock] 模拟转写文本',
+      text: MOCK_TRANSCRIPT,
       confidence: 1,
       durationMs: 0,
     };
@@ -61,12 +97,13 @@ export class MockAiProvider implements AiProvider {
     referenceText: string,
     _options?: AssessOptions,
   ): Promise<ScoreResult> {
+    // 确定性假评分：非满分（演示弱音素高亮与 encourage 表情），不随机。
     return {
-      score: 100,
+      score: 88,
       readableText: referenceText,
-      weakPhonemes: [],
-      feedback: '[Mock] 模拟发音评测：完美！',
-      mascotExpr: 'cheer',
+      weakPhonemes: ['θ', 'v'],
+      feedback: '[Mock] 很接近啦！注意 th 和 v 的发音～',
+      mascotExpr: 'encourage',
     };
   }
 
@@ -80,5 +117,17 @@ export class MockAiProvider implements AiProvider {
       mimeType: 'audio/mp3',
       durationMs: 0,
     };
+  }
+
+  /** 按最后用户输入识别意图，返回对应固定演示夹具。 */
+  private pickChatFixture(userText: string): string {
+    const lowered = userText.toLowerCase();
+    if (PLAN_KEYWORDS.some((k) => lowered.includes(k.toLowerCase()))) {
+      return MOCK_PLAN_TEXT;
+    }
+    if (REPORT_KEYWORDS.some((k) => lowered.includes(k.toLowerCase()))) {
+      return MOCK_REPORT_TEXT;
+    }
+    return MOCK_GENERIC_TEXT;
   }
 }

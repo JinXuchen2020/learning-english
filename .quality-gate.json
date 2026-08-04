@@ -1,14 +1,14 @@
 {
-  "phase": "ai-103",
+  "phase": "ai-104",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 全量 26 suites/126 tests 全绿; DI 装配测试通过; 无新增契约漂移)",
-    "tests": "PASSED (unit: 3 files / 18 cases 全绿; ai.module+mock-ai.provider 覆盖率 100%; e2e/bdd: 0 scenarios — headless DI 基建豁免, 见 features/ai-103.md §6)",
-    "review": "PASSED (0 open; 空安全/错误清晰/密钥不落日志/无 any/无 stub 残留)",
-    "optimization": "PASSED (0 open; 无占位死代码, 回退路径有 warn 日志无吞错, 不引入新依赖)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 26 suites/129 tests 全绿无回归)",
+    "tests": "PASSED (unit: 1 file, 10 cases; e2e/bdd: 0 scenarios — headless provider 按硬约束#6 豁免，由消费方 feature 自带)",
+    "review": "PASSED (0 open; 空安全/错误清晰/意图关键词常量化/无 any)",
+    "optimization": "PASSED (0 open; 无 stub 残留/无调试代码/无未用导出)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-103-gate.md",
-  "notes": "实现 server/src/ai/ai.module.ts(createAiProvider 工厂 + @Global AiModule) + server/src/ai/mock-ai.provider.ts(MockAiProvider 确定性假数据) + AppModule 导入 AiModule。按 AI_PROVIDER 动态注册 bigmodel/mock，未实现 provider 回退 mock 并告警，保证无 key 可启动。单测 3 文件 18 用例全绿，新文件覆盖率 100%。BDD/E2E 对 headless DI 基建显式豁免。"
+  "reportRef": "docs/quality/ai-104-gate.md",
+  "notes": "扩展 MockAiProvider 为确定性演示夹具：chat 按意图(计划/报告/通用)返回固定文本，assessPronunciation 返回真实感假评分(88+弱音素 θ/v)，transcribe 返回示例句；覆盖率 100%；不改接口/不新建类/不引入依赖。"
 }
