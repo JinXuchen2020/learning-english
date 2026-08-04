@@ -11,6 +11,7 @@ import { ProgressModule } from './progress/progress.module';
 import { buildTypeOrmModuleOptions } from './config/database.config';
 import { HealthModule } from './health/health.module';
 import { LogsModule } from './logs/logs.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { LogsModule } from './logs/logs.module';
     TypeOrmModule.forRoot(buildTypeOrmModuleOptions()),
     HealthModule,
     LogsModule,
+    AiModule,
     AuthModule,
     UsersModule,
     CoursesModule,
