@@ -1,14 +1,14 @@
 {
-  "phase": "ai-106",
+  "phase": "ai-107",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误；jest 全量 30 suites / 172 tests 全绿，无回归；契约对齐：createAiProvider 返回 RetryableAiProvider，仍实现 AiProvider 且透传 name)",
-    "tests": "PASSED (unit: 3 新增文件 ai-retry.spec/concurrency-limiter.spec/retryable-ai-provider.spec 共 33 用例 + 既有 ai.factory.spec/ai.module.spec 改造断言共 172 全绿；新文件 ai-retry 95.55% stmts/92.3% branches、concurrency-limiter 100%、retryable-ai-provider 100%；BDD/E2E 0 场景——headless 调用层韧性基建按硬约束#6 显式豁免，由消费方 feature AI-202/303/304/402/502/601 自带覆盖，设计文档 §6 与本报告载明)",
-    "review": "PASSED (0 open；关键修复点：401/403 改为抛 AiAccessError 并含『账户权限问题』文案、classifyError 对 BigModel 结构异常 502 判 permanent 不盲目重试、未知裸 Error 判 permanent、重试耗尽抛原始可识别异常保留 statusCode/code)",
-    "optimization": "PASSED (0 open；无 stub 残留、无 any、密钥不进日志；重试/限流纯内存不写库；AiAccessError 与 normalizeError 统一错误出口；MockAiProvider 对重试/限流透明)"
+    "consistency": "PASSED (nest build/tsc 通过; jest 199/199 全绿; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: 3 files (ai-quota / ai-usage-limit.service / usage-limited-ai-provider); e2e/bdd: 0 (legacy 豁免：纯后端/无头 provider 增强，无前端 UI 旅程))",
+    "review": "PASSED (0 open; 空安全 row?.callCount ?? 0 / optional chaining; 失败不计费; 429 不重试; 错误透传; 配置走 ConfigService 无硬编码)",
+    "optimization": "PASSED (0 open; 无 stub/占位; 配额常量 DEFAULT_* 提取; logger.debug 记账; 无敏感信息泄漏)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-106-gate.md",
-  "notes": "AI-106 重试与降级：新增 ai-retry.ts（classifyError/withRetry/normalizeError + 默认指数退避 3 次 400→8000ms）、concurrency-limiter.ts（信号量默认上限 4，对应『降低并发』）、retryable-ai-provider.ts（RetryableAiProvider 仅对 chat/chatWithImage 套重试+限流，transcribe/assess/synthesize 直接委托，name 透传）；bigmodel.provider.ts 增加 AiAccessError 并把 401/403 改为抛 AiAccessError（含账户权限文案）；ai.module.ts 用 createRetryableProvider 包装使所有消费方免费获得韧性。不越界：不新增 env/不改 .env.example/.gitignore、不新建 provider 类、不改 AiProvider 接口、不实现 NvidiaProvider（仅分类支持其 404 FUNCTION_NOT_FOUND）、不接 AI-107 配额/AI-108 日志。"
+  "reportRef": "docs/quality/ai-107-gate.md",
+  "notes": "AI-107 每日 token/调用配额：新增 AiUsage 实体(ai_usage 表,userId+date 唯一) + AiUsageLimitService(计数/超限判定) + AiQuotaExceededError(429+degraded) + UsageLimitedAiProvider(最外层 provider 外壳，调用前 assert、成功后 record、失败/重试不计费)。保留 createAiProvider(config) 原签名以兼容 ai.factory.spec；配额在外层叠加，429 不进入 AI-106 withRetry 重试。注册 AiUsage 到 database.config appEntities；.env.example 增加 AI_DAILY_CALL_LIMIT/AI_DAILY_TOKEN_LIMIT。覆盖率 99.19% stmts / 85.97% branches，高于 90/70 基线。"
 }

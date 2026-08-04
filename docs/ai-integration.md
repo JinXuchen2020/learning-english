@@ -219,7 +219,7 @@ server/src/ai/
 - `assessPronunciation(audio, referenceText): Promise<ScoreResult>` 发音评测
 - `synthesize(text, voice): Promise<AudioStream>` TTS
 
-**成本/速率**: 每用户每日 token 配额在 `common/limits.ts`, 超了降级模板兜底。
+**成本/速率**: 每用户每日 token/调用配额已落地（AI-107）：`server/src/ai/` 下 `AiUsage` 实体（`ai_usage` 表，`userId+date` 唯一）+ `AiUsageLimitService`（计数/超限判定）+ `UsageLimitedAiProvider`（最外层 provider 外壳，调用前 `assertWithinQuota`、成功后 `recordUsage`、失败/重试不计费）。超限抛 `AiQuotaExceededError`（HTTP 429 + `degraded`），业务层据 `degraded` 走降级（模板兜底）。配置经 `ConfigService`：`AI_DAILY_CALL_LIMIT`（默认 200）/ `AI_DAILY_TOKEN_LIMIT`（默认 100000）。
 
 ---
 
@@ -227,7 +227,7 @@ server/src/ai/
 
 | 阶段 | 周次 | 内容 | 可独立交付 |
 |---|---|---|---|
-| M1 基建 | W1 | `AiProvider` 接口 + BigModel provider 实现 + key 配置 + 重试/降级 | ✓ |
+| M1 基建 | W1 | `AiProvider` 接口 + BigModel provider 实现 + key 配置 + 重试/降级 + 每日配额(AI-107) | ✓ |
 | M2 学习计划 | W2 | `/plan` 页 + AiPlanModule + 数据表 + 复用 `tasks` 模块 | ✓ 可演示 |
 | M3 口语训练 | W3-4 | `/speech` 页 +录音+STT+发音评分(先模板评分,TTS 用户原声对照) | ✓ |
 | M4 对话陪练 | W5 | `/chat` 页(场景+TTS+跟读) | ✓ |

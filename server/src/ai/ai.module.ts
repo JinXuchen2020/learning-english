@@ -1,26 +1,25 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { BigModelProvider } from './bigmodel.provider';
 import { MockAiProvider } from './mock-ai.provider';
 import { logger } from '../common/logger/logger';
 import { readAiConfig } from './ai-config';
 import { createRetryableProvider } from './retryable-ai-provider';
+import { AiUsage } from './ai-usage.entity';
+import { AiUsageLimitService } from './ai-usage-limit.service';
+import {
+  createUsageLimitedProvider,
+  USER_ID_RESOLVER_TOKEN,
+  UserIdResolver,
+} from './usage-limited-ai-provider';
 
 /**
- * 按 `.env` 的 `AI_PROVIDER` 选择并构造具体 provider：
- * - `bigmodel`  -> `BigModelProvider`（智谱 OpenAI 兼容，AI-102）
- * - `mock` / 缺失 / 未知 -> `MockAiProvider`（确定性假数据，保证无 key 可启动）
- * - `nvidia` / `azure` -> 对应 provider 尚未实现，回退 `MockAiProvider` 并告警，
- *   避免启动失败（真实实现分别由后续 feature 接入）。
+ * 构造「重试 + 每日配额」链的最内层 provider（不含配额外壳）。
  *
- * 配置统一经 `readAiConfig`（AI-105）读取；选中的真实 provider 缺 key 时打印
- * 启动告警（不阻断启动，保持「无 key 应用可启动」契约）。
- *
- * 无论选哪个内层 provider，最终都经 `createRetryableProvider`（AI-106）套上
- * 指数退避重试 + 并发限流，使所有消费方免费获得调用韧性。
- *
- * 业务模块只需 `@Inject(AI_PROVIDER_TOKEN)` 拿 `AiProvider` 抽象，不绑定厂商。
+ * 保留原签名（仅 `config`）以兼容 `ai.factory.spec.ts`；配额外壳在下方模块
+ * 工厂 `createQuotaAwareProvider` 中叠加，二者职责分离便于单测。
  */
 export function createAiProvider(config: ConfigService): AiProvider {
   const cfg = readAiConfig(config);
@@ -61,19 +60,41 @@ export function createAiProvider(config: ConfigService): AiProvider {
 }
 
 /**
+ * 模块工厂：把内层（重试后）provider 再套上 AI-107 每日配额闸门，形成最终对外
+ * 暴露的 `AiProvider`：UsageLimited(Retryable(inner))。
+ * 配额错误在最外层抛出，不会进入内层 `withRetry` 重试。
+ *
+ * 注入 `AiUsageLimitService`（负责 `ai_usage` 持久化）与 userId 解析器。
+ */
+export function createQuotaAwareProvider(
+  config: ConfigService,
+  usage: AiUsageLimitService,
+  resolveUserId: UserIdResolver,
+): AiProvider {
+  const inner = createAiProvider(config);
+  return createUsageLimitedProvider(inner, usage, resolveUserId);
+}
+
+/**
  * AI 能力模块。标 `@Global()`：plan / speech / conversation / report 等多模块
  * 复用同一 `AiProvider`，全局注入免去各消费方重复 import（与 `ConfigModule`
  * 的 `isGlobal:true` 同一设计取向）。
+ *
+ * 注册 `AiUsage` 实体（`TypeOrmModule.forFeature`）以支撑 `AiUsageLimitService`
+ * 的仓库注入；导出 `AiUsageLimitService` 供未来控制器按需直接调用。
  */
 @Global()
 @Module({
+  imports: [TypeOrmModule.forFeature([AiUsage])],
   providers: [
+    { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
+    AiUsageLimitService,
     {
       provide: AI_PROVIDER_TOKEN,
-      useFactory: createAiProvider,
-      inject: [ConfigService],
+      useFactory: createQuotaAwareProvider,
+      inject: [ConfigService, AiUsageLimitService, USER_ID_RESOLVER_TOKEN],
     },
   ],
-  exports: [AI_PROVIDER_TOKEN],
+  exports: [AI_PROVIDER_TOKEN, AiUsageLimitService],
 })
 export class AiModule {}

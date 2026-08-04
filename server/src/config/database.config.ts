@@ -8,6 +8,7 @@ import { DailyTask } from '../entities/daily-task.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { WordProgress } from '../entities/word-progress.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
+import { AiUsage } from '../ai/ai-usage.entity';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -22,6 +23,7 @@ export const appEntities = [
   LessonProgress,
   WordProgress,
   TaskCompletion,
+  AiUsage,
 ];
 
 export type DbType = 'sqlite' | 'postgres';
