@@ -1,14 +1,14 @@
 {
-  "phase": "log-101",
+  "phase": "ai-102",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (后端 nest build 通过; 后端 jest 91 tests 全绿 + 覆盖率 statement/lines/functions 100%/branches≥70% (门槛≥90% s/l/f, ≥70% b); 前端 next build 通过 (类型+编译); 前端 vitest 7 tests 全绿; 前后端 envelope 字段对齐: 前端 POST {level,message,meta} ↔ 后端 LogEnvelopeDto {level:enum,message:string,meta?:unknown})",
-    "tests": "PASSED (unit: 后端 jest 2 新文件 logger.spec + logs.controller.spec (17 tests); 前端 vitest 2 新文件 logger.spec + api.spec (7 tests); 后端 controller 经 class-validator 覆盖非法 envelope→400; BDD/E2E: 豁免 — 日志基建为跨切面基础设施, 无用户可感知 UI 旅程, 且项目 TEST-102 已确立『不为纯后端 API/基础设施写 BDD』红线, 故不写 BDD/E2E, 仅以单测+集成(前端 POST 被后端同文件接收)为证据, 见设计文档 §6)",
-    "review": "PASSED (0 open; 应用生产代码(后端除 main.ts 启动横幅/seed.ts、前端 src/app+src/lib) 裸 console.* 清零; any 清零: src/lib/api.ts body 由 any 改为 unknown 并收窄错误 message; 日志不泄露敏感; 前端转发 best-effort 且绝不递归记录日志失败)",
-    "optimization": "PASSED (0 open; 无 stub/调试残留; 日志文件异步 best-effort 不阻塞主流程; LogEnvelopeDto 校验经全局 ValidationPipe)"
+    "consistency": "PASSED (tsc --noEmit 0 errors; jest 23 suites/107 tests all green; no contract drift)",
+    "tests": "PASSED (unit: 1 file [bigmodel.provider.spec.ts, 17 tests, 100% stmts/fn/lines, 85.71% branches]; e2e/bdd: 0 scenarios — headless provider, deferred to consuming features AI-202/AI-303/AI-304/AI-402/AI-606, explicitly exempted in features/ai-102.md §6)",
+    "review": "PASSED (0 open; null-safety/error-clarity/key-not-logged/no-any/logger-used verified)",
+    "optimization": "PASSED (0 open; no stubs, unified AiProviderException, no debug leftovers)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/log-101-gate.md",
-  "notes": "LOG-101 统一日志基建: 后端 Logger 写 server/logs/app-YYYY-MM-DD.log (error/warn/info/debug, 异步 append + 镜像 console) 并提供 POST /api/log 接收前端日志汇总同一文件; 前端 Logger 封装 console 并 best-effort POST ${API_BASE}/log (浏览器不能写文件故走后端落盘); 约定之后新 feature 仅用 Logger (禁裸 console); 顺带修 src/lib/api.ts 的 any。为落实『前端纯逻辑模块需单测』约定, 引入 vitest (devDependency) + test:unit 脚本 + vitest.config.ts + CI frontend-unit job (跑 vitest); 此前项目前端无单测 runner, 此为首次补齐。E2E 夹具 (src/e2e/**) console 沿用质量门 --exclude src/e2e 豁免。CI 现五门: backend/frontend/frontend-unit/quality/e2e。 | follow-up (2026-08-04): 修复 createLogger 首写前未 ensureDir 导致 server/logs/ 目录缺失时落盘静默失败 (seed/启动均报 failed to append); 已加 ensureDir() 一次性 mkdir(logDir, recursive) 并 cached, 创建失败仅告警一次; 重启后端实测 app-YYYY-MM-DD.log 正常生成, 落盘承诺恢复。"
+  "reportRef": "docs/quality/ai-102-gate.md",
+  "notes": "新增 server/src/ai/bigmodel.provider.ts + bigmodel.provider.spec.ts。chat/chatWithImage 对接智谱 OpenAI 兼容端点；transcribe/assessPronunciation/synthesize 返回降级结果。错误清晰化(AiProviderException: 401/429/5xx/504/NETWORK/502)。未引入新依赖，仅用 globalThis.fetch。未创建 AiModule(AI-103)/未做重试(AI-106)/未改 .env.example(AI-105)。"
 }
