@@ -1,14 +1,14 @@
 {
-  "phase": "ai-104",
+  "phase": "ai-105",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 26 suites/129 tests 全绿无回归)",
-    "tests": "PASSED (unit: 1 file, 10 cases; e2e/bdd: 0 scenarios — headless provider 按硬约束#6 豁免，由消费方 feature 自带)",
-    "review": "PASSED (0 open; 空安全/错误清晰/意图关键词常量化/无 any)",
-    "optimization": "PASSED (0 open; 无 stub 残留/无调试代码/无未用导出)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 27 suites/137 tests 全绿无回归)",
+    "tests": "PASSED (unit: 2 files, 16 cases; e2e/bdd: 0 scenarios — headless 配置/启动逻辑按硬约束#6 豁免，由消费方 feature 集成测试覆盖)",
+    "review": "PASSED (0 open; 缺 key 归一为 undefined 不崩/告警信息清晰不泄露 key/无 any)",
+    "optimization": "PASSED (0 open; 配置读取单一来源 readAiConfig/无 stub 残留/无调试代码)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-104-gate.md",
-  "notes": "扩展 MockAiProvider 为确定性演示夹具：chat 按意图(计划/报告/通用)返回固定文本，assessPronunciation 返回真实感假评分(88+弱音素 θ/v)，transcribe 返回示例句；覆盖率 100%；不改接口/不新建类/不引入依赖。"
+  "reportRef": "docs/quality/ai-105-gate.md",
+  "notes": "新增 ai-config.ts（AiConfig + readAiConfig）集中读取全部 AI_* 配置并归一化；createAiProvider 改用 readAiConfig，并在选中真实 provider 缺 key 时打印启动告警（不阻断启动，保持无 key 可启动契约）。.env 已在 .gitignore、.env.example 已含所需变量。覆盖率 ai-config 100%。"
 }

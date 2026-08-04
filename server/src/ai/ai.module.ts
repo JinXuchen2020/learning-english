@@ -4,6 +4,7 @@ import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { BigModelProvider } from './bigmodel.provider';
 import { MockAiProvider } from './mock-ai.provider';
 import { logger } from '../common/logger/logger';
+import { readAiConfig } from './ai-config';
 
 /**
  * 按 `.env` 的 `AI_PROVIDER` 选择并构造具体 provider：
@@ -12,26 +13,39 @@ import { logger } from '../common/logger/logger';
  * - `nvidia` / `azure` -> 对应 provider 尚未实现，回退 `MockAiProvider` 并告警，
  *   避免启动失败（真实实现分别由后续 feature 接入）。
  *
+ * 配置统一经 `readAiConfig`（AI-105）读取；选中的真实 provider 缺 key 时打印
+ * 启动告警（不阻断启动，保持「无 key 应用可启动」契约）。
+ *
  * 业务模块只需 `@Inject(AI_PROVIDER_TOKEN)` 拿 `AiProvider` 抽象，不绑定厂商。
  */
 export function createAiProvider(config: ConfigService): AiProvider {
-  const provider = (config.get<string>('AI_PROVIDER') ?? 'mock').toLowerCase().trim();
+  const cfg = readAiConfig(config);
+  const provider = cfg.provider;
   switch (provider) {
     case 'bigmodel':
+      if (!cfg.bigmodel.apiKey) {
+        logger.warn(
+          '[AI] AI_PROVIDER=bigmodel 但未配置 BIGMODEL_API_KEY，调用将失败；建议配置 key 或设 AI_PROVIDER=mock 进行演示',
+        );
+      }
       return new BigModelProvider({
-        apiKey: config.get<string>('BIGMODEL_API_KEY'),
-        baseUrl: config.get<string>('BIGMODEL_BASE_URL'),
-        model: config.get<string>('BIGMODEL_MODEL'),
-        visionModel: config.get<string>('BIGMODEL_VISION_MODEL'),
+        apiKey: cfg.bigmodel.apiKey,
+        baseUrl: cfg.bigmodel.baseUrl,
+        model: cfg.bigmodel.model,
+        visionModel: cfg.bigmodel.visionModel,
       });
     case 'mock':
       return new MockAiProvider();
-    case 'nvidia':
+    case 'nvidia': {
+      const lackingKey = cfg.nvidia.apiKey ? '' : '且缺少 NVIDIA_API_KEY，';
+      logger.warn(`[AI] AI_PROVIDER=nvidia 尚未实现（${lackingKey}）回退 MockAiProvider 以保证应用可启动`);
+      return new MockAiProvider();
+    }
     case 'azure':
-      logger.warn(`AI_PROVIDER=${provider} 尚未实现，回退到 MockAiProvider 以保证应用可启动`);
+      logger.warn('[AI] AI_PROVIDER=azure 尚未实现，回退 MockAiProvider 以保证应用可启动');
       return new MockAiProvider();
     default:
-      logger.warn(`未知的 AI_PROVIDER=${provider}，回退到 MockAiProvider`);
+      logger.warn(`[AI] 未知的 AI_PROVIDER=${provider}，回退 MockAiProvider`);
       return new MockAiProvider();
   }
 }

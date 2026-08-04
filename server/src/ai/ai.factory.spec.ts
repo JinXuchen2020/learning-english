@@ -66,4 +66,18 @@ describe('createAiProvider', () => {
     ) as BigModelProvider;
     expect(p.name).toBe('bigmodel');
   });
+
+  it('warns at startup when AI_PROVIDER=bigmodel but BIGMODEL_API_KEY is missing', () => {
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const p = createAiProvider(stubConfig({ AI_PROVIDER: 'bigmodel' }));
+    expect(p).toBeInstanceOf(BigModelProvider);
+    expect(warn).toHaveBeenCalled();
+    expect(warn.mock.calls[0][0]).toContain('BIGMODEL_API_KEY');
+  });
+
+  it('does NOT warn about a missing key when AI_PROVIDER=bigmodel and the key is present', () => {
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    createAiProvider(stubConfig({ AI_PROVIDER: 'bigmodel', BIGMODEL_API_KEY: 'my-key' }));
+    expect(warn).not.toHaveBeenCalled();
+  });
 });
