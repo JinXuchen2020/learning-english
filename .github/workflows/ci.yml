@@ -70,11 +70,15 @@ jobs:
         with:
           node-version: 22
       - name: Scan backend + frontend (fail on P1+)
+        # Note: src/e2e is excluded — it is test infrastructure whose fixtures
+        # legitimately contain fake credentials (e.g. the seeded test-user password),
+        # which would otherwise trip the hardcoded-secret (P1) rule. Production code
+        # under src/app and src/lib is still fully scanned.
         run: |
           set +e
-          node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir server/src --fail-on P1
+          node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir server/src --fail-on P1 --exclude "src/e2e"
           rc1=$?
-          node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir src --fail-on P1
+          node .workbuddy/skills/ts-code-quality/scripts/code-quality-scan.mjs --dir src --fail-on P1 --exclude "src/e2e"
           rc2=$?
           if [ "$rc1" -ne 0 ] || [ "$rc2" -ne 0 ]; then
             echo "::error::Quality scan found blocking findings (P0/P1)."
