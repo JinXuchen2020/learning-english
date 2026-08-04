@@ -78,6 +78,24 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
   const minLevel: LogLevel = opts.minLevel ?? 'debug';
   const mirror = opts.mirror ?? true;
 
+  // Ensure the log directory exists exactly once (cached). If creation fails we
+  // log a single warning and retry on the next write; per-line appends never throw.
+  let dirReady: Promise<void> | null = null;
+  let dirWarned = false;
+  function ensureDir(): Promise<void> {
+    if (!dirReady) {
+      dirReady = fsp.mkdir(logDir, { recursive: true }).then(() => undefined).catch((e) => {
+        if (!dirWarned) {
+          dirWarned = true;
+          console.error('[logger] failed to create log dir', logDir, (e as Error).message);
+        }
+        dirReady = null; // allow retry on next write (e.g. transient)
+        throw e;
+      });
+    }
+    return dirReady!;
+  }
+
   function write(level: LogLevel, message: string, meta?: unknown): void {
     const ts = new Date().toISOString();
     let metaStr = '';
@@ -101,10 +119,13 @@ export function createLogger(opts: LoggerOptions = {}): Logger {
 
     const file = path.join(logDir, `app-${ts.slice(0, 10)}.log`);
     // Best-effort: logging must never crash the app, even if the disk is full
-    // or the directory is unwritable.
-    fsp.appendFile(file, line + '\n', 'utf8').catch(() => {
-      console.error('[logger] failed to append to log file', file);
-    });
+    // or the directory is unwritable. ensureDir() creates the dir once; any
+    // failure (dir or append) is swallowed — logging is never allowed to throw.
+    ensureDir()
+      .then(() => fsp.appendFile(file, line + '\n', 'utf8'))
+      .catch(() => {
+        /* best-effort: ignored */
+      });
   }
 
   return {
