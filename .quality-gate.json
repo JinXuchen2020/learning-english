@@ -1,14 +1,14 @@
 {
-  "phase": "ai-105",
+  "phase": "ai-106",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 27 suites/137 tests 全绿无回归)",
-    "tests": "PASSED (unit: 2 files, 16 cases; e2e/bdd: 0 scenarios — headless 配置/启动逻辑按硬约束#6 豁免，由消费方 feature 集成测试覆盖)",
-    "review": "PASSED (0 open; 缺 key 归一为 undefined 不崩/告警信息清晰不泄露 key/无 any)",
-    "optimization": "PASSED (0 open; 配置读取单一来源 readAiConfig/无 stub 残留/无调试代码)"
+    "consistency": "PASSED (tsc --noEmit 0 错误；jest 全量 30 suites / 172 tests 全绿，无回归；契约对齐：createAiProvider 返回 RetryableAiProvider，仍实现 AiProvider 且透传 name)",
+    "tests": "PASSED (unit: 3 新增文件 ai-retry.spec/concurrency-limiter.spec/retryable-ai-provider.spec 共 33 用例 + 既有 ai.factory.spec/ai.module.spec 改造断言共 172 全绿；新文件 ai-retry 95.55% stmts/92.3% branches、concurrency-limiter 100%、retryable-ai-provider 100%；BDD/E2E 0 场景——headless 调用层韧性基建按硬约束#6 显式豁免，由消费方 feature AI-202/303/304/402/502/601 自带覆盖，设计文档 §6 与本报告载明)",
+    "review": "PASSED (0 open；关键修复点：401/403 改为抛 AiAccessError 并含『账户权限问题』文案、classifyError 对 BigModel 结构异常 502 判 permanent 不盲目重试、未知裸 Error 判 permanent、重试耗尽抛原始可识别异常保留 statusCode/code)",
+    "optimization": "PASSED (0 open；无 stub 残留、无 any、密钥不进日志；重试/限流纯内存不写库；AiAccessError 与 normalizeError 统一错误出口；MockAiProvider 对重试/限流透明)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-105-gate.md",
-  "notes": "新增 ai-config.ts（AiConfig + readAiConfig）集中读取全部 AI_* 配置并归一化；createAiProvider 改用 readAiConfig，并在选中真实 provider 缺 key 时打印启动告警（不阻断启动，保持无 key 可启动契约）。.env 已在 .gitignore、.env.example 已含所需变量。覆盖率 ai-config 100%。"
+  "reportRef": "docs/quality/ai-106-gate.md",
+  "notes": "AI-106 重试与降级：新增 ai-retry.ts（classifyError/withRetry/normalizeError + 默认指数退避 3 次 400→8000ms）、concurrency-limiter.ts（信号量默认上限 4，对应『降低并发』）、retryable-ai-provider.ts（RetryableAiProvider 仅对 chat/chatWithImage 套重试+限流，transcribe/assess/synthesize 直接委托，name 透传）；bigmodel.provider.ts 增加 AiAccessError 并把 401/403 改为抛 AiAccessError（含账户权限文案）；ai.module.ts 用 createRetryableProvider 包装使所有消费方免费获得韧性。不越界：不新增 env/不改 .env.example/.gitignore、不新建 provider 类、不改 AiProvider 接口、不实现 NvidiaProvider（仅分类支持其 404 FUNCTION_NOT_FOUND）、不接 AI-107 配额/AI-108 日志。"
 }

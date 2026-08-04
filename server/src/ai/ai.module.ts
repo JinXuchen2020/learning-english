@@ -5,6 +5,7 @@ import { BigModelProvider } from './bigmodel.provider';
 import { MockAiProvider } from './mock-ai.provider';
 import { logger } from '../common/logger/logger';
 import { readAiConfig } from './ai-config';
+import { createRetryableProvider } from './retryable-ai-provider';
 
 /**
  * 按 `.env` 的 `AI_PROVIDER` 选择并构造具体 provider：
@@ -16,11 +17,15 @@ import { readAiConfig } from './ai-config';
  * 配置统一经 `readAiConfig`（AI-105）读取；选中的真实 provider 缺 key 时打印
  * 启动告警（不阻断启动，保持「无 key 应用可启动」契约）。
  *
+ * 无论选哪个内层 provider，最终都经 `createRetryableProvider`（AI-106）套上
+ * 指数退避重试 + 并发限流，使所有消费方免费获得调用韧性。
+ *
  * 业务模块只需 `@Inject(AI_PROVIDER_TOKEN)` 拿 `AiProvider` 抽象，不绑定厂商。
  */
 export function createAiProvider(config: ConfigService): AiProvider {
   const cfg = readAiConfig(config);
   const provider = cfg.provider;
+  let inner: AiProvider;
   switch (provider) {
     case 'bigmodel':
       if (!cfg.bigmodel.apiKey) {
@@ -28,26 +33,31 @@ export function createAiProvider(config: ConfigService): AiProvider {
           '[AI] AI_PROVIDER=bigmodel 但未配置 BIGMODEL_API_KEY，调用将失败；建议配置 key 或设 AI_PROVIDER=mock 进行演示',
         );
       }
-      return new BigModelProvider({
+      inner = new BigModelProvider({
         apiKey: cfg.bigmodel.apiKey,
         baseUrl: cfg.bigmodel.baseUrl,
         model: cfg.bigmodel.model,
         visionModel: cfg.bigmodel.visionModel,
       });
+      break;
     case 'mock':
-      return new MockAiProvider();
+      inner = new MockAiProvider();
+      break;
     case 'nvidia': {
       const lackingKey = cfg.nvidia.apiKey ? '' : '且缺少 NVIDIA_API_KEY，';
       logger.warn(`[AI] AI_PROVIDER=nvidia 尚未实现（${lackingKey}）回退 MockAiProvider 以保证应用可启动`);
-      return new MockAiProvider();
+      inner = new MockAiProvider();
+      break;
     }
     case 'azure':
       logger.warn('[AI] AI_PROVIDER=azure 尚未实现，回退 MockAiProvider 以保证应用可启动');
-      return new MockAiProvider();
+      inner = new MockAiProvider();
+      break;
     default:
       logger.warn(`[AI] 未知的 AI_PROVIDER=${provider}，回退 MockAiProvider`);
-      return new MockAiProvider();
+      inner = new MockAiProvider();
   }
+  return createRetryableProvider(inner);
 }
 
 /**
