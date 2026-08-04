@@ -14,6 +14,13 @@ import {
   USER_ID_RESOLVER_TOKEN,
   UserIdResolver,
 } from './usage-limited-ai-provider';
+import { AiCallLog } from './ai-call-log.entity';
+import { AiCallLogService } from './ai-call-log.service';
+import {
+  createLoggedProvider,
+  AI_MODULE_TAG_RESOLVER_TOKEN,
+  ModuleTagResolver,
+} from './logged-ai-provider';
 
 /**
  * 构造「重试 + 每日配额」链的最内层 provider（不含配额外壳）。
@@ -60,8 +67,8 @@ export function createAiProvider(config: ConfigService): AiProvider {
 }
 
 /**
- * 模块工厂：把内层（重试后）provider 再套上 AI-107 每日配额闸门，形成最终对外
- * 暴露的 `AiProvider`：UsageLimited(Retryable(inner))。
+ * 模块工厂：把内层（重试后）provider 再套上 AI-107 每日配额闸门，形成
+ * 中间层 `UsageLimited(Retryable(inner))`。
  * 配额错误在最外层抛出，不会进入内层 `withRetry` 重试。
  *
  * 注入 `AiUsageLimitService`（负责 `ai_usage` 持久化）与 userId 解析器。
@@ -76,25 +83,50 @@ export function createQuotaAwareProvider(
 }
 
 /**
+ * 模块工厂（最终对外 provider）：在最外层套上 AI-108 审计日志
+ * `Logged(UsageLimited(Retryable(inner)))`。
+ * 注入 userId / moduleTag 解析器与 `AiCallLogService`。
+ */
+export function createAuditedProvider(
+  config: ConfigService,
+  usage: AiUsageLimitService,
+  resolveUserId: UserIdResolver,
+  resolveModuleTag: ModuleTagResolver,
+  callLog: AiCallLogService,
+): AiProvider {
+  const inner = createQuotaAwareProvider(config, usage, resolveUserId);
+  return createLoggedProvider(inner, callLog, resolveUserId, resolveModuleTag);
+}
+
+/**
  * AI 能力模块。标 `@Global()`：plan / speech / conversation / report 等多模块
  * 复用同一 `AiProvider`，全局注入免去各消费方重复 import（与 `ConfigModule`
  * 的 `isGlobal:true` 同一设计取向）。
  *
- * 注册 `AiUsage` 实体（`TypeOrmModule.forFeature`）以支撑 `AiUsageLimitService`
- * 的仓库注入；导出 `AiUsageLimitService` 供未来控制器按需直接调用。
+ * 注册 `AiUsage` / `AiCallLog` 实体（`TypeOrmModule.forFeature`）以支撑
+ * `AiUsageLimitService` / `AiCallLogService` 的仓库注入；二者均导出供未来
+ * 控制器按需直接调用。
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage])],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog])],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
+    { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
     AiUsageLimitService,
+    AiCallLogService,
     {
       provide: AI_PROVIDER_TOKEN,
-      useFactory: createQuotaAwareProvider,
-      inject: [ConfigService, AiUsageLimitService, USER_ID_RESOLVER_TOKEN],
+      useFactory: createAuditedProvider,
+      inject: [
+        ConfigService,
+        AiUsageLimitService,
+        USER_ID_RESOLVER_TOKEN,
+        AI_MODULE_TAG_RESOLVER_TOKEN,
+        AiCallLogService,
+      ],
     },
   ],
-  exports: [AI_PROVIDER_TOKEN, AiUsageLimitService],
+  exports: [AI_PROVIDER_TOKEN, AiUsageLimitService, AiCallLogService],
 })
 export class AiModule {}

@@ -221,13 +221,15 @@ server/src/ai/
 
 **成本/速率**: 每用户每日 token/调用配额已落地（AI-107）：`server/src/ai/` 下 `AiUsage` 实体（`ai_usage` 表，`userId+date` 唯一）+ `AiUsageLimitService`（计数/超限判定）+ `UsageLimitedAiProvider`（最外层 provider 外壳，调用前 `assertWithinQuota`、成功后 `recordUsage`、失败/重试不计费）。超限抛 `AiQuotaExceededError`（HTTP 429 + `degraded`），业务层据 `degraded` 走降级（模板兜底）。配置经 `ConfigService`：`AI_DAILY_CALL_LIMIT`（默认 200）/ `AI_DAILY_TOKEN_LIMIT`（默认 100000）。
 
+**审计日志**（AI-108）：在 provider 链最外层（`Logged`）套审计层，每次调用（成功/失败/被配额拦截）计时后落一条不可变流水到 `ai_call_logs` 表（`AiCallLog` 实体 + `AiCallLogService`）+ 经 LOG-101 结构化 logger 写 `logs/app-*.log`。输入/输出一律**截断摘要**（`requestSnippet`/`responseSnippet` 前 200 字符、`errorMessage` 前 255 + 省略号），多模态只记 `[image:<mime>]`，绝不写儿童原始录音 base64 / 长文本。审计写库 best-effort（失败仅告警、返回 false、不阻断主流程）。最终链：`Logged(UsageLimited(Retryable(inner)))`——审计位于最外层，一次用户请求 = 一条审计（含 AI-106 重试总耗时），不会在 retry 内部重复记。预留 `USER_ID_RESOLVER_TOKEN`（默认 `anonymous`）/ `AI_MODULE_TAG_RESOLVER_TOKEN`（默认 `global`）扩展点，待 AI 控制器接入后按登录用户与业务模块隔离。
+
 ---
 
 ## 七、分步实施路线(建议)
 
 | 阶段 | 周次 | 内容 | 可独立交付 |
 |---|---|---|---|
-| M1 基建 | W1 | `AiProvider` 接口 + BigModel provider 实现 + key 配置 + 重试/降级 + 每日配额(AI-107) | ✓ |
+| M1 基建 | W1 | `AiProvider` 接口 + BigModel provider 实现 + key 配置 + 重试/降级 + 每日配额(AI-107) + AI 调用审计日志(AI-108) | ✓ |
 | M2 学习计划 | W2 | `/plan` 页 + AiPlanModule + 数据表 + 复用 `tasks` 模块 | ✓ 可演示 |
 | M3 口语训练 | W3-4 | `/speech` 页 +录音+STT+发音评分(先模板评分,TTS 用户原声对照) | ✓ |
 | M4 对话陪练 | W5 | `/chat` 页(场景+TTS+跟读) | ✓ |

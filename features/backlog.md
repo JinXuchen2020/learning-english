@@ -45,7 +45,7 @@
 | AI-105 | **配置与密钥管理** — `.env.example` 增加 `AI_PROVIDER/NVIDIA_API_KEY/NVIDIA_BASE_URL/NVIDIA_MODEL/NVIDIA_SAFETY_MODEL`, 接入现有 `ConfigModule`, 缺失时启动告警; `.env` 不入 git | P0 | AI-103 | done | 缺 key 启动打印 warning; key 不进入 git |
 | AI-106 | **重试与降级** — provider 调用封装 3 次指数退避重试; 超时(默认 60s, 推理模型); 429 限流 (code 1305) 视为瞬时错误, 退避重试 + 降低并发; 失败抛 `AiProviderException` 并由业务层降级; NVIDIA 端 `404 Function not found for account` / 挂起错误需识别并映射为 `AiAccessError` 提示账户权限问题 | P0 | AI-103 | done | 模拟 5xx/429 自动重试; 连续失败抛可识别异常; 权限错误给出明确文案 |
 | AI-107 | **每日 token/调用配额** — `server/src/ai/` 下 `AiUsage` 实体 + `AiUsageLimitService` + `UsageLimitedAiProvider` 外壳, 每用户每日调用次数/token 用量持久化到 `ai_usage` 表, 超限返回 429 + 降级标记 | P1 | AI-106 | done | 配小额配额可触发 429; 配额数据持久化到 `ai_usage` 表 |
-| AI-108 | **AI 调用日志** — 记录每次 LLM 调用 (用户、模块、token、耗时、结果截断) 到日志/表, 便于排查与成本审计 | P1 | AI-106, LOG-101 | backlog | 每次调用有可检索日志; 敏感内容截断 |
+| AI-108 | **AI 调用日志** — 新增 `LoggedAiProvider` 最外层外壳 + `AiCallLog` 实体(`ai_call_logs` 表) + `AiCallLogService`, 每次 LLM 调用(用户/模块/token/耗时/结果截断) 经 LOG-101 结构化日志 + 落表, 便于排查与成本审计 | P1 | AI-106, LOG-101 | done | 每次调用有可检索日志(文件+表); 敏感内容截断 |
 
 ---
 

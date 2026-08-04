@@ -5,10 +5,18 @@ import { AiModule } from './ai.module';
 import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
+import { AiCallLog } from './ai-call-log.entity';
+import { AiCallLogService } from './ai-call-log.service';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
   findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 AiCallLog 仓库：让 `AiCallLogService` 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeAiCallLogRepo = {
   create: jest.fn((e) => e),
   save: jest.fn(async (e) => e),
 };
@@ -20,6 +28,8 @@ async function compileAiModule() {
   })
     .overrideProvider(getRepositoryToken(AiUsage))
     .useValue(fakeAiUsageRepo)
+    .overrideProvider(getRepositoryToken(AiCallLog))
+    .useValue(fakeAiCallLogRepo)
     .compile();
 }
 
@@ -56,6 +66,13 @@ describe('AiModule (DI 动态装配)', () => {
     delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiUsageLimitService);
+    expect(svc).toBeDefined();
+  });
+
+  it('also exposes AiCallLogService (AI-108) for direct consumption', async () => {
+    delete process.env.AI_PROVIDER;
+    const moduleRef = await compileAiModule();
+    const svc = moduleRef.get(AiCallLogService);
     expect(svc).toBeDefined();
   });
 });

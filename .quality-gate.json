@@ -1,14 +1,14 @@
 {
-  "phase": "ai-107",
+  "phase": "ai-108",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build/tsc 通过; jest 199/199 全绿; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: 3 files (ai-quota / ai-usage-limit.service / usage-limited-ai-provider); e2e/bdd: 0 (legacy 豁免：纯后端/无头 provider 增强，无前端 UI 旅程))",
-    "review": "PASSED (0 open; 空安全 row?.callCount ?? 0 / optional chaining; 失败不计费; 429 不重试; 错误透传; 配置走 ConfigService 无硬编码)",
-    "optimization": "PASSED (0 open; 无 stub/占位; 配额常量 DEFAULT_* 提取; logger.debug 记账; 无敏感信息泄漏)"
+    "consistency": "PASSED (nest build/tsc 0 错误; jest 218/218 全绿; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: 2 files (ai-call-log.service / logged-ai-provider); e2e/bdd: 0 (legacy 豁免：纯后端/无头 provider 增强，无前端 UI 旅程))",
+    "review": "PASSED (0 open; 审计 best-effort 不阻断主流程 (try/catch + .catch); 文本字段二次截断兜底 (errorMessage 255+…/snippet 200+…); 敏感内容不落库 (仅摘要); 错误原样透传; 审计位于最外层单次记录不重复)",
+    "optimization": "PASSED (0 open; 无 stub/占位; 链 Logged(UsageLimited(Retryable(inner))); moduleTag/userId 解析器预留扩展点; logger.info 结构化审计; 无敏感信息泄漏)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-107-gate.md",
-  "notes": "AI-107 每日 token/调用配额：新增 AiUsage 实体(ai_usage 表,userId+date 唯一) + AiUsageLimitService(计数/超限判定) + AiQuotaExceededError(429+degraded) + UsageLimitedAiProvider(最外层 provider 外壳，调用前 assert、成功后 record、失败/重试不计费)。保留 createAiProvider(config) 原签名以兼容 ai.factory.spec；配额在外层叠加，429 不进入 AI-106 withRetry 重试。注册 AiUsage 到 database.config appEntities；.env.example 增加 AI_DAILY_CALL_LIMIT/AI_DAILY_TOKEN_LIMIT。覆盖率 99.19% stmts / 85.97% branches，高于 90/70 基线。"
+  "reportRef": "docs/quality/ai-108-gate.md",
+  "notes": "AI-108 AI 调用日志：新增 AiCallLog 实体(ai_call_logs 表,不可变流水) + AiCallLogService(落库,文本字段二次截断兜底,best-effort 不阻断) + LoggedAiProvider(最外层审计外壳,计时+logger.info 结构化+落库,输入/输出截断摘要,失败/配额拦截也记,成功才记 response)。provider 链在 ai.module 升级为 Logged(UsageLimited(Retryable(inner)))。注册 AiCallLog 到 database.config appEntities; 导出 AiCallLogService。覆盖率 98.58% stmts / 84.36% branches，高于 90/70 基线。"
 }
