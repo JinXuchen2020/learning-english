@@ -10,12 +10,14 @@ import { TasksModule } from './tasks/tasks.module';
 import { ProgressModule } from './progress/progress.module';
 import { buildTypeOrmModuleOptions } from './config/database.config';
 import { HealthModule } from './health/health.module';
+import { LogsModule } from './logs/logs.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot(buildTypeOrmModuleOptions()),
     HealthModule,
+    LogsModule,
     AuthModule,
     UsersModule,
     CoursesModule,

@@ -8,6 +8,7 @@ import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import * as api from "@/lib/api";
+import { logger } from "@/lib/logger";
 import { Lock, CheckCircle2, PlayCircle, Clock, BookOpen, ArrowLeft } from "lucide-react";
 
 const stateConfig = {
@@ -49,7 +50,7 @@ function CourseList() {
     api
       .getCourses()
       .then(setCourses)
-      .catch((err) => console.error("Failed to load courses", err))
+      .catch((err) => logger.error("Failed to load courses", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -105,7 +106,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
     api
       .getCourse(courseId)
       .then(setCourse)
-      .catch((err) => console.error("Failed to load course", err))
+      .catch((err) => logger.error("Failed to load course", err))
       .finally(() => setLoading(false));
   }, [courseId]);
 

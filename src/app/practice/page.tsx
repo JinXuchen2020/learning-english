@@ -8,6 +8,7 @@ import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import * as api from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { Word, QuizPhase } from "@/lib/types";
 import { Volume2, Star, ArrowLeft, RotateCcw } from "lucide-react";
 
@@ -242,7 +243,7 @@ function Quiz({
 
       // Persist the attempt to the backend (fire-and-forget).
       api.recordWordAttempt(word.id, isCorrect).catch((err) =>
-        console.error("Failed to record word attempt", err)
+        logger.error("Failed to record word attempt", err)
       );
     },
     [phase, word]
@@ -254,7 +255,7 @@ function Quiz({
       // Mark the lesson complete so progress and stars update.
       if (lessonId) {
         api.completeLesson(lessonId).catch((err) =>
-          console.error("Failed to complete lesson", err)
+          logger.error("Failed to complete lesson", err)
         );
       }
     } else {
@@ -436,7 +437,7 @@ function PracticeInner() {
       .then((data) => {
         if (active) setWords(data);
       })
-      .catch((err) => console.error("Failed to load words", err))
+      .catch((err) => logger.error("Failed to load words", err))
       .finally(() => {
         if (active) setLoading(false);
       });

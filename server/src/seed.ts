@@ -5,12 +5,13 @@ import { Lesson } from './entities/lesson.entity';
 import { Word } from './entities/word.entity';
 import { DailyTask } from './entities/daily-task.entity';
 import { buildDataSourceOptions, getDbType } from './config/database.config';
+import { logger } from './common/logger/logger';
 
 const ds = new DataSource(buildDataSourceOptions());
 
 async function seed() {
   await ds.initialize();
-  console.log(`Database connected (${getDbType()}). Seeding...`);
+  logger.info(`Database connected (${getDbType()}). Seeding...`);
 
   const courseRepo = ds.getRepository(Course);
   const lessonRepo = ds.getRepository(Lesson);
@@ -89,16 +90,16 @@ async function seed() {
     await taskRepo.save(taskRepo.create(t));
   }
 
-  console.log('Seed complete!');
-  console.log(`  - ${await courseRepo.count()} courses`);
-  console.log(`  - ${await lessonRepo.count()} lessons`);
-  console.log(`  - ${await wordRepo.count()} words`);
-  console.log(`  - ${await taskRepo.count()} daily tasks`);
+  logger.info('Seed complete!');
+  logger.info(`  - ${await courseRepo.count()} courses`);
+  logger.info(`  - ${await lessonRepo.count()} lessons`);
+  logger.info(`  - ${await wordRepo.count()} words`);
+  logger.info(`  - ${await taskRepo.count()} daily tasks`);
 
   await ds.destroy();
 }
 
 seed().catch((err) => {
-  console.error('Seed failed:', err);
+  logger.error('Seed failed:', err);
   process.exit(1);
 });

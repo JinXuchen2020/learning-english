@@ -21,15 +21,16 @@
 
 ---
 
-## 置顶 — 测试基建 (优先于所有 AI 功能)
+## 置顶 — 测试与日志基建 (优先于所有 AI 功能)
 
-> 说明: 两项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试(后端全量); TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD。**前端测试口径(2026-08-03 修订)**: 新 feature 前端 E2E 必做; 前端仅纯逻辑模块(`lib/api.ts`/hooks/带分支工具函数)需单测, 纯展示型组件/页面不强制(由 E2E 覆盖)。
+> 说明: 三项独立于 AI 里程碑, 属质量基线, 置顶优先。TEST-101 覆盖现有已实现代码的单元测试(后端全量); TEST-102 以 BDD 场景描述端到端用户旅程 (BDD ≡ E2E), 不为纯后端 API 单点设计 BDD; LOG-101 统一日志基建 (Logger + 日志文件), 让前后端错误可检索。**前端测试口径(2026-08-03 修订)**: 新 feature 前端 E2E 必做; 前端仅纯逻辑模块(`lib/api.ts`/hooks/带分支工具函数)需单测, 纯展示型组件/页面不强制(由 E2E 覆盖)。
 > **项目约定（硬约束）**: 今后每个新 feature 必须自带 BDD/E2E (`*.feature`, 必做, 含前端 UI 行为) + 单元测试(覆盖有逻辑分支的源码: 后端 services/controllers/providers/guards/pipes/工具函数; 前端仅纯逻辑模块, **纯展示型组件/页面不强制**), 并纳入质量门禁——`.quality-gate.json` 须含 `gates.tests` 且 `PASSED`, 否则 pre-commit 拦截; 历史功能由 TEST-101/TEST-102 统筹补齐 (设计文档可标注 legacy 豁免)。
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
 | TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | done | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
 | TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | done | 4 features / 6 scenarios / 27 steps 全绿 (浏览器复用本机 Edge, 免 Chromium 下载); 覆盖现有 4 页面核心旅程; plan/speech/report 旅程留待对应 feature 建页时自带 |
+| LOG-101 | **统一日志基建 (Logger + 日志文件)** — 移除应用代码生产路径中的裸 `console.error/console.log/...` 调用, 统一接入 Logger; 后端 `Logger` 写入 `server/logs/app-YYYY-MM-DD.log` (级别 error/warn/info/debug, 异步 append + 镜像 console), 并提供 `POST /api/log` 接口接收前端日志、汇总进同一文件; 前端 `Logger` 封装 console 并 best-effort `POST ${API_BASE}/log`; **约定: 之后所有新 feature 仅允许用 Logger (禁用裸 console)**; 顺带修复 `src/lib/api.ts` 的 `let body: any = null` 为精确类型; E2E 测试夹具 (`src/e2e/**`) 的 console 输出属测试基础设施, 不在本次范围 | P0 | — | done | 应用生产代码 (`src/app`、`src/lib`、`server/src` 除 `seed.ts`/`main.ts` 启动横幅) 无裸 console.*; 后端日志文件可检索且含前端转发的错误; jest 单测覆盖 Logger 纯函数 (serializeMeta/formatLine/文件写入/级别过滤) ≥90%; 前端 Logger 有单测 (fetch 失败静默不抛); 通过 CI 四门 + 质量门 (E2E console 沿用测试豁免) |
 
 ---
 
@@ -44,7 +45,7 @@
 | AI-105 | **配置与密钥管理** — `.env.example` 增加 `AI_PROVIDER/NVIDIA_API_KEY/NVIDIA_BASE_URL/NVIDIA_MODEL/NVIDIA_SAFETY_MODEL`, 接入现有 `ConfigModule`, 缺失时启动告警; `.env` 不入 git | P0 | AI-103 | backlog | 缺 key 启动打印 warning; key 不进入 git |
 | AI-106 | **重试与降级** — provider 调用封装 3 次指数退避重试; 超时(默认 60s, 推理模型); 429 限流 (code 1305) 视为瞬时错误, 退避重试 + 降低并发; 失败抛 `AiProviderException` 并由业务层降级; NVIDIA 端 `404 Function not found for account` / 挂起错误需识别并映射为 `AiAccessError` 提示账户权限问题 | P0 | AI-103 | backlog | 模拟 5xx/429 自动重试; 连续失败抛可识别异常; 权限错误给出明确文案 |
 | AI-107 | **每日 token/调用配额** — `common/limits.ts` 记录每用户每日调用次数与 token 用量, 超限返回 429 + 降级标记 | P1 | AI-106 | backlog | 配小额配额可触发 429; 配额数据持久化到 `ai_usage` 表 |
-| AI-108 | **AI 调用日志** — 记录每次 LLM 调用 (用户、模块、token、耗时、结果截断) 到日志/表, 便于排查与成本审计 | P1 | AI-106 | backlog | 每次调用有可检索日志; 敏感内容截断 |
+| AI-108 | **AI 调用日志** — 记录每次 LLM 调用 (用户、模块、token、耗时、结果截断) 到日志/表, 便于排查与成本审计 | P1 | AI-106, LOG-101 | backlog | 每次调用有可检索日志; 敏感内容截断 |
 
 ---
 

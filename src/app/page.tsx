@@ -6,6 +6,7 @@ import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { DailyTask } from "@/lib/types";
 import { Headphones, Mic, Pencil, Star, Flame, Check } from "lucide-react";
 
@@ -69,7 +70,7 @@ function HomeContent() {
       setTasks(taskData);
       setProgress(progressData);
     } catch (err) {
-      console.error("Failed to load home data", err);
+      logger.error("Failed to load home data", err);
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ function HomeContent() {
         const fresh = await api.getProgress();
         setProgress(fresh);
       } catch (err) {
-        console.error("Failed to complete task", err);
+        logger.error("Failed to complete task", err);
         // Revert on failure
         setTasks((prev) =>
           prev.map((t) => (t.id === task.id ? { ...t, completed: false } : t))
