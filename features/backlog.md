@@ -56,7 +56,7 @@
 | AI-201 | **`study_plans` / `study_plan_days` 实体** — 建表, 与 User 关联, `skill_type` 枚举 (vocab/listen/speak/write), status (draft/applied/archived) | P0 | — | done | TypeORM 迁移/同步建表; 与现有 entities 风格一致 |
 | AI-202 | **生成接口 `POST /api/ai/plan/generate`** — DTO (childId, ageRange, level, dailyMinutes, interests, weeks); 调用 AiProvider.chat; 返回结构化 Plan | P0 | AI-106, AI-201 | done | 合法入参返回 plan JSON; 非法入参被 class-validator 拦截返回 400 |
 | AI-203 | **PlanAgent System Prompt** — 中文/英文双语儿科友好提示词: 每天 1 主课+2 复习+1 口语、间隔复习、技能交错、内容安全红线; 低 temperature | P0 | AI-102 | done | 输出课程引用真实 course/lesson id; 无超龄/危险内容 |
-| AI-204 | **Plan JSON Schema 校验与重试** — 校验 LLM 输出结构与 lesson 引用有效性; 失败自动重试(≤3次); 仍失败降级到内置模板计划 | P0 | AI-202, AI-203 | backlog | 构造坏 JSON 时自动重试; 3 次后返回模板计划并标记 degraded |
+| AI-204 | **Plan JSON Schema 校验与重试** — 校验 LLM 输出结构与 lesson 引用有效性; 失败自动重试(≤3次); 仍失败降级到内置模板计划 | P0 | AI-202, AI-203 | done | 构造坏 JSON 时自动重试; 3 次后返回模板计划并标记 degraded |
 | AI-205 | **内置模板计划** — 3 套静态周计划 (按 dailyMinutes 档位), 用于降级 | P0 | AI-201 | backlog | 无 LLM 时可选模板生成计划 |
 | AI-206 | **计划持久化与"应用计划"** — `POST /api/ai/plan/:id/apply` 将计划落库为 applied, 并按天写入现有 `tasks` 表 | P0 | AI-201, 现有 TasksModule | backlog | 应用后每日任务列表出现对应任务; 重复应用提示确认 |
 | AI-207 | **`/plan` 页面 — 向导表单** — 年龄段/等级/每日时长/兴趣/周数选择器, 大触控目标, 沿用 cozy-kids 风格, 狐狸吉祥物引导 | P0 | AI-202 | backlog | 表单校验完整; 提交调 generate 接口 |

@@ -47,10 +47,16 @@ export const PLAN_SYSTEM_PROMPT = [
  * - 无目录（`catalog` 为空或未提供）：附 `catalogNote`，提示模型先产出主题化计划、
  *   待目录注入后须映射到真实 id（目录注入 + id 校验属 AI-204 / AI-206）。
  * - 有目录：附 `curriculumCatalog` 与 `catalogRule`，强制模型只引用真实 id。
+ * - `attempt > 1`（AI-204 重试）：追加 `retryNote`，指明上一次输出不符合 Schema，
+ *   要求自我纠正——只输出合规 JSON、不要解释 / 不要 Markdown 围栏。
  *
  * 返回 JSON 字符串，由 `PlanService` 直接作为 user 消息内容。
  */
-export function buildPlanUserPrompt(dto: GeneratePlanDto, catalog?: PlanCatalog): string {
+export function buildPlanUserPrompt(
+  dto: GeneratePlanDto,
+  catalog?: PlanCatalog,
+  attempt = 1,
+): string {
   const learnerProfile: Record<string, unknown> = {
     childId: dto.childId,
     ageRange: dto.ageRange,
@@ -65,15 +71,21 @@ export function buildPlanUserPrompt(dto: GeneratePlanDto, catalog?: PlanCatalog)
     !!catalog && catalog.courses.length > 0 && catalog.lessons.length > 0;
 
   if (!hasCatalog) {
-    return JSON.stringify({
+    const body: Record<string, unknown> = {
       learnerProfile,
       catalogNote:
         '当前未提供课程目录；请先产出连贯的主题化周计划（每节标注 type/title/skillType），' +
         '待目录注入后须将每节映射到真实 courseId/lessonId，禁止编造 id。',
-    });
+    };
+    if (attempt > 1) {
+      body.retryNote =
+        `这是第 ${attempt} 次请求。上一次输出不符合 JSON Schema（weeks[].days[].lessons[] 结构），` +
+        '请严格只输出一个合规 JSON 对象，不要任何解释文字、不要 Markdown 代码围栏。';
+    }
+    return JSON.stringify(body);
   }
 
-  return JSON.stringify({
+  const body: Record<string, unknown> = {
     learnerProfile,
     curriculumCatalog: {
       courses: catalog!.courses,
@@ -89,5 +101,11 @@ export function buildPlanUserPrompt(dto: GeneratePlanDto, catalog?: PlanCatalog)
     catalogRule:
       '你必须且只能从上述 curriculumCatalog 中选择真实的 lessonId / courseId（UUID），' +
       '逐节填写到计划 lessons 的 lessonId / courseId 字段；严禁编造、猜测或改动任何 id。',
-  });
+  };
+  if (attempt > 1) {
+    body.retryNote =
+      `这是第 ${attempt} 次请求。上一次输出不符合 JSON Schema（weeks[].days[].lessons[] 结构或 id 引用），` +
+      '请严格只输出合规 JSON 对象，lessonId/courseId 只允许取自目录，不要任何解释或 Markdown 围栏。';
+  }
+  return JSON.stringify(body);
 }

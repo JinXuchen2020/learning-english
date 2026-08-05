@@ -99,15 +99,18 @@ POST /api/ai/plan/generate
 body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-120), interests(string[]非空), weeks(1-4) }
   → 全局 ValidationPipe(class-validator) 拦截非法入参 → 400
   → PlanService 组装 system+user(JSON payload) → AiProvider.chat({temperature:0.4, maxTokens:2048})
-  → 剥离 markdown 代码围栏 → JSON.parse 为 GeneratedPlan
+  → 剥离 markdown 代码围栏 → JSON.parse → `validatePlan(plan-schema.ts)` 结构+lesson 引用格式校验
+  → 合规则返回(attempt=1)；不合规则自动重试(≤3 次, 重试请求附 retryNote 自我纠正)
+  → 仍失败降级 `buildFallbackPlan(plan-template.ts)` 内置模板 → degraded=true, model='template'
   → 响应 GeneratePlanResponse { plan, model?, degraded }
-     · degraded=true 表示 AI 返回非 JSON(如 MockProvider 演示文本) → plan={rawText}, 仍 200(保无 key 演示)
+     · degraded=true 表示 LLM 连续 3 次输出仍不符合 Schema → 已降级为内置模板计划(plan.weeks 有效可渲染), 仍 200
+     · provider 基础设施异常向上传播(不在本层重试, 避免与 AI-106 HTTP 层退避叠加)
   · 计划未持久化(落库/应用属 AI-206)
 ```
 - 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
-- lessons 引用真实 course/lesson id 的 **JSON Schema 校验 + 重试(≤3) + 模板降级**：属 AI-204 / AI-205（尚未实现）。
-- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用（目录注入与 id 校验分别属 AI-204/AI-206）。
-- Guardrail(重试/降级)：AI-204/AI-205。
+- **JSON Schema 校验 + 重试(≤3) + 模板降级**：AI-204 已落地（`server/src/plan/plan-schema.ts` 的 `validatePlan` 递归校验 weeks→days→lessons 结构 + lesson.type/skillType/title/courseId/lessonId 格式，错误聚合；`server/src/plan/plan-template.ts` 的 `buildFallbackPlan` 最小合规兜底计划；`PlanService` 重试循环 + `buildPlanUserPrompt(dto, catalog?, attempt)` 重试附 `retryNote`）。**注意**：`validatePlan` 仅做结构 + 引用格式校验，真实 `courseId/lessonId` 存在性校验随目录注入属 AI-206；3 套按 `dailyMinutes` 档位的静态周计划 + 用户可选模板生成属 AI-205。
+- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用（目录注入属 AI-204/AI-206 入口，id 存在性校验属 AI-206）。
+- Guardrail(重试/降级)：AI-204（校验失败重试 + 模板降级）/ AI-205（3 套静态周计划 + 用户可选模板）。
 - 鉴权：本接口按契约 `childId` 由 body 传入，未加 `JwtAuthGuard`；AI-206 apply 接口再补鉴权。
 
 **新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,可空),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false) )。具体课程/课时关联（`course_id`/`lesson_id`）留待 AI-206 详细设计，不在 AI-201 落地。

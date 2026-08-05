@@ -1,14 +1,14 @@
 {
-  "phase": "ai-203",
+  "phase": "ai-204",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 254/254 全绿; 复用 AI-202 接口契约无漂移; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: plan-agent.prompt.spec.ts 新增 12 cases + plan.service.spec.ts 更新 3 cases = 2 文件; e2e/bdd: 0 场景，纯后端提示词替换豁免，约束 #6 + AI-201/202 先例)",
-    "review": "PASSED (0 open; 无裸 console、无死代码、目录注入显式留待 AI-204/206、未越界写 Schema/查库)",
-    "optimization": "PASSED (0 open; 清除 AI-202 占位 PLAN_SYSTEM_PROMPT，替换为生产级双语提示词；PlanLesson 增加 courseId/lessonId 承载字段)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 281/281 全绿; 复用 AI-202 接口契约无漂移; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: plan-schema.spec.ts 新增 14 cases + plan-template.spec.ts 新增 7 cases + plan.service.spec.ts 重写 9 cases + plan.controller.spec.ts 更新 1 + plan-agent.prompt.spec.ts 新增 4 = 5 文件; e2e/bdd: 0 场景，纯后端输出可靠性增强豁免，约束 #6 + AI-201/202/203 先例)",
+    "review": "PASSED (0 open; 重试边界明确[仅校验失败重试、provider 异常传播不叠加 AI-106]；错误聚合无遗漏；空安全[空 weeks/days/lessons 均覆盖]；无魔法值[MAX_PLAN_ATTEMPTS 常量]；无裸 console)",
+    "optimization": "PASSED (0 open; 移除旧 rawText 兜底分支；提取 plan-schema/plan-template 单一职责；PlanWeek 增 theme 字段贴合提示词输出；degraded 语义升级为模板降级并同步类型文档)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-203-gate.md",
-  "notes": "AI-203 用生产级双语儿科友好 PlanAgent System Prompt 替换 AI-202 占位提示词：覆盖 8 项验收要素（双语/安全红线/1主课+2复习+1口语/间隔复习/技能交错/仅JSON/引用真实id/低temperature）。新增 buildPlanUserPrompt 支持可选课程目录（目录注入与 id 存在性校验属 AI-204/AI-206）。PlanLesson 增加 courseId/lessonId 可选承载字段。单元测试 2 文件（提示词内容断言 + 服务消息形态断言）；BDD/E2E 0（纯后端提示词，约束 #6 豁免）。tsc 0 错误，jest 254/254 全绿。"
+  "reportRef": "docs/quality/ai-204-gate.md",
+  "notes": "AI-204 为 POST /api/ai/plan/generate 增加 Plan JSON Schema 校验 + 自动重试(≤3) + 内置模板降级：新增 plan-schema.ts(validatePlan 结构+lesson 引用格式校验，聚合错误)、plan-template.ts(buildFallbackPlan 最小有效兜底计划，经 validatePlan 合规)；PlanService.generatePlan 改为重试循环(仅输出校验失败重试，provider 基础设施异常仍向上传播避免与 AI-106 叠加)，耗尽降级模板(degraded:true, model:'template')；buildPlanUserPrompt 增 attempt 参数在重试时附 retryNote 自我纠正。单元测试 5 文件共 63 plan cases；BDD/E2E 0(纯后端豁免，/plan 页旅程属 AI-207/208)。tsc 0 错误，jest 281/281 全绿。"
 }

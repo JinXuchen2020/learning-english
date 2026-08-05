@@ -43,6 +43,8 @@ export interface PlanDay {
 export interface PlanWeek {
   /** 第几周（从 1 起）。 */
   week?: number;
+  /** 本周主题（提示词约定输出，落库阶段可选持久化）。 */
+  theme?: string;
   /** 本周每日计划。 */
   days?: PlanDay[];
 }
@@ -69,8 +71,11 @@ export interface GeneratePlanResponse {
   /** 实际使用的 provider 模型标识。 */
   model?: string;
   /**
-   * 是否为降级输出：`true` 表示 AI 返回非 JSON（如 MockProvider 演示文本），
-   * `plan` 退化为 `{ rawText }`，前端应降级展示而非解析周表。
+   * 是否为降级输出：
+   *  - `true` 表示 LLM 输出连续 `MAX_PLAN_ATTEMPTS` 次仍不符合 Schema（AI-204），
+   *    `plan` 为 `buildFallbackPlan` 内置模板（结构有效、可渲染，但不含真实课程引用），
+   *    `model` 为 `'template'`，前端应提示「已使用备用计划」而非解析失败。
+   *  - `false` 表示 LLM 首轮/重试命中合规计划。
    */
   degraded: boolean;
 }

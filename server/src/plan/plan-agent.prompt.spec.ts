@@ -117,4 +117,24 @@ describe('buildPlanUserPrompt (AI-203)', () => {
     expect(out.catalogRule).toContain('严禁');
     expect(out.catalogNote).toBeUndefined();
   });
+
+  it('attempt=1（首轮）不含 retryNote', () => {
+    const out = JSON.parse(buildPlanUserPrompt(sampleDto(), undefined, 1));
+    expect(out.retryNote).toBeUndefined();
+  });
+
+  it('attempt>1（AI-204 重试）附加 retryNote 自我纠正提示', () => {
+    const out = JSON.parse(buildPlanUserPrompt(sampleDto(), undefined, 2));
+    expect(out.retryNote).toBeDefined();
+    expect(out.retryNote).toContain('第 2 次');
+    expect(out.retryNote).toContain('JSON Schema');
+    expect(out.retryNote).toContain('Markdown');
+  });
+
+  it('有目录时 attempt>1 的 retryNote 强调 id 只允许取自目录', () => {
+    const out = JSON.parse(buildPlanUserPrompt(sampleDto(), sampleCatalog(), 3));
+    expect(out.retryNote).toBeDefined();
+    expect(out.retryNote).toContain('第 3 次');
+    expect(out.retryNote).toContain('目录');
+  });
 });

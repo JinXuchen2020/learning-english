@@ -37,7 +37,10 @@ describe('PlanController (AI-202)', () => {
       controllers: [PlanController],
       providers: [
         PlanService,
-        { provide: AI_PROVIDER_TOKEN, useValue: makeProvider('{"weeks":[{"week":1,"days":[]}]}') },
+        {
+          provide: AI_PROVIDER_TOKEN,
+          useValue: makeProvider('{"weeks":[{"week":1,"days":[{"day":1,"lessons":[{"type":"main","title":"颜色"}]}]}]}'),
+        },
       ],
     }).compile();
     controller = mod.get(PlanController);
