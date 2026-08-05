@@ -110,3 +110,29 @@ export interface GeneratePlanDto {
   weeks: number; // 1-4
   useTemplate?: boolean;
 }
+
+/** `POST /api/ai/plan/save` 请求体（AI-206，字段名/类型与后端 `SavePlanDto` 对齐）。 */
+export interface SavePlanDto {
+  childId: string;
+  plan: GeneratedPlan;
+}
+
+/** `POST /api/ai/plan/save` 响应（AI-206：`SavePlanResult`）。 */
+export interface SavePlanResponse {
+  id: string;
+  status: string; // "draft"
+}
+
+/** `POST /api/ai/plan/:id/apply` 请求体（AI-206，字段名/类型与后端 `ApplyPlanDto` 对齐）。 */
+export interface ApplyPlanDto {
+  confirm?: boolean;
+}
+
+/** `POST /api/ai/plan/:id/apply` 响应（AI-206：`ApplyPlanResult`）。 */
+export interface ApplyPlanResponse {
+  id: string;
+  status: string; // "applied"
+  appliedDays: number;
+  tasksCreated: number;
+  appliedAt: string;
+}

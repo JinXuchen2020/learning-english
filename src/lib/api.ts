@@ -1,4 +1,15 @@
-import type { Course, Lesson, Word, DailyTask, GeneratePlanDto, GeneratePlanResponse } from "./types";
+import type {
+  Course,
+  Lesson,
+  Word,
+  DailyTask,
+  GeneratePlanDto,
+  GeneratePlanResponse,
+  SavePlanDto,
+  SavePlanResponse,
+  ApplyPlanDto,
+  ApplyPlanResponse,
+} from "./types";
 
 /**
  * Backend API base URL. The NestJS server runs with a global `/api` prefix,
@@ -186,6 +197,29 @@ export function recordWordAttempt(wordId: string, correct: boolean) {
  */
 export function generatePlan(dto: GeneratePlanDto) {
   return request<GeneratePlanResponse>("/ai/plan/generate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 持久化生成计划为草稿（AI-206/AI-208）。
+ * 后端复用 AI-204 `validatePlan` 校验结构，不合法 → 400。
+ */
+export function savePlan(dto: SavePlanDto) {
+  return request<SavePlanResponse>("/ai/plan/save", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 应用已保存的计划：置 `applied`、按天写 `daily_tasks`（AI-206/AI-208）。
+ * 已 applied 且 `confirm!==true` → 409 `{ code:'PLAN_ALREADY_APPLIED', needsConfirm:true }`，
+ * 前端弹确认后用 `applyPlan(id, { confirm:true })` 重应用（覆盖式）。
+ */
+export function applyPlan(id: string, dto: ApplyPlanDto = {}) {
+  return request<ApplyPlanResponse>(`/ai/plan/${id}/apply`, {
     method: "POST",
     body: JSON.stringify(dto),
   });

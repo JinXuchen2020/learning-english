@@ -85,4 +85,48 @@ export default class PlanPage {
   async previewWeekCount(): Promise<number> {
     return this.page.locator('[data-component="PlanWeekCard"]').count();
   }
+
+  async planDayCardCount(): Promise<number> {
+    return this.page.locator('[data-component="PlanDayCard"]').count();
+  }
+
+  async isApplyVisible(): Promise<boolean> {
+    const btn = this.page.locator('button[data-action="apply"]');
+    return (await btn.count()) > 0 && (await btn.first().isVisible());
+  }
+
+  async isRegenerateVisible(): Promise<boolean> {
+    const btn = this.page.locator('button[data-action="regenerate"]');
+    return (await btn.count()) > 0 && (await btn.first().isVisible());
+  }
+
+  async clickApply(): Promise<void> {
+    await this.page.locator('button[data-action="apply"]').click();
+  }
+
+  async waitAppliedSuccess(): Promise<void> {
+    await this.page.waitForSelector('[data-component="PlanAppliedSuccess"]', { timeout: 30000 });
+  }
+
+  async toggleDay(index: number): Promise<void> {
+    await this.page.locator(`button[data-action="toggle-day"][data-day-index="${index}"]`).click();
+  }
+
+  async isDayDone(index: number): Promise<boolean> {
+    const pressed = await this.page
+      .locator(`button[data-action="toggle-day"][data-day-index="${index}"]`)
+      .getAttribute("aria-pressed");
+    return pressed === "true";
+  }
+
+  /** After applying, wait until we land back on Home with its daily tasks rendered. */
+  async waitHomeWithTasks(): Promise<void> {
+    await this.page.waitForFunction(() => location.pathname === "/", undefined, { timeout: 30000 });
+    await this.page.waitForSelector('[data-component="Home"]');
+    await this.page.waitForFunction(
+      () => document.querySelectorAll('[data-component="DailyTasks"] button').length >= 1,
+      undefined,
+      { timeout: 30000 }
+    );
+  }
 }

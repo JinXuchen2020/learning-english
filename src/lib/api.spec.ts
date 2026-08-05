@@ -69,3 +69,58 @@ describe('api.generatePlan (AI-207)', () => {
     await expect(api.generatePlan(dto)).rejects.toThrow(/plan 结构不合法/);
   });
 });
+
+describe('api.savePlan / api.applyPlan (AI-208)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const saveDto = {
+    childId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    plan: { weeks: [{ week: 1, days: [{ day: 1, title: '颜色' }] }] },
+  };
+  const planId = 'a1b2c3d4-0000-0000-0000-000000000001';
+
+  it('savePlan POSTs to /ai/plan/save and returns {id,status}', async () => {
+    mockFetch(JSON.stringify({ id: planId, status: 'draft' }), true, 200);
+    const res = await api.savePlan(saveDto);
+    expect(res).toEqual({ id: planId, status: 'draft' });
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/ai/plan/save',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  it('savePlan throws ApiError on 400 (invalid plan structure)', async () => {
+    mockFetch(JSON.stringify({ message: '计划结构不合法，无法保存' }), false, 400);
+    await expect(api.savePlan(saveDto)).rejects.toThrow(ApiError);
+    await expect(api.savePlan(saveDto)).rejects.toThrow(/计划结构不合法/);
+  });
+
+  it('applyPlan POSTs to /ai/plan/:id/apply and returns the apply result', async () => {
+    const body = {
+      id: planId,
+      status: 'applied',
+      appliedDays: 2,
+      tasksCreated: 8,
+      appliedAt: '2026-08-05',
+    };
+    mockFetch(JSON.stringify(body), true, 200);
+    const res = await api.applyPlan(planId, {});
+    expect(res).toEqual(body);
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      `http://localhost:4000/api/ai/plan/${planId}/apply`,
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  it('applyPlan throws ApiError on 409 (already applied, needs confirm)', async () => {
+    mockFetch(
+      JSON.stringify({ code: 'PLAN_ALREADY_APPLIED', message: '该计划已应用' }),
+      false,
+      409
+    );
+    await expect(api.applyPlan(planId, {})).rejects.toThrow(ApiError);
+    await expect(api.applyPlan(planId, {})).rejects.toThrow(/已应用/);
+  });
+});

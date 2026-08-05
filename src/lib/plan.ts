@@ -1,4 +1,4 @@
-import type { PlanLevel } from "./types";
+import type { PlanLevel, PlanSkillType, PlanDay, PlanLesson } from "./types";
 
 /**
  * 学习计划向导的纯逻辑层（AI-207）。
@@ -83,4 +83,82 @@ export function validatePlanForm(values: PlanFormValues): PlanFormErrors {
 /** 便捷判断：表单是否可提交。 */
 export function isPlanFormValid(values: PlanFormValues): boolean {
   return Object.keys(validatePlanForm(values)).length === 0;
+}
+
+/* ----------------------- 计划展示（AI-208） ----------------------- */
+
+/**
+ * 技能类型 → 展示配色（用于周计划每日卡片上色）。
+ * 与 `server/src/plan/plan.service.ts` 的 `iconForSkill`（headphones/mic/pencil 口径）
+ * 不冲突——这里只管颜色，图标由后端 apply 时映射。
+ */
+export const PLAN_SKILL_COLORS: Record<PlanSkillType, string> = {
+  vocab: "#F59E0B", // 词汇 · 琥珀
+  listen: "#3B82F6", // 听力 · 蓝
+  speak: "#EC4899", // 口语 · 粉
+  write: "#10B981", // 书写 · 绿
+};
+
+/** 取技能类型对应的颜色；未指定时回落到词汇色（保证卡片始终有颜色）。 */
+export function planSkillColor(skill?: PlanSkillType): string {
+  if (skill && skill in PLAN_SKILL_COLORS) return PLAN_SKILL_COLORS[skill];
+  return PLAN_SKILL_COLORS.vocab;
+}
+
+/** 单节任务的简短类型标签（用于卡片内 lesson 小标）。 */
+export function planLessonTypeLabel(lesson?: PlanLesson): string {
+  if (!lesson) return "";
+  if (lesson.type === "main") return "主课";
+  if (lesson.type === "review") return "复习";
+  if (lesson.type === "speaking") return "口语";
+  return lesson.skillType ? skillLabel(lesson.skillType) : "";
+}
+
+function skillLabel(skill: PlanSkillType): string {
+  switch (skill) {
+    case "vocab":
+      return "词汇";
+    case "listen":
+      return "听力";
+    case "speak":
+      return "口语";
+    case "write":
+      return "书写";
+  }
+}
+
+/** 技能类型 → 中文标签（用于卡片角标）。 */
+export function planSkillLabel(skill: PlanSkillType): string {
+  return skillLabel(skill);
+}
+
+/**
+ * 纯函数：把一个计划日格式化为展示所需的字段。
+ * - `label`：日标题，缺省回落 `第 N 天`（N = index+1）。
+ * - `color`：按 `day.skillType`（否则首日 lesson 的 skillType）上色。
+ * - `lessonCount`：lessons 数（空数组 → 0）。
+ * - `skills`：去重后的技能类型列表（用于卡片角标）。
+ */
+export function formatPlanDay(
+  day: PlanDay,
+  index: number
+): { label: string; color: string; lessonCount: number; skills: PlanSkillType[] } {
+  const lessons = day.lessons ?? [];
+  const skill =
+    day.skillType ??
+    lessons.find((l) => l.skillType)?.skillType ??
+    undefined;
+  const skills = Array.from(
+    new Set(
+      lessons
+        .map((l) => l.skillType)
+        .filter((s): s is PlanSkillType => Boolean(s)),
+    ),
+  );
+  return {
+    label: day.title ?? `第 ${index + 1} 天`,
+    color: planSkillColor(skill),
+    lessonCount: lessons.length,
+    skills,
+  };
 }

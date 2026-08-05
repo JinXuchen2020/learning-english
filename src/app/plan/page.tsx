@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
 import AuthGate from "@/components/AuthGate";
@@ -16,12 +18,12 @@ import {
   WEEK_OPTIONS,
   validatePlanForm,
   isPlanFormValid,
+  planSkillColor,
+  planSkillLabel,
+  planLessonTypeLabel,
+  formatPlanDay,
 } from "@/lib/plan";
-import type {
-  PlanLevel,
-  GeneratePlanResponse,
-  PlanWeek,
-} from "@/lib/types";
+import type { PlanLevel, GeneratePlanResponse, PlanWeek } from "@/lib/types";
 import type { PlanFormValues } from "@/lib/plan";
 
 const EMPTY_VALUES: PlanFormValues = {
@@ -66,9 +68,36 @@ function Chip({
   );
 }
 
-/** 计划预览（AI-207 基础版；完整交互式周卡视图属 AI-208）。 */
-function PlanPreview({ result }: { result: GeneratePlanResponse }) {
+/**
+ * 计划预览 + 交互（AI-208）：每日颜色化卡片视图 + 重新生成 / 应用此计划 + 单日勾选。
+ */
+function PlanPreview({
+  result,
+  onRegenerate,
+  onApply,
+  applying,
+  applied,
+  checkedDays,
+  onToggleDay,
+}: {
+  result: GeneratePlanResponse;
+  onRegenerate: () => void;
+  onApply: () => void;
+  applying: boolean;
+  applied: boolean;
+  checkedDays: Set<number>;
+  onToggleDay: (index: number) => void;
+}) {
   const weeks: PlanWeek[] = result.plan.weeks ?? [];
+
+  // 计算每周之前累计的天数，给每天一个跨周稳定的全局序号（用于勾选 key）。
+  const dayCountsBefore: number[] = [];
+  let acc = 0;
+  for (const w of weeks) {
+    dayCountsBefore.push(acc);
+    acc += w.days?.length ?? 0;
+  }
+
   const totalDays = weeks.reduce((n, w) => n + (w.days?.length ?? 0), 0);
 
   return (
@@ -92,30 +121,95 @@ function PlanPreview({ result }: { result: GeneratePlanResponse }) {
         </p>
       )}
 
+      {applied && (
+        <p
+          data-component="PlanAppliedSuccess"
+          className="text-sm font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 rounded-control px-4 py-2.5"
+        >
+          🎉 已应用到你的每日任务，正在跳转到首页…
+        </p>
+      )}
+
       <div className="space-y-3">
         {weeks.map((week, wi) => (
           <div key={wi} className="card-kids" data-component="PlanWeekCard">
             <h3 className="mb-2">
               第 {week.week ?? wi + 1} 周{week.theme ? ` · ${week.theme}` : ""}
             </h3>
-            <ul className="space-y-1.5">
-              {(week.days ?? []).map((day, di) => (
-                <li
-                  key={di}
-                  className="flex items-center gap-2 text-kids-text"
-                  data-component="PlanDayRow"
-                >
-                  <span className="font-bold text-kids-title">
-                    第 {day.day ?? di + 1} 天
-                  </span>
-                  <span>·</span>
-                  <span>{day.title ?? "今日学习"}</span>
-                  <span className="ml-auto text-xs text-kids-muted">
-                    {(day.lessons ?? []).length} 节
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-2">
+              {(week.days ?? []).map((day, di) => {
+                const gi = dayCountsBefore[wi] + di;
+                const fmt = formatPlanDay(day, gi);
+                const done = checkedDays.has(gi);
+                return (
+                  <div
+                    key={di}
+                    data-component="PlanDayCard"
+                    className="rounded-control border-l-4 p-3 bg-white transition-all"
+                    style={{
+                      borderLeftColor: fmt.color,
+                      backgroundColor: fmt.color + "14",
+                      opacity: done ? 0.7 : 1,
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p
+                          className={`font-bold text-kids-title ${
+                            done ? "line-through" : ""
+                          }`}
+                        >
+                          {fmt.label}
+                        </p>
+                        <p className="text-sm text-kids-muted">
+                          {fmt.lessonCount} 节
+                          {fmt.skills.length > 0 &&
+                            ` · ${fmt.skills.map(planSkillLabel).join(" / ")}`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        data-action="toggle-day"
+                        data-day-index={gi}
+                        aria-pressed={done}
+                        onClick={() => onToggleDay(gi)}
+                        className={`ml-auto touch-target flex items-center gap-1 rounded-control px-3 py-2 font-bold border-2 transition-all ${
+                          done
+                            ? "bg-[var(--color-success)] text-white border-[var(--color-success)]"
+                            : "bg-white text-kids-title border-kids-secondary hover:border-[var(--color-success)]"
+                        }`}
+                      >
+                        {done ? <Check size={18} strokeWidth={3} /> : null}
+                        {done ? "已完成" : "完成今天"}
+                      </button>
+                    </div>
+
+                    {(day.lessons ?? []).length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {(day.lessons ?? []).map((lesson, li) => (
+                          <li
+                            key={li}
+                            className="text-sm text-kids-text flex items-center gap-2"
+                          >
+                            <span
+                              className="rounded px-1.5 py-0.5 text-xs font-semibold"
+                              style={{
+                                backgroundColor:
+                                  planSkillColor(lesson.skillType) + "22",
+                                color: planSkillColor(lesson.skillType),
+                              }}
+                            >
+                              {planLessonTypeLabel(lesson) || "任务"}
+                            </span>
+                            <span>{lesson.title || planLessonTypeLabel(lesson) || "今日学习"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
@@ -123,16 +217,44 @@ function PlanPreview({ result }: { result: GeneratePlanResponse }) {
       {weeks.length === 0 && (
         <p className="text-kids-muted">计划正在生成，稍等一下下～</p>
       )}
+
+      {/* Actions */}
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="flex-1 justify-center"
+          onClick={onRegenerate}
+          disabled={applying || applied}
+          data-action="regenerate"
+        >
+          重新生成 ↻
+        </Button>
+        <Button
+          type="button"
+          variant="success"
+          className="flex-1 justify-center"
+          onClick={onApply}
+          disabled={applying || applied}
+          data-action="apply"
+        >
+          {applying ? "正在应用…" : applied ? "已应用 ✓" : "应用此计划 ✨"}
+        </Button>
+      </div>
     </div>
   );
 }
 
 function PlanContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [values, setValues] = useState<PlanFormValues>(EMPTY_VALUES);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GeneratePlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [checkedDays, setCheckedDays] = useState<Set<number>>(new Set());
 
   const errors = useMemo(() => validatePlanForm(values), [values]);
   const valid = isPlanFormValid(values);
@@ -151,6 +273,7 @@ function PlanContent() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setApplied(false);
     try {
       const res = await api.generatePlan({
         childId: user.id,
@@ -172,6 +295,36 @@ function PlanContent() {
       setLoading(false);
     }
   }, [valid, user, values]);
+
+  const handleApply = useCallback(async () => {
+    if (!result || !user) return;
+    setApplying(true);
+    setError(null);
+    try {
+      const saved = await api.savePlan({ childId: user.id, plan: result.plan });
+      await api.applyPlan(saved.id, {});
+      setApplied(true);
+      // 短暂展示成功提示后跳回首页（Home 会渲染新计划任务）。
+      setTimeout(() => router.push("/"), 1200);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || "应用失败，再试一次吧～");
+      } else {
+        setError("网络好像开小差了，再试一次吧！");
+      }
+      logger.error("applyPlan failed", err);
+      setApplying(false);
+    }
+  }, [result, user, router]);
+
+  const toggleDay = useCallback((index: number) => {
+    setCheckedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="space-y-8" data-component="PlanWizard">
@@ -247,9 +400,7 @@ function PlanContent() {
                 value={lv.value}
                 label={lv.label}
                 selected={values.level === lv.value}
-                onToggle={() =>
-                  setValues((v) => ({ ...v, level: lv.value }))
-                }
+                onToggle={() => setValues((v) => ({ ...v, level: lv.value }))}
               />
             ))}
           </div>
@@ -273,9 +424,7 @@ function PlanContent() {
                 value={String(m)}
                 label={`${m} 分钟`}
                 selected={values.dailyMinutes === m}
-                onToggle={() =>
-                  setValues((v) => ({ ...v, dailyMinutes: m }))
-                }
+                onToggle={() => setValues((v) => ({ ...v, dailyMinutes: m }))}
               />
             ))}
           </div>
@@ -358,7 +507,17 @@ function PlanContent() {
       )}
 
       {/* Result preview */}
-      {!loading && result && <PlanPreview result={result} />}
+      {!loading && result && (
+        <PlanPreview
+          result={result}
+          onRegenerate={() => void handleGenerate()}
+          onApply={() => void handleApply()}
+          applying={applying}
+          applied={applied}
+          checkedDays={checkedDays}
+          onToggleDay={toggleDay}
+        />
+      )}
     </div>
   );
 }

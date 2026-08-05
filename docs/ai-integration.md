@@ -88,7 +88,7 @@
 
 ### 1. AI 学习计划生成 (`AiPlanModule`)
 
-**前端 /plan** (AI-207 向导表单已落地, AI-208 展示交互待做)
+**前端 /plan** (AI-207 向导表单 + AI-208 展示交互均已落地)
 - 入口: TabNav 新增 `Plan` 标签 (Sparkles 图标, href `/plan`), 已登录孩子可见
 - 路由: `src/app/plan/page.tsx` (`"use client"` + `AuthGate` 包裹), `childId` 取自 `useAuth().user.id` (uuid, 满足 DTO)
 - 五组大触控卡片选择器 (常量集中 `src/lib/plan.ts`):
@@ -101,8 +101,8 @@
 - 提交: `Button[data-action=generate]`, `validatePlanForm`(lib/plan.ts) 通过前 `disabled` (空表单禁用便于 E2E 断言); 提交中 `data-component=PlanLoading`(Mascot thinking); 成功 `data-component=PlanPreview` 渲染 weeks→days→lessons
 - 调用: `src/lib/api.ts generatePlan(dto)` → `POST /api/ai/plan/generate` (带 Bearer token, 后端忽略); 无 key 环境 MockProvider 降级 `degraded:true` 仍 200, 预览显示 `data-component=PlanDegradedNote`「Foxy 用了一套现成计划」友好提示
 - 失败: 接口报错显示错误提示而非白屏
-- 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto)
-- (AI-208 待做) 周计划卡片视图(每天颜色化、可拖动调整) + 「重新生成」+「应用此计划」(→写入 tasks 表, 复用 AI-206 apply) + 单日任务勾选
+- 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid` + AI-208 颜色化 `PLAN_SKILL_COLORS`/`planSkillColor`/`planLessonTypeLabel`/`formatPlanDay`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto/SavePlanDto/SavePlanResponse/ApplyPlanDto/ApplyPlanResponse)
+- 周计划卡片视图(每天按技能类型颜色化, vocab #F59E0B / listen #3B82F6 / speak #EC4899 / write #10B981) + 「重新生成」(复用 generate, loading+降级提示) + 「应用此计划」(`savePlan`→`applyPlan`→跳 Home 每日任务, 复用 AI-206 apply) + 单日任务本地勾选(持久化回写 `planDay.isDone` 属 AI-209); 颜色/标签/格式化逻辑集中在 `lib/plan.ts`, 单测覆盖; 调用扩展见 `src/lib/api.ts` `savePlan`/`applyPlan`
 
 **后端**（AI-202 已实现）
 ```

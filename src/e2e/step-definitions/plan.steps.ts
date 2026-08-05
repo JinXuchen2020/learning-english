@@ -95,3 +95,64 @@ Then(
     }
   }
 );
+
+Then(
+  "I should see at least {int} plan day card",
+  async function (this: E2EWorld, expected: number) {
+    const page = new PlanPage(this.page, this.baseUrl);
+    await page.waitPreview();
+    const count = await page.planDayCardCount();
+    if (count < expected) {
+      throw new Error(`Expected at least ${expected} plan day card(s) but found ${count}`);
+    }
+  }
+);
+
+Then("the apply button should be visible", async function (this: E2EWorld) {
+  const page = new PlanPage(this.page, this.baseUrl);
+  if (!(await page.isApplyVisible())) {
+    throw new Error("Expected the apply button to be visible");
+  }
+});
+
+Then("the regenerate button should be visible", async function (this: E2EWorld) {
+  const page = new PlanPage(this.page, this.baseUrl);
+  if (!(await page.isRegenerateVisible())) {
+    throw new Error("Expected the regenerate button to be visible");
+  }
+});
+
+When("I click the apply button", async function (this: E2EWorld) {
+  await new PlanPage(this.page, this.baseUrl).clickApply();
+});
+
+Then(
+  "I should see the plan applied success message",
+  async function (this: E2EWorld) {
+    await new PlanPage(this.page, this.baseUrl).waitAppliedSuccess();
+  }
+);
+
+Then(
+  "I should be on the Home page with daily tasks",
+  async function (this: E2EWorld) {
+    await new PlanPage(this.page, this.baseUrl).waitHomeWithTasks();
+  }
+);
+
+When(
+  "I toggle the plan day {int} as done",
+  async function (this: E2EWorld, index: number) {
+    await new PlanPage(this.page, this.baseUrl).toggleDay(index);
+  }
+);
+
+Then(
+  "the plan day {int} should be marked done",
+  async function (this: E2EWorld, index: number) {
+    const done = await new PlanPage(this.page, this.baseUrl).isDayDone(index);
+    if (!done) {
+      throw new Error(`Expected plan day ${index} to be marked done`);
+    }
+  }
+);
