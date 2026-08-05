@@ -1,14 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AI_PROVIDER_TOKEN, AiProvider, ChatResult } from '../ai/ai-provider.interface';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { PlanService } from './plan.service';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
+import { StudyPlan } from './study-plan.entity';
+import { StudyPlanDay } from './study-plan-day.entity';
+import { TasksService } from '../tasks/tasks.service';
 import { PLAN_SYSTEM_PROMPT } from './plan-agent.prompt';
 
 /**
- * PlanService 单测（AI-202 编排 + AI-203 提示词 + AI-204 Schema 校验/重试/模板降级）：
+ * PlanService 单测（AI-202 编排 + AI-203 提示词 + AI-204 Schema 校验/重试/模板降级
+ * + AI-206 save/apply 持久化与应用）：
  * 覆盖有逻辑分支——合法 JSON 首轮通过、Markdown 围栏、坏 JSON/坏 Schema 自动重试 ≤3
- * 次后降级模板、provider 异常传播、重试带 retryNote、发出的 system/user 消息形态。
- * 直接用 mock provider 注入，避免依赖真实 LLM / DB。
+ * 次后降级模板、provider 异常传播、重试带 retryNote、发出的 system/user 消息形态，
+ * 以及 AI-206 的 savePlan（落库草稿/非法 plan 拒绝）与 applyPlan（404/重复确认/重应用）。
+ * 直接用 mock provider + mock repo + mock TasksService 注入，避免依赖真实 LLM / DB。
  */
 
 const UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -34,9 +40,28 @@ function makeProvider(text: string | Error, model = 'mock-model'): AiProvider {
   return { name: 'mock', chat } as unknown as AiProvider;
 }
 
-async function setup(provider: AiProvider): Promise<PlanService> {
+interface Mocks {
+  planRepo: any;
+  dayRepo: any;
+  tasksService: any;
+}
+
+async function setup(provider: AiProvider, mocks?: Partial<Mocks>): Promise<PlanService> {
+  const planRepo = mocks?.planRepo ?? {
+    save: jest.fn(async (e: any) => ({ ...e, id: e.id ?? 'plan-1', status: e.status ?? 'draft' })),
+    findOne: jest.fn(),
+  };
+  const dayRepo = mocks?.dayRepo ?? { save: jest.fn(async (e: any) => e) };
+  const tasksService = mocks?.tasksService ?? { replacePlanTasks: jest.fn(async () => {}) };
+
   const mod: TestingModule = await Test.createTestingModule({
-    providers: [PlanService, { provide: AI_PROVIDER_TOKEN, useValue: provider }],
+    providers: [
+      PlanService,
+      { provide: AI_PROVIDER_TOKEN, useValue: provider },
+      { provide: getRepositoryToken(StudyPlan), useValue: planRepo },
+      { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
+      { provide: TasksService, useValue: tasksService },
+    ],
   }).compile();
   return mod.get(PlanService);
 }
@@ -190,5 +215,90 @@ describe('PlanService (AI-204)', () => {
     await service.generatePlan(validDto); // 缺省
 
     expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('PlanService (AI-206) — 保存草稿 savePlan', () => {
+  const plan = JSON.parse(validPlanJson);
+
+  it('合法 plan → 落库草稿并返回 { id, status:"draft" }', async () => {
+    const service = await setup(makeProvider(validPlanJson));
+    const res = await service.savePlan({ childId: UUID, plan });
+    expect(res.status).toBe('draft');
+    expect(res.id).toBeDefined();
+  });
+
+  it('非法 plan（weeks:[]）→ 抛 BadRequestException（含 errors）', async () => {
+    const { BadRequestException } = await import('@nestjs/common');
+    const service = await setup(makeProvider(validPlanJson));
+    await expect(service.savePlan({ childId: UUID, plan: { weeks: [] } })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+});
+
+describe('PlanService (AI-206) — 应用 applyPlan', () => {
+  const plan = JSON.parse(validPlanJson);
+  const draftPlan = {
+    id: 'plan-1',
+    userId: UUID,
+    status: 'draft',
+    days: [
+      { id: 'd1', dayIndex: 0, skillType: 'vocab', title: '第1天', content: '[{"title":"颜色"}]', isDone: false, date: null },
+      { id: 'd2', dayIndex: 1, skillType: 'speak', title: '第2天', content: '[{"title":"口语"}]', isDone: false, date: null },
+    ],
+  };
+  const appliedPlan = { ...draftPlan, status: 'applied' };
+
+  it('计划不存在 → 抛 NotFoundException', async () => {
+    const { NotFoundException } = await import('@nestjs/common');
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => null) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo });
+    await expect(service.applyPlan('missing', false)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('草稿 → 置 applied 并写入每日任务（tasksCreated = 天数）', async () => {
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => draftPlan) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
+
+    const res = await service.applyPlan('plan-1', false);
+
+    expect(res.status).toBe('applied');
+    expect(res.appliedDays).toBe(2);
+    expect(res.tasksCreated).toBe(2);
+    expect(res.appliedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(planRepo.save).toHaveBeenCalledTimes(1);
+    expect(tasksService.replacePlanTasks).toHaveBeenCalledTimes(1);
+    const [, planDayIds, entries] = (tasksService.replacePlanTasks as jest.Mock).mock.calls[0];
+    expect(planDayIds).toEqual(['d1', 'd2']);
+    expect(entries).toHaveLength(2);
+    expect(entries[0].userId).toBe(UUID);
+    expect(entries[0].planDayId).toBe('d1');
+    expect(entries[0].date).toBe(res.appliedAt);
+    expect(entries[0].icon).toBe('pencil'); // vocab → pencil
+    expect(entries[1].icon).toBe('mic'); // speak → mic
+  });
+
+  it('已 applied 且 confirm=false → 抛 ConflictException(needsConfirm:true)', async () => {
+    const { ConflictException } = await import('@nestjs/common');
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => appliedPlan) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
+
+    await expect(service.applyPlan('plan-1', false)).rejects.toMatchObject({
+      response: { code: 'PLAN_ALREADY_APPLIED', needsConfirm: true },
+    });
+    expect(tasksService.replacePlanTasks).not.toHaveBeenCalled();
+  });
+
+  it('已 applied 且 confirm=true → 覆盖式重应用（replacePlanTasks 被调用）', async () => {
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => appliedPlan) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
+
+    const res = await service.applyPlan('plan-1', true);
+    expect(res.status).toBe('applied');
+    expect(tasksService.replacePlanTasks).toHaveBeenCalledTimes(1);
   });
 });

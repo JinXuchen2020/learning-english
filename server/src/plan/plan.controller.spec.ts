@@ -1,13 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { AI_PROVIDER_TOKEN, AiProvider, ChatResult } from '../ai/ai-provider.interface';
 import { PlanController } from './plan.controller';
 import { PlanService } from './plan.service';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
+import { StudyPlan } from './study-plan.entity';
+import { StudyPlanDay } from './study-plan-day.entity';
+import { TasksService } from '../tasks/tasks.service';
 
 /**
- * PlanController 单测（AI-202）：验证路由装配 + DTO 经全局 ValidationPipe
- * 拦截非法入参（等价 400）。Controller 调 PlanService，后者注入 mock provider。
+ * PlanController 单测（AI-202 生成 + AI-206 save/apply 路由装配）：验证 DTO 经全局
+ * ValidationPipe 拦截非法入参（等价 400）。Controller 调 PlanService，后者注入
+ * mock provider + mock repo + mock TasksService（仅验证装配与 DTO 校验，不触真实逻辑）。
  */
 
 const UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -28,7 +33,7 @@ function makeProvider(json: string): AiProvider {
   } as unknown as AiProvider;
 }
 
-describe('PlanController (AI-202)', () => {
+describe('PlanController (AI-202/AI-206)', () => {
   let controller: PlanController;
   let pipe: ValidationPipe;
 
@@ -41,6 +46,9 @@ describe('PlanController (AI-202)', () => {
           provide: AI_PROVIDER_TOKEN,
           useValue: makeProvider('{"weeks":[{"week":1,"days":[{"day":1,"lessons":[{"type":"main","title":"颜色"}]}]}]}'),
         },
+        { provide: getRepositoryToken(StudyPlan), useValue: { save: jest.fn(), findOne: jest.fn() } },
+        { provide: getRepositoryToken(StudyPlanDay), useValue: { save: jest.fn() } },
+        { provide: TasksService, useValue: { replacePlanTasks: jest.fn() } },
       ],
     }).compile();
     controller = mod.get(PlanController);

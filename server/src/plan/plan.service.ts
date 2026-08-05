@@ -1,13 +1,42 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Inject,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN, ChatMessage, ChatOptions } from '../ai/ai-provider.interface';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
-import { GeneratePlanResponse, GeneratedPlan } from './plan.types';
+import { SavePlanDto } from './dto/save-plan.dto';
+import { GeneratePlanResponse, GeneratedPlan, PlanDay } from './plan.types';
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from './plan-agent.prompt';
 import { validatePlan } from './plan-schema';
 import { buildFallbackPlan } from './plan-template';
+import { StudyPlan, StudyPlanSkillType, STUDY_PLAN_SKILL_TYPES } from './study-plan.entity';
+import { StudyPlanDay } from './study-plan-day.entity';
+import { TasksService } from '../tasks/tasks.service';
+
+/** `savePlan` 返回（AI-206）。 */
+export interface SavePlanResult {
+  id: string;
+  status: StudyPlan['status'];
+}
+
+/** `applyPlan` 返回（AI-206）。 */
+export interface ApplyPlanResult {
+  id: string;
+  status: 'applied';
+  appliedDays: number;
+  tasksCreated: number;
+  appliedAt: string;
+}
 
 /**
- * 学习计划生成服务（AI-202 编排 + AI-203 双语 PlanAgent 提示词 + AI-204 Schema 校验/重试/模板降级）。
+ * 学习计划生成服务（AI-202 编排 + AI-203 双语 PlanAgent 提示词 + AI-204 Schema 校验/重试/模板降级
+ * + AI-206 持久化 save / 应用 apply）。
  *
  * 编排：`GeneratePlanDto` → 组装 chat 消息（system=双语儿科友好 PlanAgent 提示词，
  * user=学习者画像 + 可选课程目录）→ `AiProvider.chat` → 剥离代码围栏 → `validatePlan`
@@ -15,8 +44,12 @@ import { buildFallbackPlan } from './plan-template';
  * `retryNote` 自我纠正）→ 仍失败降级为 `buildFallbackPlan` 内置模板（`degraded:true`）。
  * 不落库（落库/应用为 AI-206）。
  *
+ * 持久化（AI-206）：`savePlan` 将合法 `GeneratedPlan` 落库为 `draft` `StudyPlan`+`StudyPlanDay`；
+ * `applyPlan(id)` 将草稿置为 `applied`，按天填 `date` 并写入 `daily_tasks`（经 `TasksService`）。
+ *
  * 依赖全局 `AiProvider`（`AiModule` 的 `@Global()` 注入 `AI_PROVIDER_TOKEN`），
- * 因此 `PlanModule` 无需重复 import `AiModule`。
+ * 因此 `PlanModule` 无需重复 import `AiModule`。`StudyPlan`/`StudyPlanDay` 仓库与
+ * `TasksService` 由 `PlanModule` 经 `TypeOrmModule.forFeature` + 导入 `TasksModule` 提供。
  *
  * 重试边界（AI-204 硬约束）：仅「输出校验失败」重试；`AiProvider.chat` 抛出的基础设施
  * 异常**向上传播**（不在本层重试，避免与 AI-106 的 HTTP 层 3 次退避叠加成 9 次）。
@@ -30,6 +63,9 @@ export class PlanService {
 
   constructor(
     @Inject(AI_PROVIDER_TOKEN) private readonly ai: AiProvider,
+    @InjectRepository(StudyPlan) private readonly planRepo: Repository<StudyPlan>,
+    @InjectRepository(StudyPlanDay) private readonly dayRepo: Repository<StudyPlanDay>,
+    private readonly tasksService: TasksService,
   ) {}
 
   /**
@@ -88,6 +124,103 @@ export class PlanService {
     return { plan: buildFallbackPlan(dto), model: 'template', degraded: true };
   }
 
+  /**
+   * 持久化生成计划为草稿（AI-206）。
+   * @param dto `{ childId, plan }`
+   * @returns 落库后的 `{ id, status }`
+   * @throws BadRequestException 当 `plan` 结构不合法（复用 AI-204 `validatePlan`）
+   */
+  async savePlan(dto: SavePlanDto): Promise<SavePlanResult> {
+    const validation = validatePlan(dto.plan);
+    if (!validation.ok) {
+      this.logger.warn('[Plan] save 拒绝非法计划结构：%s', validation.errors.join('; '));
+      throw new BadRequestException({
+        message: '计划结构不合法，无法保存',
+        errors: validation.errors,
+      });
+    }
+
+    const studyPlan = this.buildStudyPlan(dto.childId, validation.value!);
+    const saved = await this.planRepo.save(studyPlan);
+    this.logger.log('[Plan] 已保存草稿计划 %s（%d 天）', saved.id, saved.days.length);
+    return { id: saved.id, status: saved.status };
+  }
+
+  /**
+   * 应用计划：置 `applied`、按天填 `date`、写入 `daily_tasks`（AI-206）。
+   * @param id 计划 UUID
+   * @param confirm 重复应用确认（已 applied 且为 false → 409 needsConfirm）
+   * @returns 应用结果
+   * @throws NotFoundException 计划不存在；ConflictException 已应用未确认
+   */
+  async applyPlan(id: string, confirm: boolean): Promise<ApplyPlanResult> {
+    const plan = await this.planRepo.findOne({ where: { id }, relations: ['days'] });
+    if (!plan) {
+      throw new NotFoundException({ code: 'PLAN_NOT_FOUND', message: '学习计划不存在' });
+    }
+
+    if (plan.status === 'applied' && !confirm) {
+      this.logger.warn('[Plan] 计划 %s 已应用，未确认即重复应用 → 409 需确认', id);
+      throw new ConflictException({
+        code: 'PLAN_ALREADY_APPLIED',
+        needsConfirm: true,
+        message: '该计划已应用，重复应用将覆盖其每日任务，是否继续？',
+      });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const days = plan.days ?? [];
+    for (const day of days) {
+      day.date = addDays(today, day.dayIndex);
+    }
+    plan.status = 'applied';
+    await this.planRepo.save(plan); // cascade 更新 days（含 date）
+
+    const entries = days.map((day) => ({
+      title: day.title,
+      description: summarizeDay(day),
+      icon: iconForSkill(day.skillType),
+      sortOrder: day.dayIndex,
+      userId: plan.userId,
+      planDayId: day.id,
+      date: day.date!,
+    }));
+    await this.tasksService.replacePlanTasks(
+      plan.userId,
+      days.map((d) => d.id),
+      entries,
+    );
+
+    this.logger.log('[Plan] 已应用计划 %s：%d 天 → %d 个每日任务', id, days.length, entries.length);
+    return {
+      id: plan.id,
+      status: 'applied',
+      appliedDays: days.length,
+      tasksCreated: entries.length,
+      appliedAt: today,
+    };
+  }
+
+  /** 由合法 GeneratedPlan 构建草稿 StudyPlan（含按序 StudyPlanDay）。 */
+  private buildStudyPlan(childId: string, plan: GeneratedPlan): StudyPlan {
+    const days: PlanDay[] = (plan.weeks ?? []).flatMap((w) => w.days ?? []);
+    const studyPlan = new StudyPlan();
+    studyPlan.userId = childId;
+    studyPlan.status = 'draft';
+    studyPlan.skillType = firstSkillType(days) ?? 'vocab';
+    studyPlan.days = days.map((d, i) => {
+      const day = new StudyPlanDay();
+      day.dayIndex = i;
+      day.skillType = d.skillType ?? firstSkillType([d]) ?? 'vocab';
+      day.title = d.title ?? `第 ${i + 1} 天`;
+      day.content = d.content ?? JSON.stringify(d.lessons ?? []);
+      day.date = null;
+      day.isDone = false;
+      return day;
+    });
+    return studyPlan;
+  }
+
   /** 组装 system + user 消息。system 用双语儿科友好 PlanAgent 提示词（AI-203）；user 含学习者画像、可选课程目录，重试时附 `retryNote`。 */
   private buildMessages(dto: GeneratePlanDto, attempt: number): ChatMessage[] {
     return [
@@ -105,4 +238,52 @@ export function extractJson(text: string): string {
   if (!text) return text;
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   return (fence ? fence[1] : text).trim();
+}
+
+/** 取计划/天列表中的首个有效技能类型（AI-206 落库 header/day 用）。 */
+function firstSkillType(days: PlanDay[]): StudyPlanSkillType | undefined {
+  for (const d of days) {
+    if (d.skillType && STUDY_PLAN_SKILL_TYPES.includes(d.skillType)) return d.skillType;
+    const fromLesson = d.lessons?.find(
+      (l) => l.skillType && STUDY_PLAN_SKILL_TYPES.includes(l.skillType),
+    )?.skillType;
+    if (fromLesson) return fromLesson;
+  }
+  return undefined;
+}
+
+/** 技能类型 → 任务图标（与种子任务图标口径一致：headphones/mic/pencil）。 */
+function iconForSkill(skill: StudyPlanSkillType): string {
+  switch (skill) {
+    case 'listen':
+      return 'headphones';
+    case 'speak':
+      return 'mic';
+    case 'write':
+    case 'vocab':
+    default:
+      return 'pencil';
+  }
+}
+
+/** 由当日 content（JSON 或文本）生成简短任务描述（AI-206 写入 daily_tasks.description）。 */
+function summarizeDay(day: StudyPlanDay): string {
+  const raw = day.content || '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const titles = parsed.map((l: { title?: string }) => l?.title).filter(Boolean);
+      if (titles.length) return titles.join(' · ');
+    }
+  } catch {
+    // 非 JSON，按纯文本处理
+  }
+  return raw.slice(0, 200) || `计划第 ${day.dayIndex + 1} 天`;
+}
+
+/** UTC 口径 `YYYY-MM-DD` 加 N 天（AI-206 计划日日期计算，与 task_completions.date 一致）。 */
+function addDays(isoDate: string, n: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
 }

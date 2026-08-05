@@ -1,14 +1,14 @@
 {
-  "phase": "ai-205",
+  "phase": "ai-206",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 292/292 全绿; 复用 AI-202 接口契约无漂移[仅增量可选字段 useTemplate]; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: plan-template.spec.ts 增三档用例 + plan.service.spec.ts 增 useTemplate 用例 + generate-plan.dto.spec.ts 增 useTemplate 校验 = 3 文件; e2e/bdd: 0 场景，纯后端输出可靠性增强豁免，约束 #6 + AI-201/202/204 先例)",
-    "review": "PASSED (0 open; 档位边界明确[resolveTier 三分支 + TIER_*_MAX 常量]; 空安全[interests 空回退/weeks 收敛]; 错误传播未动[AI-204 不叠加 AI-106]; 无裸 console; 无死代码)",
-    "optimization": "PASSED (0 open; 提取 REVIEW_SLOTS/SKILL_CYCLE/档位常量; lessonsForTier switch 显式三分支; useTemplate 提前返回无隐式默认)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 310/310 全绿; GeneratePlanResponse/generate 契约不变[仅新增独立 save/apply 端点]; 纯后端无全栈契约漂移)",
+    "tests": "PASSED (unit: plan.service.spec.ts[+save/apply 分支] + tasks.service.spec.ts[+getDailyTasks 多租户合并 + replacePlanTasks] + plan.controller.spec.ts[装配+DTO] + save-plan.dto.spec.ts + apply-plan.dto.spec.ts + plan.module.spec.ts[建表含新列] = 6 文件; e2e/bdd: 0 场景，纯后端 API 豁免，约束 #6 + AI-201/202/204/205 先例)",
+    "review": "PASSED (0 open; 多租户隔离[getDailyTasks where 合并 + replacePlanTasks 按 planDayId 精准清理]; 空安全[weeks??[]/days??[]/plan.days??[]/日期 day.date!]; 错误映射[404/409/400 语义]; 魔法值提取[iconForSkill/addDays/firstSkillType/summarizeDay]; 无裸 console; 无死代码)",
+    "optimization": "PASSED (0 open; 复用 AI-204 validatePlan; replacePlanTasks 先删后插避免重复; date 统一 UTC YYYY-MM-DD 口径[与 task_completions.date 一致]; 无 stub/占位)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-205-gate.md",
-  "notes": "AI-205 升级内置模板计划为 3 套按 dailyMinutes 档位的静态周计划(short≤15min/2节, standard16-45min/4节, extended≥46min/5节)，并新增用户主动选模板路径：GeneratePlanDto 增可选 useTemplate?:boolean，PlanService.generatePlan 在 useTemplate===true 时跳过 LLM 直出模板(model:'template', degraded:false)，无 key/离线环境可用。resolveTier + buildFallbackPlan 按每日时长自适应选档，向后兼容 AI-204 的 standard 默认结构与降级路径(degraded:true)。单元测试 3 文件共 +11 cases(全 server jest 292/292 全绿)；BDD/E2E 0(纯后端豁免，/plan 页旅程属 AI-207/208)。tsc 0 错误。"
+  "reportRef": "docs/quality/ai-206-gate.md",
+  "notes": "AI-206 计划持久化与'应用计划'：新增 POST /api/ai/plan/save(校验[复用 AI-204 validatePlan]+落库 draft StudyPlan+days, 返回 id) 与 POST /api/ai/plan/:id/apply(404/草稿→applied 置状态+按天填 date+写 daily_tasks/已 applied 未 confirm→409 needsConfirm 二次确认/confirm=true 覆盖式重应用)。daily_tasks 扩展可空 userId/planDayId(Index)/date(AI-206 用户决策 Q2)，getDailyTasks 合并全局种子+该用户当日计划任务实现多租户隔离；TasksService 新增 replacePlanTasks 先删后插(经 planDayId 精准清理避免重应用重复)，TasksModule 导出 TasksService 供 PlanModule 注入(无循环依赖)。单元测试 6 文件，全 server jest 310/310 全绿；BDD/E2E 0(纯后端豁免，/plan 页旅程属 AI-207/208)。鉴权按计划文档 deferred(本 feature 不引入 JwtAuthGuard，沿用 childId body 契约)。"
 }

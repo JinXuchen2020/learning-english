@@ -9,5 +9,7 @@ import { TaskCompletion } from '../entities/task-completion.entity';
   imports: [TypeOrmModule.forFeature([DailyTask, TaskCompletion])],
   controllers: [TasksController],
   providers: [TasksService],
+  // AI-206：PlanService 需调用 replacePlanTasks 写入计划任务，故导出 TasksService。
+  exports: [TasksService],
 })
 export class TasksModule {}
