@@ -9,6 +9,7 @@ import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { Word } from '../entities/word.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -30,6 +31,13 @@ const fakeAiSpeechAttemptRepo = {
   find: jest.fn(async () => []),
 };
 
+/** 假 Word 仓库：让 `AiSpeechEvaluatorService`(AI-303) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeWordRepo = {
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
 /** 构造并编译 AiModule（含仓库覆盖），供各用例复用。 */
 async function compileAiModule() {
   return Test.createTestingModule({
@@ -41,6 +49,8 @@ async function compileAiModule() {
     .useValue(fakeAiCallLogRepo)
     .overrideProvider(getRepositoryToken(AiSpeechAttempt))
     .useValue(fakeAiSpeechAttemptRepo)
+    .overrideProvider(getRepositoryToken(Word))
+    .useValue(fakeWordRepo)
     .compile();
 }
 
