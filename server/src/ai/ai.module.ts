@@ -21,6 +21,7 @@ import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { Word } from '../entities/word.entity';
 import { AiController } from './ai.controller';
 import { AiSpeechEvaluatorService } from './ai-speech-evaluator.service';
+import { AiTranscribeService } from './ai-transcribe.service';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
@@ -123,6 +124,7 @@ export function createAuditedProvider(
     AiCallLogService,
     AiSpeechAttemptService,
     AiSpeechEvaluatorService,
+    AiTranscribeService,
     {
       provide: AI_PROVIDER_TOKEN,
       useFactory: createAuditedProvider,
@@ -135,6 +137,13 @@ export function createAuditedProvider(
       ],
     },
   ],
-  exports: [AI_PROVIDER_TOKEN, AiUsageLimitService, AiCallLogService, AiSpeechAttemptService],
+  exports: [
+    AI_PROVIDER_TOKEN,
+    AiUsageLimitService,
+    AiCallLogService,
+    AiSpeechAttemptService,
+    AiSpeechEvaluatorService,
+    AiTranscribeService,
+  ],
 })
 export class AiModule {}
