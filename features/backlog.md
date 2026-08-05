@@ -69,7 +69,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-301 | **`ai_speech_attempts` 实体** — 记录 userId/wordId/sentenceId/audioPath/score/weakPhonemes/createdAt | P0 | — | backlog | 建表; 与现有 entities 风格一致 |
+| AI-301 | **`ai_speech_attempts` 实体** — 记录 userId/wordId/sentenceId/audioPath/score/weakPhonemes/createdAt | P0 | — | done | 建表; 与现有 entities 风格一致 |
 | AI-302 | **录音采集组件** — 前端 `SpeechRecorder` (MediaRecorder → webm/opus), 录音时长上限(如 10s), 权限引导与错误提示; iOS 降级 audio/mp4 | P0 | — | backlog | 平板 Safari/Chrome 均可录音; 拒绝权限时给出友好提示 |
 | AI-303 | **评测接口 `POST /api/ai/speech/evaluate`** — multer 接收 audio + wordId/sentenceId; 校验大小/格式/时长 | P0 | AI-302, AI-106 | backlog | 合法音频返回评分; 超大/空音频返回 4xx |
 | AI-304 | **STT 集成** — `transcribe(audio)` 转写文本+时戳; 失败时走降级 | P0 | AI-102, AI-303 | backlog | 清晰发音的单词可被转写; 静音音频返回低分 |

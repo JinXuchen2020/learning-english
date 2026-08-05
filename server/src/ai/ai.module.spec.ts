@@ -7,6 +7,8 @@ import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
+import { AiSpeechAttempt } from './ai-speech-attempt.entity';
+import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -21,6 +23,13 @@ const fakeAiCallLogRepo = {
   save: jest.fn(async (e) => e),
 };
 
+/** 假 AiSpeechAttempt 仓库：让 `AiSpeechAttemptService`(AI-301) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeAiSpeechAttemptRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+};
+
 /** 构造并编译 AiModule（含仓库覆盖），供各用例复用。 */
 async function compileAiModule() {
   return Test.createTestingModule({
@@ -30,6 +39,8 @@ async function compileAiModule() {
     .useValue(fakeAiUsageRepo)
     .overrideProvider(getRepositoryToken(AiCallLog))
     .useValue(fakeAiCallLogRepo)
+    .overrideProvider(getRepositoryToken(AiSpeechAttempt))
+    .useValue(fakeAiSpeechAttemptRepo)
     .compile();
 }
 
