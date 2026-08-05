@@ -10,5 +10,5 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-108-gate.md",
-  "notes": "AI-108 AI 调用日志：新增 AiCallLog 实体(ai_call_logs 表,不可变流水) + AiCallLogService(落库,文本字段二次截断兜底,best-effort 不阻断) + LoggedAiProvider(最外层审计外壳,计时+logger.info 结构化+落库,输入/输出截断摘要,失败/配额拦截也记,成功才记 response)。provider 链在 ai.module 升级为 Logged(UsageLimited(Retryable(inner)))。注册 AiCallLog 到 database.config appEntities; 导出 AiCallLogService。覆盖率 98.58% stmts / 84.36% branches，高于 90/70 基线。"
+  "notes": "AI-108 AI 调用日志：新增 AiCallLog 实体(ai_call_logs 表,不可变流水) + AiCallLogService(落库,文本字段二次截断兜底,best-effort 不阻断) + LoggedAiProvider(最外层审计外壳,计时+logger.info 结构化+落库,输入/输出截断摘要,失败/配额拦截也记,成功才记 response)。provider 链在 ai.module 升级为 Logged(UsageLimited(Retryable(inner)))。注册 AiCallLog 到 database.config appEntities; 导出 AiCallLogService。覆盖率 98.58% stmts / 84.36% branches，高于 90/70 基线。附带修复 AI-107 缺陷：AiUsage.updatedAt 误用 type:'timestamp'（better-sqlite3 不支持）导致 CI seed 报 DataTypeNotSupportedError；改为 @UpdateDateColumn({nullable:true}) 与 lesson-progress/word-progress 等既有实体一致（sqlite→datetime / postgres→timestamptz），并移除 service 中冗余的手动 updatedAt 赋值；本地 npm run seed 已验证 DataSource.initialize 不再抛错。"
 }

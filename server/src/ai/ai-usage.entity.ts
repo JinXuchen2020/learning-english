@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, Unique, UpdateDateColumn } from 'typeorm';
 
 /**
  * 每用户每日 AI 配额计数（AI-107）。
@@ -35,7 +35,7 @@ export class AiUsage {
   @Column({ type: 'int', default: 0 })
   tokenCount: number;
 
-  /** 最近一次记账时间。 */
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  /** 最近一次记账时间（TypeORM 自动维护，sqlite→datetime / postgres→timestamptz）。 */
+  @UpdateDateColumn({ nullable: true })
   updatedAt: Date;
 }

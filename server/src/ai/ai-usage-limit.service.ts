@@ -82,7 +82,7 @@ export class AiUsageLimitService {
     }
     row.callCount += 1;
     row.tokenCount += tokens;
-    row.updatedAt = now;
+    // updatedAt 由 @UpdateDateColumn 在 save 时自动刷新，无需手动维护。
     const saved = await this.repo.save(row);
     logger.debug(
       `[AI] 配额记账 userId=${userId} date=${date} callCount=${saved.callCount} tokenCount=${saved.tokenCount}`,
