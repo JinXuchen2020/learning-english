@@ -1,14 +1,14 @@
 {
-  "phase": "ai-108",
+  "phase": "ai-201",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build/tsc 0 错误; jest 218/218 全绿; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: 2 files (ai-call-log.service / logged-ai-provider); e2e/bdd: 0 (legacy 豁免：纯后端/无头 provider 增强，无前端 UI 旅程))",
-    "review": "PASSED (0 open; 审计 best-effort 不阻断主流程 (try/catch + .catch); 文本字段二次截断兜底 (errorMessage 255+…/snippet 200+…); 敏感内容不落库 (仅摘要); 错误原样透传; 审计位于最外层单次记录不重复)",
-    "optimization": "PASSED (0 open; 无 stub/占位; 链 Logged(UsageLimited(Retryable(inner))); moduleTag/userId 解析器预留扩展点; logger.info 结构化审计; 无敏感信息泄漏)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; nest build 通过; jest 223/223 全绿 (≥90/70 基线); npm run seed 建表成功 study_plans/study_plan_days 已落库; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: 2 files (plan.module.spec 行为 in-memory DB + entities.metadata.spec 更新 count→10); e2e/bdd: 0 (纯后端数据模型豁免, 无 legacy 豁免需求——实体无分支逻辑))",
+    "review": "PASSED (0 open; 枚举用 varchar+联合类型 双驱动兼容; 时间列严守 @CreateDateColumn/@UpdateDateColumn 铁律; onDelete CASCADE 与现有进度实体一致; 与 User 反向 OneToMany 关联; 无裸 console; 与 entities 风格一致)",
+    "optimization": "PASSED (0 open; 无 stub/占位; 常量数组 STUDY_PLAN_SKILL_TYPES/STATUSES 复用; PlanModule 仅注册 forFeature 导出仓库, 无多余导出; 无临时调试)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-108-gate.md",
-  "notes": "AI-108 AI 调用日志：新增 AiCallLog 实体(ai_call_logs 表,不可变流水) + AiCallLogService(落库,文本字段二次截断兜底,best-effort 不阻断) + LoggedAiProvider(最外层审计外壳,计时+logger.info 结构化+落库,输入/输出截断摘要,失败/配额拦截也记,成功才记 response)。provider 链在 ai.module 升级为 Logged(UsageLimited(Retryable(inner)))。注册 AiCallLog 到 database.config appEntities; 导出 AiCallLogService。覆盖率 98.58% stmts / 84.36% branches，高于 90/70 基线。附带修复 AI-107 缺陷：AiUsage.updatedAt 误用 type:'timestamp'（better-sqlite3 不支持）导致 CI seed 报 DataTypeNotSupportedError；改为 @UpdateDateColumn({nullable:true}) 与 lesson-progress/word-progress 等既有实体一致（sqlite→datetime / postgres→timestamptz），并移除 service 中冗余的手动 updatedAt 赋值；本地 npm run seed 已验证 DataSource.initialize 不再抛错。"
+  "reportRef": "docs/quality/ai-201-gate.md",
+  "notes": "AI-201 学习计划数据模型：新增 StudyPlan(study_plans)+StudyPlanDay(study_plan_days) 实体，与 User 关联(ManyToOne+@Column userId, onDelete CASCADE)、枚举 skillType(vocab/listen/speak/write)/status(draft/applied/archived) 用 varchar+联合类型(双驱动兼容)、status 默认 draft、isDone 默认 false、days OneToMany cascade。User 反向 OneToMany studyPlans。新增 PlanModule(TypeOrmModule.forFeature 导出) 作为 AI-202+/206/208/209 仓库注册点。两实体注册进 database.config appEntities(synchronize 自动建表)。测试：plan.module.spec 用 in-memory better-sqlite3 验证建表/默认值/关系/级联/枚举(5 cases)；entities.metadata.spec 导入新实体并断言 count 8→10。jest 223/223 全绿；npm run seed 建表无 DataTypeNotSupportedError(study_plans/study_plan_days 已确认落库)。"
 }

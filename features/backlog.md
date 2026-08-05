@@ -53,7 +53,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-201 | **`study_plans` / `study_plan_days` 实体** — 建表, 与 User 关联, `skill_type` 枚举 (vocab/listen/speak/write), status (draft/applied/archived) | P0 | — | backlog | TypeORM 迁移/同步建表; 与现有 entities 风格一致 |
+| AI-201 | **`study_plans` / `study_plan_days` 实体** — 建表, 与 User 关联, `skill_type` 枚举 (vocab/listen/speak/write), status (draft/applied/archived) | P0 | — | done | TypeORM 迁移/同步建表; 与现有 entities 风格一致 |
 | AI-202 | **生成接口 `POST /api/ai/plan/generate`** — DTO (childId, ageRange, level, dailyMinutes, interests, weeks); 调用 AiProvider.chat; 返回结构化 Plan | P0 | AI-106, AI-201 | backlog | 合法入参返回 plan JSON; 非法入参被 class-validator 拦截返回 400 |
 | AI-203 | **PlanAgent System Prompt** — 中文/英文双语儿科友好提示词: 每天 1 主课+2 复习+1 口语、间隔复习、技能交错、内容安全红线; 低 temperature | P0 | AI-102 | backlog | 输出课程引用真实 course/lesson id; 无超龄/危险内容 |
 | AI-204 | **Plan JSON Schema 校验与重试** — 校验 LLM 输出结构与 lesson 引用有效性; 失败自动重试(≤3次); 仍失败降级到内置模板计划 | P0 | AI-202, AI-203 | backlog | 构造坏 JSON 时自动重试; 3 次后返回模板计划并标记 degraded |

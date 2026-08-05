@@ -10,6 +10,8 @@ import { DailyTask } from './daily-task.entity';
 import { LessonProgress } from './lesson-progress.entity';
 import { WordProgress } from './word-progress.entity';
 import { TaskCompletion } from './task-completion.entity';
+import { StudyPlan } from '../plan/study-plan.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
 // Referenced so the imports are not tree-shaken.
 const entities = [
@@ -21,6 +23,8 @@ const entities = [
   LessonProgress,
   WordProgress,
   TaskCompletion,
+  StudyPlan,
+  StudyPlanDay,
 ];
 
 /**
@@ -49,6 +53,6 @@ describe('Entity relation callbacks', () => {
         expect(inverse({})).toBeUndefined();
       }
     }
-    expect(entities.length).toBe(8);
+    expect(entities.length).toBe(10);
   });
 });

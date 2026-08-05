@@ -105,7 +105,7 @@ body: { childId, ageRange, level, dailyMinutes, interests, weeks }
 - LLM System Prompt 关键点: 避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全;
 - Guardrail: plan JSON schema 校验失败时按原格式重试(最多3次)再降级到模板计划。
 
-**新增表/字段**: `study_plans` (持久化用户选中的计划), `study_plan_days` 1:N (day, course_id, lesson_id, skill_type)。
+**新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,可空),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false) )。具体课程/课时关联（`course_id`/`lesson_id`）留待 AI-206 详细设计，不在 AI-201 落地。
 
 ### 2. AI 每日口语训练 (`AiSpeechModule`)
 
