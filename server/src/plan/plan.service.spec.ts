@@ -302,3 +302,57 @@ describe('PlanService (AI-206) — 应用 applyPlan', () => {
     expect(tasksService.replacePlanTasks).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PlanService (AI-209) — 计划完成度 getStatus', () => {
+  const appliedPlanWithDays = {
+    id: 'plan-1',
+    userId: UUID,
+    status: 'applied',
+    days: [
+      { id: 'd1', isDone: false },
+      { id: 'd2', isDone: true },
+      { id: 'd3', isDone: false },
+    ],
+    updatedAt: new Date('2026-08-05T10:00:00Z'),
+  };
+
+  it('有 applied 计划 → 返回 totalDays/doneDays/completionRatio/planId/appliedAt', async () => {
+    const planRepo = { findOne: jest.fn(async () => appliedPlanWithDays) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo });
+
+    const res = await service.getPlanStatus(UUID);
+
+    expect(planRepo.findOne).toHaveBeenCalledWith({
+      where: { userId: UUID, status: 'applied' },
+      relations: ['days'],
+      order: { updatedAt: 'DESC' },
+    });
+    expect(res.hasPlan).toBe(true);
+    expect(res.totalDays).toBe(3);
+    expect(res.doneDays).toBe(1);
+    expect(res.completionRatio).toBeCloseTo(1 / 3);
+    expect(res.planId).toBe('plan-1');
+    expect(res.appliedAt).toBe('2026-08-05');
+  });
+
+  it('无 applied 计划 → hasPlan:false 且计数为 0', async () => {
+    const planRepo = { findOne: jest.fn(async () => null) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo });
+
+    const res = await service.getPlanStatus(UUID);
+    expect(res).toEqual({ hasPlan: false, totalDays: 0, doneDays: 0, completionRatio: 0 });
+  });
+
+  it('applied 计划 days 为空 → completionRatio:0 不除零', async () => {
+    const planRepo = {
+      findOne: jest.fn(async () => ({ id: 'plan-1', status: 'applied', days: [], updatedAt: new Date() })),
+    };
+    const service = await setup(makeProvider(validPlanJson), { planRepo });
+
+    const res = await service.getPlanStatus(UUID);
+    expect(res.hasPlan).toBe(true);
+    expect(res.totalDays).toBe(0);
+    expect(res.doneDays).toBe(0);
+    expect(res.completionRatio).toBe(0);
+  });
+});

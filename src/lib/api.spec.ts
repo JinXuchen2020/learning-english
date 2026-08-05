@@ -124,3 +124,41 @@ describe('api.savePlan / api.applyPlan (AI-208)', () => {
     await expect(api.applyPlan(planId, {})).rejects.toThrow(/已应用/);
   });
 });
+
+describe('api.getPlanStatus (AI-209)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const childId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+  it('GETs /ai/plan/status?childId= and returns the plan status', async () => {
+    const body = {
+      hasPlan: true,
+      totalDays: 7,
+      doneDays: 2,
+      completionRatio: 2 / 7,
+      planId: 'plan-1',
+      appliedAt: '2026-08-05',
+    };
+    mockFetch(JSON.stringify(body), true, 200);
+
+    const res = await api.getPlanStatus(childId);
+    expect(res).toEqual(body);
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      `http://localhost:4000/api/ai/plan/status?childId=${childId}`,
+      expect.objectContaining({ headers: { 'Content-Type': 'application/json' } })
+    );
+  });
+
+  it('returns hasPlan:false when no applied plan', async () => {
+    mockFetch(
+      JSON.stringify({ hasPlan: false, totalDays: 0, doneDays: 0, completionRatio: 0 }),
+      true,
+      200
+    );
+    const res = await api.getPlanStatus(childId);
+    expect(res.hasPlan).toBe(false);
+    expect(res.totalDays).toBe(0);
+    expect(res.completionRatio).toBe(0);
+  });
+});

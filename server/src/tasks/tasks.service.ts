@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
 /** 计划任务写入条目（AI-206 apply 时由 PlanService 组装）。 */
 export interface PlanTaskEntry {
@@ -22,6 +23,8 @@ export class TasksService {
     private tasksRepo: Repository<DailyTask>,
     @InjectRepository(TaskCompletion)
     private completionsRepo: Repository<TaskCompletion>,
+    @InjectRepository(StudyPlanDay)
+    private dayRepo: Repository<StudyPlanDay>,
   ) {}
 
   /**
@@ -79,6 +82,13 @@ export class TasksService {
 
   async completeTask(userId: string, taskId: string) {
     const today = new Date().toISOString().split('T')[0];
+
+    // AI-209：计划任务完成 → 回写对应 study_plan_days.isDone（幂等：重复完成无害）。
+    // 全局种子任务 planDayId 为空，不受影响。
+    const task = await this.tasksRepo.findOne({ where: { id: taskId } });
+    if (task?.planDayId) {
+      await this.dayRepo.update({ id: task.planDayId }, { isDone: true });
+    }
 
     const existing = await this.completionsRepo.findOne({
       where: { userId, taskId, date: today },

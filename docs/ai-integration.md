@@ -102,7 +102,8 @@
 - 调用: `src/lib/api.ts generatePlan(dto)` → `POST /api/ai/plan/generate` (带 Bearer token, 后端忽略); 无 key 环境 MockProvider 降级 `degraded:true` 仍 200, 预览显示 `data-component=PlanDegradedNote`「Foxy 用了一套现成计划」友好提示
 - 失败: 接口报错显示错误提示而非白屏
 - 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid` + AI-208 颜色化 `PLAN_SKILL_COLORS`/`planSkillColor`/`planLessonTypeLabel`/`formatPlanDay`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto/SavePlanDto/SavePlanResponse/ApplyPlanDto/ApplyPlanResponse)
-- 周计划卡片视图(每天按技能类型颜色化, vocab #F59E0B / listen #3B82F6 / speak #EC4899 / write #10B981) + 「重新生成」(复用 generate, loading+降级提示) + 「应用此计划」(`savePlan`→`applyPlan`→跳 Home 每日任务, 复用 AI-206 apply) + 单日任务本地勾选(持久化回写 `planDay.isDone` 属 AI-209); 颜色/标签/格式化逻辑集中在 `lib/plan.ts`, 单测覆盖; 调用扩展见 `src/lib/api.ts` `savePlan`/`applyPlan`
+- 周计划卡片视图(每天按技能类型颜色化, vocab #F59E0B / listen #3B82F6 / speak #EC4899 / write #10B981) + 「重新生成」(复用 generate, loading+降级提示) + 「应用此计划」(`savePlan`→`applyPlan`→跳 Home 每日任务, 复用 AI-206 apply) + 单日任务本地勾选(前端本地态); 颜色/标签/格式化逻辑集中在 `lib/plan.ts`, 单测覆盖; 调用扩展见 `src/lib/api.ts` `savePlan`/`applyPlan`
+- **Home 完成度卡**(AI-209 已落地): `src/app/page.tsx` 加载时除 courses/tasks/progress 外并行拉取 `getPlanStatus(user.id)`(→`GET /api/ai/plan/status?childId=`)，仅当 `hasPlan` 时渲染 `data-component=PlanProgress` 卡片(ProgressRing 环形进度 + 「已完成 X/Y 天」文案); 完成任务后 `handleCompleteTask` 成功后并行刷新 progress + planStatus, 完成度实时递增。后端 `TasksService.completeTask` 注入 `StudyPlanDay` 仓库, 完成任务且该 task 带 `planDayId` 时幂等回写 `study_plan_days.isDone=true`(复用 AI-206 `replacePlanTasks` 按 planDayId 写入的关联); 类型见 `src/lib/types.ts` `PlanStatusResponse`
 
 **后端**（AI-202 已实现）
 ```
@@ -127,6 +128,12 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
       → 草稿 → 置 status='applied'、按 dayIndex 从今天起填 study_plan_days.date(UTC YYYY-MM-DD)、按天写入 daily_tasks(带 userId/planDayId/date)，旧任务先清后写(经 planDayId 精准清理)
       → 已 applied 且 confirm!==true → 409 { code:'PLAN_ALREADY_APPLIED', needsConfirm:true, message }（前端弹确认后带 confirm:true 重应用，覆盖式）
       → 返回 { id, status:'applied', appliedDays, tasksCreated, appliedAt }
+    GET /api/ai/plan/status   (AI-209 完成度快照)
+      query: childId(uuid)
+      → 取该 childId 最近一份 applied 计划(按 updatedAt DESC)，relations 加载 days，统计 isDone 完成度
+      → 返回 { hasPlan, totalDays, doneDays, completionRatio, planId?, appliedAt? }
+      → 无 applied 计划 → { hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }（200，前端据此隐藏完成度卡）
+      → 沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定
     · save 仅做结构校验(复用 AI-204 validatePlan)，真实 courseId/lessonId 存在性校验需课程目录注入，不在本 feature 范围（属后续目录注入增强）
 ```
 - 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。

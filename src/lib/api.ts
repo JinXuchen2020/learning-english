@@ -9,6 +9,7 @@ import type {
   SavePlanResponse,
   ApplyPlanDto,
   ApplyPlanResponse,
+  PlanStatusResponse,
 } from "./types";
 
 /**
@@ -223,4 +224,16 @@ export function applyPlan(id: string, dto: ApplyPlanDto = {}) {
     method: "POST",
     body: JSON.stringify(dto),
   });
+}
+
+/**
+ * 计划完成度快照（AI-209）。
+ * 取该 childId 最近一份 applied 计划，统计 study_plan_days 完成度。
+ * 无 applied 计划时后端返回 `{ hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }`，
+ * 前端据此隐藏完成度卡。沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定。
+ */
+export function getPlanStatus(childId: string) {
+  return request<PlanStatusResponse>(
+    `/ai/plan/status?childId=${encodeURIComponent(childId)}`
+  );
 }

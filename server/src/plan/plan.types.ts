@@ -112,3 +112,22 @@ export interface PlanCatalog {
   courses: PlanCatalogCourse[];
   lessons: PlanCatalogLesson[];
 }
+
+/**
+ * 计划完成度快照（AI-209，`GET /api/ai/plan/status` 响应）。
+ * 取该 childId 最近一份 `applied` 计划，统计其 `study_plan_days` 完成度。
+ */
+export interface PlanStatusResult {
+  /** 是否存在已应用的计划。false 时前端隐藏完成度卡。 */
+  hasPlan: boolean;
+  /** 计划总天数（study_plan_days 行数）。 */
+  totalDays: number;
+  /** 已完成天数（isDone=true 的行数）。 */
+  doneDays: number;
+  /** 完成度比例 doneDays/totalDays（0-1）；totalDays=0 时为 0（避免除零）。 */
+  completionRatio: number;
+  /** 计划 UUID（hasPlan 时存在）。 */
+  planId?: string;
+  /** 应用日期 `YYYY-MM-DD`（hasPlan 时存在，取 plan.updatedAt 口径）。 */
+  appliedAt?: string;
+}

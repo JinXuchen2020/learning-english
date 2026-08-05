@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN, ChatMessage, ChatOptions } from '../ai/ai-provider.interface';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { SavePlanDto } from './dto/save-plan.dto';
-import { GeneratePlanResponse, GeneratedPlan, PlanDay } from './plan.types';
+import { GeneratePlanResponse, GeneratedPlan, PlanDay, PlanStatusResult } from './plan.types';
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from './plan-agent.prompt';
 import { validatePlan } from './plan-schema';
 import { buildFallbackPlan } from './plan-template';
@@ -198,6 +198,34 @@ export class PlanService {
       appliedDays: days.length,
       tasksCreated: entries.length,
       appliedAt: today,
+    };
+  }
+
+  /**
+   * 计划完成度快照（AI-209）：取 childId 最近一份 `applied` 计划，统计 days 完成度。
+   * @param childId 计划归属用户 UUID
+   * @returns `{ hasPlan, totalDays, doneDays, completionRatio, planId?, appliedAt? }`
+   */
+  async getPlanStatus(childId: string): Promise<PlanStatusResult> {
+    const plan = await this.planRepo.findOne({
+      where: { userId: childId, status: 'applied' },
+      relations: ['days'],
+      order: { updatedAt: 'DESC' },
+    });
+    if (!plan) {
+      return { hasPlan: false, totalDays: 0, doneDays: 0, completionRatio: 0 };
+    }
+
+    const days = plan.days ?? [];
+    const doneDays = days.filter((d) => d.isDone).length;
+    const totalDays = days.length;
+    return {
+      hasPlan: true,
+      totalDays,
+      doneDays,
+      completionRatio: totalDays === 0 ? 0 : doneDays / totalDays,
+      planId: plan.id,
+      appliedAt: plan.updatedAt ? plan.updatedAt.toISOString().split('T')[0] : undefined,
     };
   }
 

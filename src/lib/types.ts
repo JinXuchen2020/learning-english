@@ -136,3 +136,14 @@ export interface ApplyPlanResponse {
   tasksCreated: number;
   appliedAt: string;
 }
+
+/** `GET /api/ai/plan/status?childId=` 响应（AI-209：计划完成度快照）。 */
+export interface PlanStatusResponse {
+  hasPlan: boolean;
+  totalDays: number;
+  doneDays: number;
+  /** 完成度比例 0-1。 */
+  completionRatio: number;
+  planId?: string;
+  appliedAt?: string;
+}

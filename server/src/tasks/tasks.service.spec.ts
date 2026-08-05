@@ -4,6 +4,7 @@ import { FindOperator, In, IsNull } from 'typeorm';
 import { TasksService } from './tasks.service';
 import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -29,10 +30,12 @@ describe('TasksService', () => {
   let service: TasksService;
   let tasksRepo: any;
   let completionsRepo: any;
+  let dayRepo: any;
 
   beforeEach(async () => {
     tasksRepo = {
       find: jest.fn(),
+      findOne: jest.fn(async () => ({ id: 't1', planDayId: null })),
       create: jest.fn((e) => e),
     };
     completionsRepo = {
@@ -41,11 +44,15 @@ describe('TasksService', () => {
       create: jest.fn((e) => e),
       save: jest.fn(async (e) => e),
     };
+    dayRepo = {
+      update: jest.fn(async () => ({ affected: 1 })),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: getRepositoryToken(DailyTask), useValue: tasksRepo },
         { provide: getRepositoryToken(TaskCompletion), useValue: completionsRepo },
+        { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
@@ -126,5 +133,29 @@ describe('TasksService', () => {
     await service.replacePlanTasks('u1', [], []);
     expect(tasksRepo.delete).not.toHaveBeenCalled();
     expect(tasksRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('completeTask 对 plan 任务回写 study_plan_days.isDone（AI-209）', async () => {
+    tasksRepo.findOne.mockResolvedValue({ id: 't1', planDayId: 'd9' });
+    completionsRepo.findOne.mockResolvedValue(null);
+    const res = await service.completeTask('u1', 't1');
+    expect(dayRepo.update).toHaveBeenCalledWith({ id: 'd9' }, { isDone: true });
+    expect(res).toEqual({ success: true, alreadyCompleted: false });
+  });
+
+  it('completeTask 对全局种子任务（planDayId 空）不回写（AI-209）', async () => {
+    tasksRepo.findOne.mockResolvedValue({ id: 't1', planDayId: null });
+    completionsRepo.findOne.mockResolvedValue(null);
+    await service.completeTask('u1', 't1');
+    expect(dayRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('completeTask 已完成后仍回写（幂等无害，AI-209）', async () => {
+    tasksRepo.findOne.mockResolvedValue({ id: 't1', planDayId: 'd9' });
+    completionsRepo.findOne.mockResolvedValue({ id: 'c1' });
+    const res = await service.completeTask('u1', 't1');
+    expect(dayRepo.update).toHaveBeenCalledWith({ id: 'd9' }, { isDone: true });
+    expect(completionsRepo.save).not.toHaveBeenCalled();
+    expect(res).toEqual({ success: true, alreadyCompleted: true });
   });
 });
