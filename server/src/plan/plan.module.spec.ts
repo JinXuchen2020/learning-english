@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PlanModule } from './plan.module';
 import {
   StudyPlan,
   STUDY_PLAN_SKILL_TYPES,
@@ -17,6 +16,10 @@ import { appEntities } from '../config/database.config';
  * 行为级测试：用 in-memory better-sqlite3 + 真实 `appEntities` 验证
  * AI-201 两张表确由 `synchronize` 建立，且默认值 / 关系 / 级联 / 枚举落地。
  * 覆盖纯数据模型实体「建表」这一核心验收点（实体自身无逻辑分支）。
+ *
+ * 注：本 spec 仅验证数据模型建表，直接 `TypeOrmModule.forFeature` 注册仓库，
+ * 不导入 `PlanModule`（其 `PlanService` 注入全局 `AI_PROVIDER_TOKEN`，会引入
+ * 额外依赖）；服务/控制器装配由 `plan.service.spec` / `plan.controller.spec` 覆盖。
  */
 describe('PlanModule (AI-201 数据模型)', () => {
   let moduleRef: TestingModule;
@@ -33,8 +36,7 @@ describe('PlanModule (AI-201 数据模型)', () => {
           entities: appEntities,
           synchronize: true,
         }),
-        TypeOrmModule.forFeature([User]),
-        PlanModule,
+        TypeOrmModule.forFeature([User, StudyPlan, StudyPlanDay]),
       ],
     }).compile();
 

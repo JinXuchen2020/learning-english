@@ -93,17 +93,22 @@
 - 提交后展示: 周计划表卡片(每天 1 主课 + 2 复习 + 1 口语),每天颜色化、可拖动调整
 - "重新生成"按钮 + "应用此计划" → 写入 `tasks` 表
 
-**后端**
+**后端**（AI-202 已实现）
 ```
 POST /api/ai/plan/generate
-body: { childId, ageRange, level, dailyMinutes, interests, weeks }
-→ AiProvider.chatCompletion(system=PlanAgent, user=JSON(payload))
-→ LLM 返回结构化 JSON Plan {weeks:[{day,lessons:[...]}]}
-→ 校验 lessons 引用真实 course/lesson id (class-validator)
-→ 返回 Plan (未持久化, 用户确认才入库)
+body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-120), interests(string[]非空), weeks(1-4) }
+  → 全局 ValidationPipe(class-validator) 拦截非法入参 → 400
+  → PlanService 组装 system+user(JSON payload) → AiProvider.chat({temperature:0.4, maxTokens:2048})
+  → 剥离 markdown 代码围栏 → JSON.parse 为 GeneratedPlan
+  → 响应 GeneratePlanResponse { plan, model?, degraded }
+     · degraded=true 表示 AI 返回非 JSON(如 MockProvider 演示文本) → plan={rawText}, 仍 200(保无 key 演示)
+  · 计划未持久化(落库/应用属 AI-206)
 ```
-- LLM System Prompt 关键点: 避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全;
-- Guardrail: plan JSON schema 校验失败时按原格式重试(最多3次)再降级到模板计划。
+- 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
+- lessons 引用真实 course/lesson id 的 **JSON Schema 校验 + 重试(≤3) + 模板降级**：属 AI-204 / AI-205（尚未实现）。
+- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：完整版属 AI-203；AI-202 为最小可运行占位。
+- Guardrail(重试/降级)：AI-204/AI-205。
+- 鉴权：本接口按契约 `childId` 由 body 传入，未加 `JwtAuthGuard`；AI-206 apply 接口再补鉴权。
 
 **新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,可空),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false) )。具体课程/课时关联（`course_id`/`lesson_id`）留待 AI-206 详细设计，不在 AI-201 落地。
 
