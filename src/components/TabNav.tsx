@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, Gamepad2 } from "lucide-react";
+import { Home, BookOpen, Gamepad2, Sparkles } from "lucide-react";
 
 const tabs = [
   { href: "/", label: "Home", icon: Home },
   { href: "/course", label: "Courses", icon: BookOpen },
+  { href: "/plan", label: "Plan", icon: Sparkles },
   { href: "/practice", label: "Practice", icon: Gamepad2 },
 ];
 

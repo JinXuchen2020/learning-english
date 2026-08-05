@@ -88,24 +88,61 @@
 
 ### 1. AI 学习计划生成 (`AiPlanModule`)
 
-**前端 /plan**
-- 表单: 年龄段、当前等级(Pre-A1→A2)、每日可用时长(10/20/30min)、兴趣(动物/太空/水果...)、计划周期(1-4周)
-- 提交后展示: 周计划表卡片(每天 1 主课 + 2 复习 + 1 口语),每天颜色化、可拖动调整
-- "重新生成"按钮 + "应用此计划" → 写入 `tasks` 表
+**前端 /plan** (AI-207 向导表单 + AI-208 展示交互均已落地)
+- 入口: TabNav 新增 `Plan` 标签 (Sparkles 图标, href `/plan`), 已登录孩子可见
+- 路由: `src/app/plan/page.tsx` (`"use client"` + `AuthGate` 包裹), `childId` 取自 `useAuth().user.id` (uuid, 满足 DTO)
+- 五组大触控卡片选择器 (常量集中 `src/lib/plan.ts`):
+  - 年龄段 `AGE_RANGES`: 5-6 / 6-8 / 8-10 / 10-12
+  - 等级 `PLAN_LEVELS`: pre-a1 / a1 / a2
+  - 每日时长 `DAILY_MINUTE_OPTIONS`: 10 / 20 / 30 / 45
+  - 兴趣 `INTEREST_OPTIONS`: 动物/太空/水果/运动/音乐/恐龙/汽车/颜色 (多选)
+  - 周数 `WEEK_OPTIONS`: 1 / 2 / 3 / 4
+- 选择器 DOM: `button[data-field=...][data-value=...]`, 选中态 `aria-pressed`; 兴趣多选
+- 提交: `Button[data-action=generate]`, `validatePlanForm`(lib/plan.ts) 通过前 `disabled` (空表单禁用便于 E2E 断言); 提交中 `data-component=PlanLoading`(Mascot thinking); 成功 `data-component=PlanPreview` 渲染 weeks→days→lessons
+- 调用: `src/lib/api.ts generatePlan(dto)` → `POST /api/ai/plan/generate` (带 Bearer token, 后端忽略); 无 key 环境 MockProvider 降级 `degraded:true` 仍 200, 预览显示 `data-component=PlanDegradedNote`「Foxy 用了一套现成计划」友好提示
+- 失败: 接口报错显示错误提示而非白屏
+- 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid` + AI-208 颜色化 `PLAN_SKILL_COLORS`/`planSkillColor`/`planLessonTypeLabel`/`formatPlanDay`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto/SavePlanDto/SavePlanResponse/ApplyPlanDto/ApplyPlanResponse)
+- 周计划卡片视图(每天按技能类型颜色化, vocab #F59E0B / listen #3B82F6 / speak #EC4899 / write #10B981) + 「重新生成」(复用 generate, loading+降级提示) + 「应用此计划」(`savePlan`→`applyPlan`→跳 Home 每日任务, 复用 AI-206 apply) + 单日任务本地勾选(前端本地态); 颜色/标签/格式化逻辑集中在 `lib/plan.ts`, 单测覆盖; 调用扩展见 `src/lib/api.ts` `savePlan`/`applyPlan`
+- **Home 完成度卡**(AI-209 已落地): `src/app/page.tsx` 加载时除 courses/tasks/progress 外并行拉取 `getPlanStatus(user.id)`(→`GET /api/ai/plan/status?childId=`)，仅当 `hasPlan` 时渲染 `data-component=PlanProgress` 卡片(ProgressRing 环形进度 + 「已完成 X/Y 天」文案); 完成任务后 `handleCompleteTask` 成功后并行刷新 progress + planStatus, 完成度实时递增。后端 `TasksService.completeTask` 注入 `StudyPlanDay` 仓库, 完成任务且该 task 带 `planDayId` 时幂等回写 `study_plan_days.isDone=true`(复用 AI-206 `replacePlanTasks` 按 planDayId 写入的关联); 类型见 `src/lib/types.ts` `PlanStatusResponse`
 
-**后端**
+**后端**（AI-202 已实现）
 ```
 POST /api/ai/plan/generate
-body: { childId, ageRange, level, dailyMinutes, interests, weeks }
-→ AiProvider.chatCompletion(system=PlanAgent, user=JSON(payload))
-→ LLM 返回结构化 JSON Plan {weeks:[{day,lessons:[...]}]}
-→ 校验 lessons 引用真实 course/lesson id (class-validator)
-→ 返回 Plan (未持久化, 用户确认才入库)
+body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-120), interests(string[]非空), weeks(1-4), useTemplate?(boolean 可选, 跳过 LLM 直出内置模板) }
+  → 全局 ValidationPipe(class-validator) 拦截非法入参 → 400
+  → PlanService 组装 system+user(JSON payload) → AiProvider.chat({temperature:0.4, maxTokens:2048})
+  → 剥离 markdown 代码围栏 → JSON.parse → `validatePlan(plan-schema.ts)` 结构+lesson 引用格式校验
+  → 合规则返回(attempt=1)；不合规则自动重试(≤3 次, 重试请求附 retryNote 自我纠正)
+  → 仍失败降级 `buildFallbackPlan(plan-template.ts)` 三档模板(按 dailyMinutes: short≤15min/2节, standard16-45min/4节, extended≥46min/5节) → degraded=true, model='template'
+  → 响应 GeneratePlanResponse { plan, model?, degraded }
+     · degraded=true 表示 LLM 连续 3 次输出仍不符合 Schema → 已降级为内置模板计划(plan.weeks 有效可渲染), 仍 200
+     · useTemplate=true 表示用户主动选择模板(无 LLM 依赖) → 直接返回三档内置模板, model='template', degraded=false, 仍 200 (AI-205)
+     · provider 基础设施异常向上传播(不在本层重试, 避免与 AI-106 HTTP 层退避叠加)
+  · 持久化与应用（AI-206 已落地）：
+    POST /api/ai/plan/save
+      body: { childId(uuid), plan(GeneratedPlan) }
+      → validatePlan 结构校验(不合法 → 400, 含 errors)；合法 → 落库 study_plans(status='draft') + study_plan_days(cascade)，返回 { id, status:'draft' }
+    POST /api/ai/plan/:id/apply
+      body: { confirm?(boolean) }
+      → 找不到计划 404 { code:'PLAN_NOT_FOUND' }
+      → 草稿 → 置 status='applied'、按 dayIndex 从今天起填 study_plan_days.date(UTC YYYY-MM-DD)、按天写入 daily_tasks(带 userId/planDayId/date)，旧任务先清后写(经 planDayId 精准清理)
+      → 已 applied 且 confirm!==true → 409 { code:'PLAN_ALREADY_APPLIED', needsConfirm:true, message }（前端弹确认后带 confirm:true 重应用，覆盖式）
+      → 返回 { id, status:'applied', appliedDays, tasksCreated, appliedAt }
+    GET /api/ai/plan/status   (AI-209 完成度快照)
+      query: childId(uuid)
+      → 取该 childId 最近一份 applied 计划(按 updatedAt DESC)，relations 加载 days，统计 isDone 完成度
+      → 返回 { hasPlan, totalDays, doneDays, completionRatio, planId?, appliedAt? }
+      → 无 applied 计划 → { hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }（200，前端据此隐藏完成度卡）
+      → 沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定
+    · save 仅做结构校验(复用 AI-204 validatePlan)，真实 courseId/lessonId 存在性校验需课程目录注入，不在本 feature 范围（属后续目录注入增强）
 ```
-- LLM System Prompt 关键点: 避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全;
-- Guardrail: plan JSON schema 校验失败时按原格式重试(最多3次)再降级到模板计划。
+- 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
+- **JSON Schema 校验 + 重试(≤3) + 模板降级**：AI-204 已落地（`server/src/plan/plan-schema.ts` 的 `validatePlan` 递归校验 weeks→days→lessons 结构 + lesson.type/skillType/title/courseId/lessonId 格式，错误聚合；`server/src/plan/plan-template.ts` 的 `buildFallbackPlan` 最小合规兜底计划；`PlanService` 重试循环 + `buildPlanUserPrompt(dto, catalog?, attempt)` 重试附 `retryNote`）。**注意**：`validatePlan` 仅做结构 + 引用格式校验，真实 `courseId/lessonId` 存在性校验需课程目录注入，属后续增强（AI-206 落地的是持久化/apply，save 仅复用 `validatePlan` 做结构校验，不做 id 存在性校验）；3 套按 `dailyMinutes` 档位的静态周计划（short/standard/extended，由 `resolveTier` 选档）+ 用户可选模板生成（`useTemplate`）已由 AI-205 实现。
+- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用（目录注入属 AI-204/AI-206 入口，id 存在性校验属后续目录注入增强，AI-206 不做）。
+- Guardrail(重试/降级)：AI-204（校验失败重试 + 模板降级）/ AI-205（已实现：3 套静态周计划 short/standard/extended + 用户可选 `useTemplate` 模板生成，无 LLM 依赖）。
+- 鉴权：本接口按契约 `childId` 由 body 传入，未加 `JwtAuthGuard`；AI-206 apply 接口再补鉴权。
 
-**新增表/字段**: `study_plans` (持久化用户选中的计划), `study_plan_days` 1:N (day, course_id, lesson_id, skill_type)。
+**新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,AI-206 应用阶段写入),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false) )。具体课程/课时关联（`course_id`/`lesson_id`）不在 AI-201 落地（属后续目录注入增强，非 AI-206 范围）。**daily_tasks 扩展（AI-206）**：在原全局任务目录表增可空 `userId`(计划任务归属用户, 全局种子为 NULL) / `planDayId`(varchar, Index, 关联 study_plan_days.id, 用于重应用精准清理) / `date`(varchar(10), 计划日 YYYY-MM-DD, 全局种子为 NULL 即每天可见)；`getDailyTasks(userId)` 合并「全局种子(userId IS NULL) + 该用户当日计划任务(userId=该用户 AND date=今天)」实现多租户隔离，避免计划任务泄漏给其他用户。
 
 ### 2. AI 每日口语训练 (`AiSpeechModule`)
 

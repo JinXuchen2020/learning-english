@@ -1,4 +1,16 @@
-import type { Course, Lesson, Word, DailyTask } from "./types";
+import type {
+  Course,
+  Lesson,
+  Word,
+  DailyTask,
+  GeneratePlanDto,
+  GeneratePlanResponse,
+  SavePlanDto,
+  SavePlanResponse,
+  ApplyPlanDto,
+  ApplyPlanResponse,
+  PlanStatusResponse,
+} from "./types";
 
 /**
  * Backend API base URL. The NestJS server runs with a global `/api` prefix,
@@ -174,5 +186,54 @@ export function recordWordAttempt(wordId: string, correct: boolean) {
   return request<{ success: boolean; attempts: number; correctCount: number }>(
     "/progress/word",
     { method: "POST", body: JSON.stringify({ wordId, correct }) }
+  );
+}
+
+/* ----------------------------- Plan ----------------------------- */
+
+/**
+ * 生成学习计划（AI-202/AI-207）。
+ * 无 LLM key 时后端经 MockProvider 自动降级为内置模板计划，仍返回 200，
+ * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ */
+export function generatePlan(dto: GeneratePlanDto) {
+  return request<GeneratePlanResponse>("/ai/plan/generate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 持久化生成计划为草稿（AI-206/AI-208）。
+ * 后端复用 AI-204 `validatePlan` 校验结构，不合法 → 400。
+ */
+export function savePlan(dto: SavePlanDto) {
+  return request<SavePlanResponse>("/ai/plan/save", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 应用已保存的计划：置 `applied`、按天写 `daily_tasks`（AI-206/AI-208）。
+ * 已 applied 且 `confirm!==true` → 409 `{ code:'PLAN_ALREADY_APPLIED', needsConfirm:true }`，
+ * 前端弹确认后用 `applyPlan(id, { confirm:true })` 重应用（覆盖式）。
+ */
+export function applyPlan(id: string, dto: ApplyPlanDto = {}) {
+  return request<ApplyPlanResponse>(`/ai/plan/${id}/apply`, {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 计划完成度快照（AI-209）。
+ * 取该 childId 最近一份 applied 计划，统计 study_plan_days 完成度。
+ * 无 applied 计划时后端返回 `{ hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }`，
+ * 前端据此隐藏完成度卡。沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定。
+ */
+export function getPlanStatus(childId: string) {
+  return request<PlanStatusResponse>(
+    `/ai/plan/status?childId=${encodeURIComponent(childId)}`
   );
 }

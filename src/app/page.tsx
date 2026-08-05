@@ -7,7 +7,7 @@ import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
-import type { DailyTask } from "@/lib/types";
+import type { DailyTask, PlanStatusResponse } from "@/lib/types";
 import { Headphones, Mic, Pencil, Star, Flame, Check } from "lucide-react";
 
 const taskIcons = {
@@ -55,26 +55,29 @@ function HomeContent() {
   const [courses, setCourses] = useState<api.CourseSummary[]>([]);
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [progress, setProgress] = useState<api.ProgressOverview | null>(null);
+  const [planStatus, setPlanStatus] = useState<PlanStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [courseData, taskData, progressData] = await Promise.all([
+      const [courseData, taskData, progressData, planData] = await Promise.all([
         api.getCourses(),
         api.getDailyTasks(),
         api.getProgress(),
+        user ? api.getPlanStatus(user.id) : Promise.resolve(null),
       ]);
       setCourses(courseData);
       setTasks(taskData);
       setProgress(progressData);
+      setPlanStatus(planData);
     } catch (err) {
       logger.error("Failed to load home data", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     load();
@@ -90,8 +93,12 @@ function HomeContent() {
       );
       try {
         await api.completeTask(task.id);
-        const fresh = await api.getProgress();
+        const [fresh, plan] = await Promise.all([
+          api.getProgress(),
+          user ? api.getPlanStatus(user.id) : Promise.resolve(null),
+        ]);
         setProgress(fresh);
+        setPlanStatus(plan);
       } catch (err) {
         logger.error("Failed to complete task", err);
         // Revert on failure
@@ -148,6 +155,25 @@ function HomeContent() {
         </div>
       ) : (
         <>
+          {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}
+          {planStatus?.hasPlan && (
+            <section
+              data-component="PlanProgress"
+              className="card-kids flex items-center gap-5"
+            >
+              <ProgressRing
+                progress={Math.round((planStatus.completionRatio ?? 0) * 100)}
+                color="#10B981"
+              />
+              <div>
+                <h2 className="font-bold text-kids-title">本周学习计划</h2>
+                <p className="text-kids-muted">
+                  已完成 {planStatus.doneDays}/{planStatus.totalDays} 天
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Daily Tasks */}
           <section data-component="DailyTasks">
             <h2 className="mb-4 flex items-center gap-2">

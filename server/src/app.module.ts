@@ -12,6 +12,7 @@ import { buildTypeOrmModuleOptions } from './config/database.config';
 import { HealthModule } from './health/health.module';
 import { LogsModule } from './logs/logs.module';
 import { AiModule } from './ai/ai.module';
+import { PlanModule } from './plan/plan.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AiModule } from './ai/ai.module';
     WordsModule,
     TasksModule,
     ProgressModule,
+    PlanModule,
   ],
 })
 export class AppModule {}

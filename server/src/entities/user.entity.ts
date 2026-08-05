@@ -4,6 +4,7 @@ import {
 import { LessonProgress } from './lesson-progress.entity';
 import { WordProgress } from './word-progress.entity';
 import { TaskCompletion } from './task-completion.entity';
+import { StudyPlan } from '../plan/study-plan.entity';
 
 @Entity('users')
 export class User {
@@ -39,4 +40,7 @@ export class User {
 
   @OneToMany(() => TaskCompletion, (tc) => tc.user)
   taskCompletions: TaskCompletion[];
+
+  @OneToMany(() => StudyPlan, (sp) => sp.user)
+  studyPlans: StudyPlan[];
 }
