@@ -37,6 +37,21 @@ export class AiProviderException extends Error {
   }
 }
 
+/**
+ * 账户权限类错误（401/403 鉴权失败、NVIDIA `404 Function not found for account` 等）。
+ * 区别于瞬时错误：**不重试**，业务层应据此提示用户「检查 key / 账户权限」。
+ * 由 AI-106 的错误分类 {@link classifyError} 识别为 `access`。
+ */
+export class AiAccessError extends AiProviderException {
+  constructor(
+    message: string,
+    opts?: { statusCode?: number; code?: string | number },
+  ) {
+    super(message, opts);
+    this.name = 'AiAccessError';
+  }
+}
+
 /** 构造 BigModelProvider 时可注入的配置，便于测试与 AI-103 动态装配。 */
 export interface BigModelConfig {
   /** 智谱 API key，格式 `{id}.{secret}`。缺省读 `BIGMODEL_API_KEY`。 */
@@ -257,8 +272,8 @@ export class BigModelProvider implements AiProvider {
       const j = (await res.json()) as BigModelChatResponse;
       detail = j?.error?.message ?? '';
       if (status === 401 || status === 403) {
-        throw new AiProviderException(
-          `BigModel 鉴权失败（无效或过期 key）：${detail || res.statusText}`,
+        throw new AiAccessError(
+          `BigModel 鉴权失败（账户权限问题，key 无效或过期）：${detail || res.statusText}`,
           { statusCode: status },
         );
       }
