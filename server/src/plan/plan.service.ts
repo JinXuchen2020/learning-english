@@ -2,12 +2,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AiProvider, AI_PROVIDER_TOKEN, ChatMessage, ChatOptions } from '../ai/ai-provider.interface';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { GeneratePlanResponse, GeneratedPlan } from './plan.types';
+import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from './plan-agent.prompt';
 
 /**
- * 学习计划生成服务（AI-202）。
+ * 学习计划生成服务（AI-202 编排 + AI-203 双语 PlanAgent 提示词）。
  *
- * 编排：`GeneratePlanDto` → 组装 chat 消息 → `AiProvider.chat` → 剥离代码围栏
- * 并解析为 `GeneratedPlan`。不落库（落库/应用为 AI-206）。
+ * 编排：`GeneratePlanDto` → 组装 chat 消息（system=双语儿科友好 PlanAgent 提示词，
+ * user=学习者画像 + 可选课程目录）→ `AiProvider.chat` → 剥离代码围栏并解析为
+ * `GeneratedPlan`。不落库（落库/应用为 AI-206）。
  *
  * 依赖全局 `AiProvider`（`AiModule` 的 `@Global()` 注入 `AI_PROVIDER_TOKEN`），
  * 因此 `PlanModule` 无需重复 import `AiModule`。
@@ -53,11 +55,11 @@ export class PlanService {
     return { plan, model, degraded };
   }
 
-  /** 组装 system + user 消息。占位 prompt，完整双语 PlanAgent 提示词属 AI-203。 */
+  /** 组装 system + user 消息。system 用双语儿科友好 PlanAgent 提示词（AI-203）；user 含学习者画像与可选课程目录。 */
   private buildMessages(dto: GeneratePlanDto): ChatMessage[] {
     return [
       { role: 'system', content: PLAN_SYSTEM_PROMPT },
-      { role: 'user', content: JSON.stringify(dto) },
+      { role: 'user', content: buildPlanUserPrompt(dto) },
     ];
   }
 
@@ -75,18 +77,6 @@ export class PlanService {
     return parsed as GeneratedPlan;
   }
 }
-
-/**
- * 最小可运行系统提示词（AI-202 占位）。
- * 要求模型仅输出 JSON 学习计划；完整双语 PlanAgent（安全红线/间隔复习/技能交错/
- * 儿童友好）由 AI-203 替换。保持简短以免过度构建 AI-203。
- */
-const PLAN_SYSTEM_PROMPT = [
-  '你是一位儿童英语学习计划设计师。',
-  '根据用户的年龄段、等级、每日时长、兴趣与计划周数，生成一份个性化学习计划。',
-  '每天包含 1 节主课 + 2 个复习 + 1 个口语练习，技能交错，避免一天过载，严守儿童内容安全。',
-  '只输出 JSON，不要任何解释或 Markdown 围栏，结构：{"weeks":[{"week":1,"days":[{"day":1,"skillType":"vocab","title":"...","lessons":[{"type":"main","title":"..."}]}]}]}。',
-].join('');
 
 /**
  * 剥离 LLM 常见的 Markdown 代码围栏，提取纯 JSON 文本。

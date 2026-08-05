@@ -1,14 +1,14 @@
 {
-  "phase": "ai-202",
+  "phase": "ai-203",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 241/241 全绿 (≥90/70 基线); AppModule 装配 PlanModule 后 DI 全解析、路由 /api/ai/plan/generate 可达; 纯后端 feature 无前端改动, 无全栈契约需对齐)",
-    "tests": "PASSED (unit: 4 files (generate-plan.dto.spec 校验/边界/异常 9 cases; plan.service.spec 解析成功/非JSON降级/异常传播/payload 5 cases; plan.controller.spec 路由装配+ValidationPipe 400 4 cases; plan.module.spec 建表 5 cases); e2e/bdd: 0 (纯后端 API 豁免, 约束 #6 明确不为纯 API 写 BDD, /plan 页面端到端旅程由 AI-207/AI-208 自带 E2E))",
-    "review": "PASSED (0 open; 全局 ValidationPipe 白名单+transform+禁止多余字段防越权/注入; childId 限定 IsUUID; 魔法值 weeks 1-4/dailyMinutes 5-120/level 枚举提取为 PLAN_LEVELS 常量; 非JSON 降级 rawText 不抛 500 保 AI-104 无key演示; provider 异常向上传播由 AI-106 重试/配额处理; 占位 PLAN_SYSTEM_PROMPT 注释待 AI-203; 无裸 console)",
-    "optimization": "PASSED (0 open; 无 stub/占位实现; extractJson 剥离 markdown 围栏复用纯函数可单测; PlanService 经全局 AI_PROVIDER_TOKEN 注入, PlanModule 不重复 import AiModule; 响应结构 GeneratePlanResponse 含 degraded 标志, 无临时调试)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 254/254 全绿; 复用 AI-202 接口契约无漂移; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: plan-agent.prompt.spec.ts 新增 12 cases + plan.service.spec.ts 更新 3 cases = 2 文件; e2e/bdd: 0 场景，纯后端提示词替换豁免，约束 #6 + AI-201/202 先例)",
+    "review": "PASSED (0 open; 无裸 console、无死代码、目录注入显式留待 AI-204/206、未越界写 Schema/查库)",
+    "optimization": "PASSED (0 open; 清除 AI-202 占位 PLAN_SYSTEM_PROMPT，替换为生产级双语提示词；PlanLesson 增加 courseId/lessonId 承载字段)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-202-gate.md",
-  "notes": "AI-202 学习计划生成接口：新增 POST /api/ai/plan/generate（PlanController('ai/plan') + 全局前缀 api）。GeneratePlanDto(class-validator: childId IsUUID / ageRange 正则 lo-hi / level 枚举 pre-a1|a1|a2 / dailyMinutes 5-120 / interests[]非空 / weeks 1-4) 覆盖 400 路径。PlanService 注入全局 AiProvider.chat，剥离 markdown 代码围栏后解析为 GeneratedPlan，非JSON 时降级 degraded:true + plan.rawText（保 MockProvider 无key演示 200，不破坏 AI-104 契约与 mock-ai.provider.spec）。响应 GeneratePlanResponse{plan,model,degraded}。PlanModule 新增 Controller+Service 并导出 Service 供 AI-206/208 复用；AppModule 注册 PlanModule。测试 4 文件 23 cases 全绿；jest 241/241（AI-201 为 223）。未落库（落库/应用属 AI-206）。"
+  "reportRef": "docs/quality/ai-203-gate.md",
+  "notes": "AI-203 用生产级双语儿科友好 PlanAgent System Prompt 替换 AI-202 占位提示词：覆盖 8 项验收要素（双语/安全红线/1主课+2复习+1口语/间隔复习/技能交错/仅JSON/引用真实id/低temperature）。新增 buildPlanUserPrompt 支持可选课程目录（目录注入与 id 存在性校验属 AI-204/AI-206）。PlanLesson 增加 courseId/lessonId 可选承载字段。单元测试 2 文件（提示词内容断言 + 服务消息形态断言）；BDD/E2E 0（纯后端提示词，约束 #6 豁免）。tsc 0 错误，jest 254/254 全绿。"
 }

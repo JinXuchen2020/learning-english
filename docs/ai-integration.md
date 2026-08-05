@@ -106,7 +106,7 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
 ```
 - 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
 - lessons 引用真实 course/lesson id 的 **JSON Schema 校验 + 重试(≤3) + 模板降级**：属 AI-204 / AI-205（尚未实现）。
-- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：完整版属 AI-203；AI-202 为最小可运行占位。
+- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用（目录注入与 id 校验分别属 AI-204/AI-206）。
 - Guardrail(重试/降级)：AI-204/AI-205。
 - 鉴权：本接口按契约 `childId` 由 body 传入，未加 `JwtAuthGuard`；AI-206 apply 接口再补鉴权。
 

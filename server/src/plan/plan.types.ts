@@ -1,4 +1,5 @@
 import { StudyPlanSkillType } from './study-plan.entity';
+import { PlanLevel } from './dto/generate-plan.dto';
 
 /**
  * 单节计划内的学习任务（AI-202 仅透传 LLM 自由结构，字段均为可选）。
@@ -13,6 +14,13 @@ export interface PlanLesson {
   skillType?: StudyPlanSkillType;
   /** 任务描述/要点。 */
   description?: string;
+  /**
+   * 关联真实课程 UUID（`courses` 表）。AI-203 起由提示词要求引用真实 id；
+   * 目录注入与存在性校验分别由 AI-204/AI-206 完成。
+   */
+  courseId?: string;
+  /** 关联真实课时 UUID（`lessons` 表）。 */
+  lessonId?: string;
 }
 
 /** 计划中的某一天。 */
@@ -65,4 +73,37 @@ export interface GeneratePlanResponse {
    * `plan` 退化为 `{ rawText }`，前端应降级展示而非解析周表。
    */
   degraded: boolean;
+}
+
+/**
+ * 课程目录项（供 PlanAgent 引用真实 id）。AI-203 定义类型；
+ * 实际目录数据由 AI-204/AI-206 从 `courses`/`lessons` 表注入。
+ */
+export interface PlanCatalogCourse {
+  /** `courses` 表 UUID。 */
+  courseId: string;
+  /** 课程标题。 */
+  title: string;
+}
+
+/** 课时目录项。 */
+export interface PlanCatalogLesson {
+  /** `lessons` 表 UUID。 */
+  lessonId: string;
+  /** 课时标题。 */
+  title: string;
+  /** 所属课程 UUID。 */
+  courseId: string;
+  /** 课时主技能类型。 */
+  skillType: StudyPlanSkillType;
+  /** 适用等级（与 `PlanLevel` 同口径）。 */
+  level: PlanLevel;
+  /** 预计时长（分钟）。 */
+  estimatedMinutes: number;
+}
+
+/** 注入 PlanAgent 的课程目录（真实 id 来源）。 */
+export interface PlanCatalog {
+  courses: PlanCatalogCourse[];
+  lessons: PlanCatalogLesson[];
 }

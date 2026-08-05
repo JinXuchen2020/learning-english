@@ -2,10 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AI_PROVIDER_TOKEN, AiProvider, ChatResult } from '../ai/ai-provider.interface';
 import { PlanService } from './plan.service';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
+import { PLAN_SYSTEM_PROMPT } from './plan-agent.prompt';
 
 /**
- * PlanService 单测（AI-202）：覆盖有逻辑分支——JSON 解析成功、非 JSON 降级、
- * provider 异常传播。直接用 mock provider 注入，避免依赖真实 LLM / DB。
+ * PlanService 单测（AI-202 编排 + AI-203 提示词）：覆盖有逻辑分支——JSON 解析成功、
+ * 非 JSON 降级、provider 异常传播、发出的 system/user 消息形态。直接用 mock provider
+ * 注入，避免依赖真实 LLM / DB。
  */
 
 const UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -80,7 +82,43 @@ describe('PlanService (AI-202)', () => {
     const [messages, options] = chatMock.mock.calls[0];
     const userMsg = messages.find((m: { role: string }) => m.role === 'user');
     expect(userMsg).toBeDefined();
-    expect(JSON.parse(userMsg.content)).toMatchObject({ level: 'a1', weeks: 2, interests: ['动物'] });
+    expect(JSON.parse(userMsg.content).learnerProfile).toMatchObject({
+      level: 'a1',
+      weeks: 2,
+      interests: ['动物'],
+    });
     expect(options?.temperature).toBe(0.4);
+  });
+
+  it('发出的 system 消息即 AI-203 双语 PlanAgent 提示词（防回退占位）', async () => {
+    const provider = makeProvider('{"weeks":[]}');
+    const service = await setup(provider);
+    await service.generatePlan(validDto);
+    const chatMock = provider.chat as jest.Mock;
+    const [messages] = chatMock.mock.calls[0];
+    const systemMsg = messages.find((m: { role: string }) => m.role === 'system');
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg.content).toBe(PLAN_SYSTEM_PROMPT);
+    expect(systemMsg.content).toContain('狐狸老师');
+  });
+
+  it('user 消息为学习者画像 JSON（含 learnerProfile，未提供目录时含 catalogNote）', async () => {
+    const provider = makeProvider('{"weeks":[]}');
+    const service = await setup(provider);
+    await service.generatePlan(validDto);
+    const chatMock = provider.chat as jest.Mock;
+    const [messages] = chatMock.mock.calls[0];
+    const userMsg = messages.find((m: { role: string }) => m.role === 'user');
+    const parsed = JSON.parse(userMsg.content);
+    expect(parsed.learnerProfile).toMatchObject({
+      childId: UUID,
+      ageRange: '6-8',
+      level: 'a1',
+      dailyMinutes: 20,
+      interests: ['动物'],
+      weeks: 2,
+    });
+    expect(parsed.catalogNote).toBeDefined();
+    expect(parsed.curriculumCatalog).toBeUndefined();
   });
 });
