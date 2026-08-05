@@ -168,4 +168,27 @@ describe('PlanService (AI-204)', () => {
     expect(parsed.catalogNote).toBeDefined();
     expect(parsed.curriculumCatalog).toBeUndefined();
   });
+
+  it('useTemplate=true → 跳过 LLM 直出模板（degraded:false, model:template, chat 0 调用）', async () => {
+    const provider = makeProvider(validPlanJson);
+    const service = await setup(provider);
+    const res = await service.generatePlan({ ...validDto, useTemplate: true });
+
+    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(0);
+    expect(res.degraded).toBe(false);
+    expect(res.model).toBe('template');
+    expect(res.plan.weeks).toBeDefined();
+    expect(res.plan.weeks).toHaveLength(2); // weeks=2 透传
+    expect(res.plan.weeks![0].days![0].lessons!.length).toBe(4); // 20min → standard 档
+  });
+
+  it('useTemplate=false / 缺省 → 仍走 LLM（与 AI-204 路径一致）', async () => {
+    const provider = makeProvider(validPlanJson);
+    const service = await setup(provider);
+
+    await service.generatePlan({ ...validDto, useTemplate: false });
+    await service.generatePlan(validDto); // 缺省
+
+    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(2);
+  });
 });

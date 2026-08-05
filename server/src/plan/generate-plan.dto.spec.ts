@@ -79,4 +79,21 @@ describe('GeneratePlanDto (AI-202)', () => {
   it('PLAN_LEVELS 与文档 Pre-A1→A2 一致', () => {
     expect([...PLAN_LEVELS].sort()).toEqual(['a1', 'a2', 'pre-a1'].sort());
   });
+
+  it('useTemplate 缺省零错误（AI-205 可选字段）', async () => {
+    const errs = await validate(build());
+    expect(errs).toHaveLength(0);
+  });
+
+  it('useTemplate 接受布尔', async () => {
+    const errs = await validate(build({ useTemplate: true }));
+    expect(errs).toHaveLength(0);
+    const errs2 = await validate(build({ useTemplate: false }));
+    expect(errs2).toHaveLength(0);
+  });
+
+  it('useTemplate 非布尔被拒（AI-205 校验）', async () => {
+    const msgs = await errorsOf({ childId: UUID, ageRange: '6-8', level: 'a1', dailyMinutes: 20, interests: ['动物'], weeks: 2, useTemplate: 'yes' });
+    expect(msgs.length).toBeGreaterThan(0);
+  });
 });

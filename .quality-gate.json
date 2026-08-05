@@ -1,14 +1,14 @@
 {
-  "phase": "ai-204",
+  "phase": "ai-205",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (tsc --noEmit 0 错误; jest 281/281 全绿; 复用 AI-202 接口契约无漂移; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: plan-schema.spec.ts 新增 14 cases + plan-template.spec.ts 新增 7 cases + plan.service.spec.ts 重写 9 cases + plan.controller.spec.ts 更新 1 + plan-agent.prompt.spec.ts 新增 4 = 5 文件; e2e/bdd: 0 场景，纯后端输出可靠性增强豁免，约束 #6 + AI-201/202/203 先例)",
-    "review": "PASSED (0 open; 重试边界明确[仅校验失败重试、provider 异常传播不叠加 AI-106]；错误聚合无遗漏；空安全[空 weeks/days/lessons 均覆盖]；无魔法值[MAX_PLAN_ATTEMPTS 常量]；无裸 console)",
-    "optimization": "PASSED (0 open; 移除旧 rawText 兜底分支；提取 plan-schema/plan-template 单一职责；PlanWeek 增 theme 字段贴合提示词输出；degraded 语义升级为模板降级并同步类型文档)"
+    "consistency": "PASSED (tsc --noEmit 0 错误; jest 292/292 全绿; 复用 AI-202 接口契约无漂移[仅增量可选字段 useTemplate]; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: plan-template.spec.ts 增三档用例 + plan.service.spec.ts 增 useTemplate 用例 + generate-plan.dto.spec.ts 增 useTemplate 校验 = 3 文件; e2e/bdd: 0 场景，纯后端输出可靠性增强豁免，约束 #6 + AI-201/202/204 先例)",
+    "review": "PASSED (0 open; 档位边界明确[resolveTier 三分支 + TIER_*_MAX 常量]; 空安全[interests 空回退/weeks 收敛]; 错误传播未动[AI-204 不叠加 AI-106]; 无裸 console; 无死代码)",
+    "optimization": "PASSED (0 open; 提取 REVIEW_SLOTS/SKILL_CYCLE/档位常量; lessonsForTier switch 显式三分支; useTemplate 提前返回无隐式默认)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-204-gate.md",
-  "notes": "AI-204 为 POST /api/ai/plan/generate 增加 Plan JSON Schema 校验 + 自动重试(≤3) + 内置模板降级：新增 plan-schema.ts(validatePlan 结构+lesson 引用格式校验，聚合错误)、plan-template.ts(buildFallbackPlan 最小有效兜底计划，经 validatePlan 合规)；PlanService.generatePlan 改为重试循环(仅输出校验失败重试，provider 基础设施异常仍向上传播避免与 AI-106 叠加)，耗尽降级模板(degraded:true, model:'template')；buildPlanUserPrompt 增 attempt 参数在重试时附 retryNote 自我纠正。单元测试 5 文件共 63 plan cases；BDD/E2E 0(纯后端豁免，/plan 页旅程属 AI-207/208)。tsc 0 错误，jest 281/281 全绿。"
+  "reportRef": "docs/quality/ai-205-gate.md",
+  "notes": "AI-205 升级内置模板计划为 3 套按 dailyMinutes 档位的静态周计划(short≤15min/2节, standard16-45min/4节, extended≥46min/5节)，并新增用户主动选模板路径：GeneratePlanDto 增可选 useTemplate?:boolean，PlanService.generatePlan 在 useTemplate===true 时跳过 LLM 直出模板(model:'template', degraded:false)，无 key/离线环境可用。resolveTier + buildFallbackPlan 按每日时长自适应选档，向后兼容 AI-204 的 standard 默认结构与降级路径(degraded:true)。单元测试 3 文件共 +11 cases(全 server jest 292/292 全绿)；BDD/E2E 0(纯后端豁免，/plan 页旅程属 AI-207/208)。tsc 0 错误。"
 }

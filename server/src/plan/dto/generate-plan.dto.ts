@@ -12,6 +12,7 @@ import {
   Max,
   Matches,
   IsOptional,
+  IsBoolean,
 } from 'class-validator';
 
 /**
@@ -71,4 +72,14 @@ export class GeneratePlanDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /**
+   * 可选：跳过 LLM，直接生成内置模板计划（AI-205）。
+   * 为 `true` 时 `PlanService` 不调用 `AiProvider.chat`，返回 `model:'template'`、
+   * `degraded:false` 的静态周计划——用于无 LLM key / 离线环境，或用户主动选模板。
+   * 缺省（undefined）则照常走 LLM + 重试 + 降级流程（AI-202/AI-204）。
+   */
+  @IsOptional()
+  @IsBoolean()
+  useTemplate?: boolean;
 }

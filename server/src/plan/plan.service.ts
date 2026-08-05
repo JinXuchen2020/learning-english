@@ -39,6 +39,12 @@ export class PlanService {
    * @throws 当 `AiProvider.chat` 抛错时向上传播（AI-106 重试/配额在外层处理）
    */
   async generatePlan(dto: GeneratePlanDto): Promise<GeneratePlanResponse> {
+    // AI-205：用户主动选模板 → 跳过 LLM，直出内置模板计划（非失败态，degraded:false）。
+    if (dto.useTemplate) {
+      this.logger.log('[Plan] 用户主动选择模板生成，跳过 LLM，直出内置模板计划');
+      return { plan: buildFallbackPlan(dto), model: 'template', degraded: false };
+    }
+
     let lastErrors: string[] = [];
     let lastRawText = '';
 
