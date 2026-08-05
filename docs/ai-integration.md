@@ -88,10 +88,21 @@
 
 ### 1. AI 学习计划生成 (`AiPlanModule`)
 
-**前端 /plan**
-- 表单: 年龄段、当前等级(Pre-A1→A2)、每日可用时长(10/20/30min)、兴趣(动物/太空/水果...)、计划周期(1-4周)
-- 提交后展示: 周计划表卡片(每天 1 主课 + 2 复习 + 1 口语),每天颜色化、可拖动调整
-- "重新生成"按钮 + "应用此计划" → 写入 `tasks` 表
+**前端 /plan** (AI-207 向导表单已落地, AI-208 展示交互待做)
+- 入口: TabNav 新增 `Plan` 标签 (Sparkles 图标, href `/plan`), 已登录孩子可见
+- 路由: `src/app/plan/page.tsx` (`"use client"` + `AuthGate` 包裹), `childId` 取自 `useAuth().user.id` (uuid, 满足 DTO)
+- 五组大触控卡片选择器 (常量集中 `src/lib/plan.ts`):
+  - 年龄段 `AGE_RANGES`: 5-6 / 6-8 / 8-10 / 10-12
+  - 等级 `PLAN_LEVELS`: pre-a1 / a1 / a2
+  - 每日时长 `DAILY_MINUTE_OPTIONS`: 10 / 20 / 30 / 45
+  - 兴趣 `INTEREST_OPTIONS`: 动物/太空/水果/运动/音乐/恐龙/汽车/颜色 (多选)
+  - 周数 `WEEK_OPTIONS`: 1 / 2 / 3 / 4
+- 选择器 DOM: `button[data-field=...][data-value=...]`, 选中态 `aria-pressed`; 兴趣多选
+- 提交: `Button[data-action=generate]`, `validatePlanForm`(lib/plan.ts) 通过前 `disabled` (空表单禁用便于 E2E 断言); 提交中 `data-component=PlanLoading`(Mascot thinking); 成功 `data-component=PlanPreview` 渲染 weeks→days→lessons
+- 调用: `src/lib/api.ts generatePlan(dto)` → `POST /api/ai/plan/generate` (带 Bearer token, 后端忽略); 无 key 环境 MockProvider 降级 `degraded:true` 仍 200, 预览显示 `data-component=PlanDegradedNote`「Foxy 用了一套现成计划」友好提示
+- 失败: 接口报错显示错误提示而非白屏
+- 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto)
+- (AI-208 待做) 周计划卡片视图(每天颜色化、可拖动调整) + 「重新生成」+「应用此计划」(→写入 tasks 表, 复用 AI-206 apply) + 单日任务勾选
 
 **后端**（AI-202 已实现）
 ```

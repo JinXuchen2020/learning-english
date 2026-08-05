@@ -1,4 +1,4 @@
-import type { Course, Lesson, Word, DailyTask } from "./types";
+import type { Course, Lesson, Word, DailyTask, GeneratePlanDto, GeneratePlanResponse } from "./types";
 
 /**
  * Backend API base URL. The NestJS server runs with a global `/api` prefix,
@@ -175,4 +175,18 @@ export function recordWordAttempt(wordId: string, correct: boolean) {
     "/progress/word",
     { method: "POST", body: JSON.stringify({ wordId, correct }) }
   );
+}
+
+/* ----------------------------- Plan ----------------------------- */
+
+/**
+ * 生成学习计划（AI-202/AI-207）。
+ * 无 LLM key 时后端经 MockProvider 自动降级为内置模板计划，仍返回 200，
+ * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ */
+export function generatePlan(dto: GeneratePlanDto) {
+  return request<GeneratePlanResponse>("/ai/plan/generate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
 }
