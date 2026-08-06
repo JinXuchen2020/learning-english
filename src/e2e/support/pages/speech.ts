@@ -107,6 +107,16 @@ export default class SpeechPage {
     return this.page.locator('[data-component="WordCard"]').count();
   }
 
+  /** 切到句子模式：点 ModeToggle 的 Sentences 标签，等句子卡片挂载。 */
+  async switchToSentences(): Promise<void> {
+    await this.page.locator('button[data-action="mode-sentences"]').click();
+    await this.page.waitForSelector('[data-component="SentenceCard"]', { timeout: 10000 });
+  }
+
+  async sentenceCardCount(): Promise<number> {
+    return this.page.locator('[data-component="SentenceCard"]').count();
+  }
+
   async isListenButtonVisible(): Promise<boolean> {
     const btn = this.page.locator('button[data-action="listen"]');
     return (await btn.count()) > 0 && (await btn.first().isVisible());

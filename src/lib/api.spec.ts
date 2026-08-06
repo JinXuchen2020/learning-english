@@ -162,3 +162,33 @@ describe('api.getPlanStatus (AI-209)', () => {
     expect(res.completionRatio).toBe(0);
   });
 });
+
+describe('api.getSentences (AI-309)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('GETs /sentences with no query when no filter provided', async () => {
+    mockFetch(JSON.stringify([]), true, 200);
+    const res = await api.getSentences();
+    expect(res).toEqual([]);
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/sentences',
+      expect.objectContaining({ headers: { 'Content-Type': 'application/json' } })
+    );
+  });
+
+  it('appends level and wordText query params when both filters provided', async () => {
+    mockFetch(JSON.stringify([]), true, 200);
+    await api.getSentences({ level: 'L1', wordText: 'cat' });
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    const calledUrl = (fetchFn.mock.calls[0][0] as string);
+    expect(calledUrl).toBe('http://localhost:4000/api/sentences?level=L1&wordText=cat');
+  });
+
+  it('omits empty filters (no trailing ?)', async () => {
+    mockFetch(JSON.stringify([]), true, 200);
+    await api.getSentences({ level: '', wordText: '  ' });
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn.mock.calls[0][0]).toBe('http://localhost:4000/api/sentences');
+  });
+});

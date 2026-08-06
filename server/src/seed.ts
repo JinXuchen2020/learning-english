@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import { Course } from './entities/course.entity';
 import { Lesson } from './entities/lesson.entity';
 import { Word } from './entities/word.entity';
+import { Sentence } from './entities/sentence.entity';
 import { DailyTask } from './entities/daily-task.entity';
 import { buildDataSourceOptions, getDbType } from './config/database.config';
 import { logger } from './common/logger/logger';
@@ -16,12 +17,14 @@ async function seed() {
   const courseRepo = ds.getRepository(Course);
   const lessonRepo = ds.getRepository(Lesson);
   const wordRepo = ds.getRepository(Word);
+  const sentenceRepo = ds.getRepository(Sentence);
   const taskRepo = ds.getRepository(DailyTask);
 
   // Clear existing data
   await wordRepo.clear();
   await lessonRepo.clear();
   await courseRepo.clear();
+  await sentenceRepo.clear();
   await taskRepo.clear();
 
   // Courses
@@ -79,6 +82,61 @@ async function seed() {
     await wordRepo.save(wordRepo.create({ ...w, lessonId: lessons[1].id }));
   }
 
+  // Sentences for the sentence-following library (AI-309): 36 graded sentences
+  // covering the P0 animal vocabulary (lexically linked via wordTexts).
+  const sentences: Array<{
+    text: string;
+    meaning: string;
+    level: string;
+    wordTexts: string[];
+    tags: string[];
+    sortOrder: number;
+  }> = [
+    // L1 — ultra simple (≤5 words, 1 P0 word)
+    { text: 'The cat is small.', meaning: '猫很小。', level: 'L1', wordTexts: ['cat'], tags: ['animal'], sortOrder: 1 },
+    { text: 'I see a dog.', meaning: '我看见一只狗。', level: 'L1', wordTexts: ['dog'], tags: ['animal'], sortOrder: 2 },
+    { text: 'A fish can swim.', meaning: '鱼会游泳。', level: 'L1', wordTexts: ['fish'], tags: ['animal'], sortOrder: 3 },
+    { text: 'The bird is blue.', meaning: '鸟是蓝色的。', level: 'L1', wordTexts: ['bird'], tags: ['animal'], sortOrder: 4 },
+    { text: 'Rabbit is white.', meaning: '兔子是白色的。', level: 'L1', wordTexts: ['rabbit'], tags: ['animal'], sortOrder: 5 },
+    { text: 'The frog jumps.', meaning: '青蛙跳。', level: 'L1', wordTexts: ['frog'], tags: ['animal'], sortOrder: 6 },
+    { text: 'A horse is big.', meaning: '马很大。', level: 'L1', wordTexts: ['horse'], tags: ['animal'], sortOrder: 7 },
+    { text: 'The duck is yellow.', meaning: '鸭子是黄色的。', level: 'L1', wordTexts: ['duck'], tags: ['animal'], sortOrder: 8 },
+    { text: 'Bear is brown.', meaning: '熊是棕色的。', level: 'L1', wordTexts: ['bear'], tags: ['animal'], sortOrder: 9 },
+    { text: 'The turtle is slow.', meaning: '乌龟很慢。', level: 'L1', wordTexts: ['turtle'], tags: ['animal'], sortOrder: 10 },
+    { text: 'I like the cat.', meaning: '我喜欢猫。', level: 'L1', wordTexts: ['cat'], tags: ['animal'], sortOrder: 11 },
+    { text: 'This is my dog.', meaning: '这是我的狗。', level: 'L1', wordTexts: ['dog'], tags: ['animal'], sortOrder: 12 },
+    // L2 — simple sentences with modifiers (1-2 P0 words)
+    { text: 'The little cat is cute.', meaning: '这只小猫很可爱。', level: 'L2', wordTexts: ['cat'], tags: ['animal'], sortOrder: 1 },
+    { text: 'My dog runs fast.', meaning: '我的狗跑得快。', level: 'L2', wordTexts: ['dog'], tags: ['animal'], sortOrder: 2 },
+    { text: 'The red fish swims away.', meaning: '红鱼游走了。', level: 'L2', wordTexts: ['fish'], tags: ['animal'], sortOrder: 3 },
+    { text: 'A small bird sings a song.', meaning: '一只小鸟在唱歌。', level: 'L2', wordTexts: ['bird'], tags: ['animal'], sortOrder: 4 },
+    { text: 'The white rabbit eats a carrot.', meaning: '白兔吃胡萝卜。', level: 'L2', wordTexts: ['rabbit'], tags: ['animal'], sortOrder: 5 },
+    { text: 'We saw a green frog.', meaning: '我们看到一只绿青蛙。', level: 'L2', wordTexts: ['frog'], tags: ['animal'], sortOrder: 6 },
+    { text: 'The brown horse eats grass.', meaning: '棕马吃草。', level: 'L2', wordTexts: ['horse'], tags: ['animal'], sortOrder: 7 },
+    { text: 'Two ducks swim in the pond.', meaning: '两只鸭子在池塘里游。', level: 'L2', wordTexts: ['duck'], tags: ['animal'], sortOrder: 8 },
+    { text: 'The friendly bear loves honey.', meaning: '友善的熊喜欢蜂蜜。', level: 'L2', wordTexts: ['bear'], tags: ['animal'], sortOrder: 9 },
+    { text: 'The old turtle walks slowly.', meaning: '老乌龟慢慢地走。', level: 'L2', wordTexts: ['turtle'], tags: ['animal'], sortOrder: 10 },
+    { text: 'Cat and dog are friends.', meaning: '猫和狗是朋友。', level: 'L2', wordTexts: ['cat', 'dog'], tags: ['animal'], sortOrder: 11 },
+    { text: 'I feed the small fish.', meaning: '我喂小鱼。', level: 'L2', wordTexts: ['fish'], tags: ['animal'], sortOrder: 12 },
+    // L3 — compound / longer (2+ P0 words or conjunctions)
+    { text: 'The cat sat on the mat and slept.', meaning: '猫坐在垫子上睡着了。', level: 'L3', wordTexts: ['cat'], tags: ['animal'], sortOrder: 1 },
+    { text: 'When the dog barks, the cat runs away.', meaning: '狗叫时猫跑开了。', level: 'L3', wordTexts: ['dog', 'cat'], tags: ['animal'], sortOrder: 2 },
+    { text: 'The bird flew up and the fish swam down.', meaning: '鸟飞起，鱼游下。', level: 'L3', wordTexts: ['bird', 'fish'], tags: ['animal'], sortOrder: 3 },
+    { text: 'My rabbit and my turtle play together.', meaning: '我的兔子和乌龟一起玩。', level: 'L3', wordTexts: ['rabbit', 'turtle'], tags: ['animal'], sortOrder: 4 },
+    { text: 'Because it rained, the frog was happy.', meaning: '因为下雨，青蛙很高兴。', level: 'L3', wordTexts: ['frog'], tags: ['animal'], sortOrder: 5 },
+    { text: 'The horse ran fast but the turtle was slow.', meaning: '马跑得快，但乌龟慢。', level: 'L3', wordTexts: ['horse', 'turtle'], tags: ['animal'], sortOrder: 6 },
+    { text: 'If the duck quacks, the dog will wake up.', meaning: '鸭子叫，狗就会醒。', level: 'L3', wordTexts: ['duck', 'dog'], tags: ['animal'], sortOrder: 7 },
+    { text: 'The bear ate honey while the bird sang.', meaning: '熊吃蜂蜜，鸟儿在唱。', level: 'L3', wordTexts: ['bear', 'bird'], tags: ['animal'], sortOrder: 8 },
+    { text: 'After the cat ate, the dog wanted food too.', meaning: '猫吃完后，狗也想要食物。', level: 'L3', wordTexts: ['cat', 'dog'], tags: ['animal'], sortOrder: 9 },
+    { text: 'We watched the frog jump and the fish swim.', meaning: '我们看青蛙跳、鱼游。', level: 'L3', wordTexts: ['frog', 'fish'], tags: ['animal'], sortOrder: 10 },
+    { text: 'The brown bear and the white rabbit are friends.', meaning: '棕熊和白兔是朋友。', level: 'L3', wordTexts: ['bear', 'rabbit'], tags: ['animal'], sortOrder: 11 },
+    { text: 'Every morning the horse and the duck go to the pond.', meaning: '每天早晨马和鸭子去池塘。', level: 'L3', wordTexts: ['horse', 'duck'], tags: ['animal'], sortOrder: 12 },
+  ];
+
+  for (const s of sentences) {
+    await sentenceRepo.save(sentenceRepo.create({ ...s, lessonId: null }));
+  }
+
   // Daily Tasks
   const tasks = [
     { title: 'Listen & Learn', description: 'Listen to 3 new words', icon: 'headphones', sortOrder: 1 },
@@ -94,6 +152,7 @@ async function seed() {
   logger.info(`  - ${await courseRepo.count()} courses`);
   logger.info(`  - ${await lessonRepo.count()} lessons`);
   logger.info(`  - ${await wordRepo.count()} words`);
+  logger.info(`  - ${await sentenceRepo.count()} sentences`);
   logger.info(`  - ${await taskRepo.count()} daily tasks`);
 
   await ds.destroy();

@@ -22,7 +22,7 @@ export class EvaluateSpeechDto {
   @IsString()
   wordId?: string;
 
-  /** 句子 id（句库 AI-309 落地；当前无 Sentence 实体，service 层返回 400）。 */
+  /** 句子 id（句库 AI-309 落地；service 层查 `Sentence.text` 作参考文本，未命中 → 404 `SENTENCE_NOT_FOUND`）。 */
   @IsOptional()
   @IsString()
   sentenceId?: string;

@@ -11,6 +11,7 @@ import { EvaluateSpeechDto } from './speech-evaluate.dto';
 import { ScoreResult } from './ai-provider.interface';
 import { Repository } from 'typeorm';
 import { Word } from '../entities/word.entity';
+import { Sentence } from '../entities/sentence.entity';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 
@@ -58,6 +59,13 @@ function makeFakeWordRepo(found?: Word | null): Repository<Word> {
   } as unknown as Repository<Word>;
 }
 
+/** 假 Sentence 仓库：findOne 返回可配置结果（AI-309 句库路径用）。 */
+function makeFakeSentenceRepo(found?: Sentence | null): Repository<Sentence> {
+  return {
+    findOne: jest.fn(async () => found ?? null),
+  } as unknown as Repository<Sentence>;
+}
+
 function makeFile(over: Partial<UploadedAudioFile> = {}): UploadedAudioFile {
   return {
     buffer: Buffer.from('fake-audio-bytes'),
@@ -77,7 +85,7 @@ describe('AiSpeechEvaluatorService', () => {
     const { scorer, calls } = makeFakeScorer();
     const feedback = makeFakeFeedback();
     const wordRepo = makeFakeWordRepo({ id: 'w1', text: 'three' } as Word);
-    const svc = new AiSpeechEvaluatorService(wordRepo, scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(wordRepo, makeFakeSentenceRepo(), scorer, feedback.feedback);
 
     const result = await svc.evaluate({ file: makeFile(), dto: makeDto({ wordId: 'w1' }) });
 
@@ -100,7 +108,7 @@ describe('AiSpeechEvaluatorService', () => {
     const { scorer, calls } = makeFakeScorer();
     const feedback = makeFakeFeedback();
     const wordRepo = makeFakeWordRepo();
-    const svc = new AiSpeechEvaluatorService(wordRepo, scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(wordRepo, makeFakeSentenceRepo(), scorer, feedback.feedback);
 
     await svc.evaluate({ file: makeFile(), dto: makeDto({ referenceText: 'hello world' }) });
 
@@ -111,7 +119,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('dto.userId 透传给 feedback（落库归属）', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
 
     await svc.evaluate({ file: makeFile(), dto: makeDto({ referenceText: 'hi', userId: 'kid-7' }) });
 
@@ -121,7 +129,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('缺 audio → NO_AUDIO(400)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: undefined as any, dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toMatchObject({ status: 400, code: 'NO_AUDIO' });
@@ -130,7 +138,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('空音频 buffer → NO_AUDIO(400)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile({ buffer: Buffer.alloc(0) }), dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toMatchObject({ status: 400, code: 'NO_AUDIO' });
@@ -139,7 +147,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('空文件(size=0) → EMPTY_AUDIO(400)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile({ size: 0 }), dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toMatchObject({ status: 400, code: 'EMPTY_AUDIO' });
@@ -148,7 +156,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('超 5MB → AUDIO_TOO_LARGE(413)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile({ size: 6 * 1024 * 1024 }), dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toMatchObject({ status: 413, code: 'AUDIO_TOO_LARGE' });
@@ -157,7 +165,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('不支持的 MIME → UNSUPPORTED_AUDIO_TYPE(415)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile({ mimetype: 'audio/flac' }), dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toMatchObject({ status: 415, code: 'UNSUPPORTED_AUDIO_TYPE' });
@@ -166,7 +174,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('durationMs 超 15s → DURATION_EXCEEDED(400)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile(), dto: makeDto({ wordId: 'w1', durationMs: 20000 }) }),
     ).rejects.toMatchObject({ status: 400, code: 'DURATION_EXCEEDED' });
@@ -175,25 +183,45 @@ describe('AiSpeechEvaluatorService', () => {
   it('wordId 不存在 → WORD_NOT_FOUND(404)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(null), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(null), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile(), dto: makeDto({ wordId: 'missing' }) }),
     ).rejects.toMatchObject({ status: 404, code: 'WORD_NOT_FOUND' });
   });
 
-  it('仅 sentenceId → SENTENCE_SCORING_NOT_READY(400)', async () => {
+  it('sentenceId 命中 → 解析 Sentence.text 作参考文本并委托 scorer', async () => {
+    const { scorer, calls } = makeFakeScorer();
+    const feedback = makeFakeFeedback();
+    const sentenceRepo = makeFakeSentenceRepo({ id: 's1', text: 'The cat is small.' } as Sentence);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), sentenceRepo, scorer, feedback.feedback);
+
+    const result = await svc.evaluate({ file: makeFile(), dto: makeDto({ sentenceId: 's1' }) });
+
+    expect(result.score).toBe(88);
+    expect(sentenceRepo.findOne).toHaveBeenCalledWith({ where: { id: 's1' } });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].referenceText).toBe('The cat is small.');
+    expect(feedback.calls).toHaveLength(1);
+  });
+
+  it('sentenceId 未命中 → SENTENCE_NOT_FOUND(404)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(
+      makeFakeWordRepo(),
+      makeFakeSentenceRepo(null),
+      scorer,
+      feedback.feedback,
+    );
     await expect(
-      svc.evaluate({ file: makeFile(), dto: makeDto({ sentenceId: 's1' }) }),
-    ).rejects.toMatchObject({ status: 400, code: 'SENTENCE_SCORING_NOT_READY' });
+      svc.evaluate({ file: makeFile(), dto: makeDto({ sentenceId: 'missing' }) }),
+    ).rejects.toMatchObject({ status: 404, code: 'SENTENCE_NOT_FOUND' });
   });
 
   it('wordId/sentenceId/referenceText 全缺 → MISSING_REFERENCE(400)', async () => {
     const { scorer } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile(), dto: makeDto() }),
     ).rejects.toMatchObject({ status: 400, code: 'MISSING_REFERENCE' });
@@ -202,7 +230,7 @@ describe('AiSpeechEvaluatorService', () => {
   it('校验失败时不调用 scorer / feedback（短路）', async () => {
     const { scorer, calls } = makeFakeScorer();
     const feedback = makeFakeFeedback();
-    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), scorer, feedback.feedback);
+    const svc = new AiSpeechEvaluatorService(makeFakeWordRepo(), makeFakeSentenceRepo(), scorer, feedback.feedback);
     await expect(
       svc.evaluate({ file: makeFile({ size: 0 }), dto: makeDto({ wordId: 'w1' }) }),
     ).rejects.toBeInstanceOf(SpeechEvaluateError);

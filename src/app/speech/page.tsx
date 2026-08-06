@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, Suspense } from "react";
+import React, { useState, useCallback, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Volume2, Star, Mic, ArrowRight, Trophy } from "lucide-react";
@@ -15,6 +15,7 @@ import { logger } from "@/lib/logger";
 import { mapBackendMascotExpr, speakText } from "@/lib/speech";
 import type {
   Word,
+  Sentence,
   SpeechFeedback,
   SpeechLevel,
   MascotExpression,
@@ -37,9 +38,17 @@ const LEVEL_BADGE: Record<SpeechLevel, { label: string; cls: string }> = {
   },
 };
 
-/** 单个单词跟读卡片（听 → 录 → 评 → 反馈）。 */
+/** 跟读练习项（单词 / 句子通用抽象）。 */
+interface PracticeItem {
+  id: string;
+  text: string;
+  meaning: string;
+}
+
+/** 单个跟读卡片（听 → 录 → 评 → 反馈）。单词 / 句子通用，按 `mode` 渲染。 */
 function SpeechCard({
-  word,
+  item,
+  mode,
   index,
   total,
   recording,
@@ -52,7 +61,8 @@ function SpeechCard({
   onSubmit,
   onNext,
 }: {
-  word: Word;
+  item: PracticeItem;
+  mode: "words" | "sentences";
   index: number;
   total: number;
   recording: RecordingResult | null;
@@ -70,12 +80,17 @@ function SpeechCard({
     ? mapBackendMascotExpr(feedback.mascotExpr)
     : "happy";
 
+  const isSentence = mode === "sentences";
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6" data-component="WordCard">
+    <div
+      className="max-w-2xl mx-auto space-y-6"
+      data-component={isSentence ? "SentenceCard" : "WordCard"}
+    >
       {/* Progress */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-kids-muted">
-          Word {index + 1} of {total}
+          {isSentence ? "Sentence" : "Word"} {index + 1} of {total}
         </span>
         {feedback && (
           <span
@@ -86,24 +101,30 @@ function SpeechCard({
         )}
       </div>
 
-      {/* Word card */}
+      {/* Card front */}
       <section className="card-kids text-center space-y-3" data-component="WordFront">
         <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center overflow-hidden">
-          <span className="text-5xl font-extrabold text-kids-title tracking-tight">
-            {word.text}
+          <span
+            className={`font-extrabold text-kids-title tracking-tight ${
+              isSentence ? "text-2xl px-4 leading-snug" : "text-5xl"
+            }`}
+          >
+            {item.text}
           </span>
         </div>
         <div className="space-y-1">
-          <p className="text-kids-muted">{word.meaning}</p>
-          <button
-            onClick={() => setShowPhonics((s) => !s)}
-            className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
-            aria-label="Show pronunciation hint"
-            data-action="toggle-phonics"
-          >
-            <Volume2 size={20} className="mr-2" />
-            {showPhonics ? word.phonics : "Phonics"}
-          </button>
+          <p className="text-kids-muted">{item.meaning}</p>
+          {!isSentence && (
+            <button
+              onClick={() => setShowPhonics((s) => !s)}
+              className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
+              aria-label="Show pronunciation hint"
+              data-action="toggle-phonics"
+            >
+              <Volume2 size={20} className="mr-2" />
+              {showPhonics ? "Phonics" : "Show phonics"}
+            </button>
+          )}
         </div>
       </section>
 
@@ -114,7 +135,7 @@ function SpeechCard({
           size="lg"
           onClick={onListen}
           data-action="listen"
-          aria-label={`Listen to ${word.text}`}
+          aria-label={`Listen to ${item.text}`}
         >
           <Volume2 size={22} className="mr-2" />
           Listen
@@ -261,7 +282,10 @@ function SpeechInner() {
   const taskId = searchParams.get("taskId");
   const [taskMarked, setTaskMarked] = useState(false);
 
+  // AI-309：单词 / 句子双模式；句子模式消费句库（GET /api/sentences）。
+  const [mode, setMode] = useState<"words" | "sentences">("words");
   const [words, setWords] = useState<Word[]>([]);
+  const [sentences, setSentences] = useState<Sentence[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -274,22 +298,33 @@ function SpeechInner() {
   const [feedback, setFeedback] = useState<SpeechFeedback | null>(null);
   const [cardError, setCardError] = useState<string | null>(null);
 
+  // 当前模式下的练习项（单词/句子统一抽象为 {id,text,meaning}）。
+  const items: PracticeItem[] = useMemo(
+    () =>
+      mode === "sentences"
+        ? sentences.map((s) => ({ id: s.id, text: s.text, meaning: s.meaning }))
+        : words.map((w) => ({ id: w.id, text: w.text, meaning: w.meaning })),
+    [mode, words, sentences],
+  );
+
   useEffect(() => {
     let active = true;
     setLoading(true);
-    api
-      .getAllWords()
-      .then((data) => {
-        if (active) setWords(data);
-      })
-      .catch((err) => {
-        logger.error("Failed to load words for speech practice", err);
-        if (active) {
+    // 并行加载单词与句库（句子模式复用，避免切换时再发请求）。
+    Promise.allSettled([api.getAllWords(), api.getSentences()])
+      .then(([wordsRes, sentencesRes]) => {
+        if (!active) return;
+        if (wordsRes.status === "fulfilled") setWords(wordsRes.value);
+        if (sentencesRes.status === "fulfilled") setSentences(sentencesRes.value);
+        // 仅单词加载失败才视为阻断性错误（句库失败可降级到单词模式）。
+        if (wordsRes.status === "rejected") {
+          const err = wordsRes.reason;
           setLoadError(
             err instanceof ApiError
               ? err.message || "加载单词失败"
               : "网络好像开小差了，再试一次吧！",
           );
+          logger.error("Failed to load words for speech practice", err);
         }
       })
       .finally(() => {
@@ -300,9 +335,9 @@ function SpeechInner() {
     };
   }, []);
 
-  const handleListen = useCallback((word: Word) => {
+  const handleListen = useCallback((item: PracticeItem) => {
     // 浏览器原生 TTS（Web Speech API）朗读；不支持时静默降级（AI-402 后续接入狐狸音色）。
-    speakText(word.text, { lang: "en-US" });
+    speakText(item.text, { lang: "en-US" });
   }, []);
 
   const clearCardState = useCallback(() => {
@@ -322,11 +357,18 @@ function SpeechInner() {
 
   const handleSubmit = useCallback(async () => {
     if (!recording || evaluating) return;
+    const current = items[currentIndex];
+    if (!current) return;
     setEvaluating(true);
     setCardError(null);
     try {
+      // AI-309：句子模式携带 sentenceId，单词模式携带 wordId（互斥）。
+      const opts =
+        mode === "sentences"
+          ? { sentenceId: current.id }
+          : { wordId: current.id };
       const fb = await api.evaluateSpeech(recording.blob, {
-        wordId: words[currentIndex]?.id,
+        ...opts,
         durationMs: recording.durationMs,
         userId: user?.id,
       });
@@ -342,16 +384,28 @@ function SpeechInner() {
     } finally {
       setEvaluating(false);
     }
-  }, [recording, evaluating, words, currentIndex, user]);
+  }, [recording, evaluating, items, currentIndex, mode, user]);
 
   const handleNext = useCallback(() => {
-    if (currentIndex + 1 >= words.length) {
+    if (currentIndex + 1 >= items.length) {
       setFinished(true);
       return;
     }
     setCurrentIndex((i) => i + 1);
     clearCardState();
-  }, [currentIndex, words.length, clearCardState]);
+  }, [currentIndex, items.length, clearCardState]);
+
+  // AI-309：切换模式 → 重置会话到首张卡（清反馈/录音/完成态），避免跨模式状态错乱。
+  const switchMode = useCallback(
+    (next: "words" | "sentences") => {
+      if (next === mode) return;
+      setMode(next);
+      setCurrentIndex(0);
+      setFinished(false);
+      clearCardState();
+    },
+    [mode, clearCardState],
+  );
 
   // AI-308：口语会话完成（finished）且携带 taskId 时，回写每日任务状态。
   // 后端 completeTask 幂等（重复完成无害），这里用 taskMarked 守卫只调一次。
@@ -392,21 +446,30 @@ function SpeechInner() {
     );
   }
 
-  if (words.length === 0) {
+  if (items.length === 0) {
+    const isSentence = mode === "sentences";
     return (
       <div
         className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
         data-component="SpeechEmpty"
       >
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">No words here yet!</h1>
-        <p className="text-kids-muted">Add some words from a course to start speaking.</p>
-        <Button variant="success" asChild>
-          <Link href="/course">
-            <ArrowRight size={20} className="mr-2" />
-            Browse Courses
-          </Link>
-        </Button>
+        <h1 className="text-2xl">
+          {isSentence ? "No sentences here yet!" : "No words here yet!"}
+        </h1>
+        <p className="text-kids-muted">
+          {isSentence
+            ? "The sentence library is empty. Try word mode for now!"
+            : "Add some words from a course to start speaking."}
+        </p>
+        {!isSentence && (
+          <Button variant="success" asChild>
+            <Link href="/course">
+              <ArrowRight size={20} className="mr-2" />
+              Browse Courses
+            </Link>
+          </Button>
+        )}
       </div>
     );
   }
@@ -441,7 +504,7 @@ function SpeechInner() {
     );
   }
 
-  const word = words[currentIndex];
+  const current = items[currentIndex];
 
   return (
     <div className="space-y-6" data-component="SpeechPage">
@@ -462,20 +525,60 @@ function SpeechInner() {
         </div>
       </div>
 
-      <SpeechCard
-        word={word}
-        index={currentIndex}
-        total={words.length}
-        recording={recording}
-        evaluating={evaluating}
-        feedback={feedback}
-        cardError={cardError}
-        onListen={() => handleListen(word)}
-        onRecordingComplete={handleRecordingComplete}
-        onReset={clearCardState}
-        onSubmit={handleSubmit}
-        onNext={handleNext}
-      />
+      {/* AI-309：单词 / 句子模式切换 */}
+      <div
+        className="flex items-center gap-2 p-1 rounded-control bg-[var(--color-primary-wash)]/60 w-fit mx-auto"
+        data-component="ModeToggle"
+        role="tablist"
+        aria-label="Practice mode"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "words"}
+          onClick={() => switchMode("words")}
+          data-action="mode-words"
+          className={`px-4 py-1.5 rounded-control text-sm font-bold transition-colors ${
+            mode === "words"
+              ? "bg-white text-[var(--seed-primary)] shadow-sm"
+              : "text-kids-muted"
+          }`}
+        >
+          Words
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "sentences"}
+          onClick={() => switchMode("sentences")}
+          data-action="mode-sentences"
+          className={`px-4 py-1.5 rounded-control text-sm font-bold transition-colors ${
+            mode === "sentences"
+              ? "bg-white text-[var(--seed-primary)] shadow-sm"
+              : "text-kids-muted"
+          }`}
+        >
+          Sentences
+        </button>
+      </div>
+
+      {current && (
+        <SpeechCard
+          item={current}
+          mode={mode}
+          index={currentIndex}
+          total={items.length}
+          recording={recording}
+          evaluating={evaluating}
+          feedback={feedback}
+          cardError={cardError}
+          onListen={() => handleListen(current)}
+          onRecordingComplete={handleRecordingComplete}
+          onReset={clearCardState}
+          onSubmit={handleSubmit}
+          onNext={handleNext}
+        />
+      )}
     </div>
   );
 }

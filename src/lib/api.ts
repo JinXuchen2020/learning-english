@@ -2,6 +2,7 @@ import type {
   Course,
   Lesson,
   Word,
+  Sentence,
   DailyTask,
   GeneratePlanDto,
   GeneratePlanResponse,
@@ -152,6 +153,31 @@ export function getAllWords() {
   return request<Word[]>("/words");
 }
 
+/* ---------------------------- Sentences (AI-309) ---------------------------- */
+
+/** 句库查询参数（均为可选）。 */
+export interface SentenceQuery {
+  /** 仅返回该分级（如 `L1`）。 */
+  level?: string;
+  /** 仅返回关联该词汇文本的句。 */
+  wordText?: string;
+}
+
+/**
+ * 查询句子跟读库（AI-309）。
+ * `GET /api/sentences`，可按 `level` / `wordText` 过滤，返回按 level+sortOrder 升序。
+ * 与 `getAllWords` 同口径走 `request`（默认带内存 token；SentencesController 加 JwtAuthGuard）。
+ */
+export function getSentences(query: SentenceQuery = {}): Promise<Sentence[]> {
+  const params = new URLSearchParams();
+  const level = query.level?.trim();
+  const wordText = query.wordText?.trim();
+  if (level) params.set("level", level);
+  if (wordText) params.set("wordText", wordText);
+  const qs = params.toString();
+  return request<Sentence[]>(`/sentences${qs ? `?${qs}` : ""}`);
+}
+
 /* ----------------------------- Tasks ---------------------------- */
 
 export function getDailyTasks() {
@@ -262,6 +288,7 @@ export function evaluateSpeech(
   const form = new FormData();
   form.append("audio", file, "recording.webm");
   if (opts.wordId) form.append("wordId", opts.wordId);
+  if (opts.sentenceId) form.append("sentenceId", opts.sentenceId);
   if (opts.referenceText) form.append("referenceText", opts.referenceText);
   if (opts.durationMs != null) form.append("durationMs", String(opts.durationMs));
   if (opts.userId) form.append("userId", opts.userId);

@@ -41,6 +41,21 @@ export interface DailyTask {
   completed: boolean;
 }
 
+/** 句子跟读库条目（AI-309，后端 `sentences` 表）。 */
+export interface Sentence {
+  id: string;
+  /** 英文跟读句（评测参考文本）。 */
+  text: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 难度分级 L1/L2/L3。 */
+  level: string;
+  /** 关联 P0 词汇文本（小写）。 */
+  wordTexts: string[];
+  /** 主题标签。 */
+  tags: string[];
+}
+
 export type QuizPhase = "answering" | "correct" | "incorrect" | "complete";
 
 export interface QuizState {
@@ -181,6 +196,8 @@ export interface SpeechFeedback {
 export interface EvaluateSpeechOptions {
   /** 单词 id（优先）→ 后端解析 `Word.text` 作参考文本。 */
   wordId?: string;
+  /** 句子 id（AI-309 句库）→ 后端解析 `Sentence.text` 作参考文本。与 wordId 互斥。 */
+  sentenceId?: string;
   /** 直传参考文本（E2E / 句子模式便利）。 */
   referenceText?: string;
   /** 客户端上报录音时长（毫秒），来自 `RecordingResult.durationMs`。 */

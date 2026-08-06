@@ -12,6 +12,7 @@ import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
+import { Sentence } from '../entities/sentence.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -35,6 +36,13 @@ const fakeAiSpeechAttemptRepo = {
 
 /** 假 Word 仓库：让 `AiSpeechEvaluatorService`(AI-303) 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeWordRepo = {
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 Sentence 仓库：让 `AiSpeechEvaluatorService`(AI-309 句库路径) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeSentenceRepo = {
   findOne: jest.fn(),
   create: jest.fn((e) => e),
   save: jest.fn(async (e) => e),
@@ -65,6 +73,8 @@ async function compileAiModule() {
     .useValue(fakeAiSpeechAttemptRepo)
     .overrideProvider(getRepositoryToken(Word))
     .useValue(fakeWordRepo)
+    .overrideProvider(getRepositoryToken(Sentence))
+    .useValue(fakeSentenceRepo)
     .overrideProvider(AiPronunciationScorerService)
     .useValue(fakeScorer)
     .compile();

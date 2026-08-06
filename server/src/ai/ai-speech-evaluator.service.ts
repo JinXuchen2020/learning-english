@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Word } from '../entities/word.entity';
+import { Sentence } from '../entities/sentence.entity';
 import { ScoreResult } from './ai-provider.interface';
 import { EvaluateSpeechDto } from './speech-evaluate.dto';
 import {
@@ -50,6 +51,8 @@ export class AiSpeechEvaluatorService {
   constructor(
     @InjectRepository(Word)
     private readonly wordRepo: Repository<Word>,
+    @InjectRepository(Sentence)
+    private readonly sentenceRepo: Repository<Sentence>,
     private readonly scorer: AiPronunciationScorerService,
     private readonly feedback: AiSpeechFeedbackService,
   ) {}
@@ -86,7 +89,7 @@ export class AiSpeechEvaluatorService {
 
   /**
    * 解析评分参考文本（目标读音）。优先级：直传 `referenceText` → `wordId` 查 Word.text
-   * → `sentenceId`（句库未落地）→ 全缺。
+   * → `sentenceId` 查 Sentence.text（AI-309 句库）→ 全缺。
    * @throws SpeechEvaluateError 解析失败时
    */
   private async resolveReferenceText(dto: EvaluateSpeechDto): Promise<string> {
@@ -103,12 +106,12 @@ export class AiSpeechEvaluatorService {
     }
 
     if (dto.sentenceId) {
-      // 句库（AI-309）尚未落地，无 Sentence 实体；显式返回 400 而非静默失败。
-      throw new SpeechEvaluateError(
-        400,
-        'SENTENCE_SCORING_NOT_READY',
-        '句子跟读评分尚未开放（句库待上线）',
-      );
+      // AI-309 句库已落地：查 Sentence.text 作参考文本；未命中 → 404（与 WORD_NOT_FOUND 同口径）。
+      const sentence = await this.sentenceRepo.findOne({ where: { id: dto.sentenceId } });
+      if (!sentence) {
+        throw new SpeechEvaluateError(404, 'SENTENCE_NOT_FOUND', '句子不存在');
+      }
+      return sentence.text;
     }
 
     throw new SpeechEvaluateError(
