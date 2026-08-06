@@ -10,6 +10,8 @@ import { WordProgress } from '../entities/word-progress.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { AiUsage } from '../ai/ai-usage.entity';
 import { AiCallLog } from '../ai/ai-call-log.entity';
+import { AiSpeechAttempt } from '../ai/ai-speech-attempt.entity';
+import { Sentence } from '../entities/sentence.entity';
 import { StudyPlan } from '../plan/study-plan.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
@@ -28,6 +30,8 @@ export const appEntities = [
   TaskCompletion,
   AiUsage,
   AiCallLog,
+  AiSpeechAttempt,
+  Sentence,
   StudyPlan,
   StudyPlanDay,
 ];

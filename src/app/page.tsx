@@ -6,6 +6,7 @@ import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
+import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { logger } from "@/lib/logger";
 import type { DailyTask, PlanStatusResponse } from "@/lib/types";
 import { Headphones, Mic, Pencil, Star, Flame, Check } from "lucide-react";
@@ -185,26 +186,24 @@ function HomeContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {tasks.map((task) => {
                 const Icon = taskIcons[task.icon] || Headphones;
-                return (
-                  <button
-                    key={task.id}
-                    onClick={() => handleCompleteTask(task)}
-                    disabled={task.completed || completingId === task.id}
-                    className={`card-kids flex items-center gap-4 text-left touch-target transition-all ${
-                      task.completed
-                        ? "opacity-80 bg-[var(--color-primary-wash)] cursor-default"
-                        : "cursor-pointer hover:shadow-card-hover"
-                    }`}
-                    aria-pressed={task.completed}
-                  >
+                const isCompleted = task.completed;
+                // 未完成的口语(mic)任务 → 深链到 /speech（AI-308）；其余维持一键完成。
+                const isSpeechLink = isSpeakingTask(task) && !isCompleted;
+                const cardClass = `card-kids flex items-center gap-4 text-left touch-target transition-all ${
+                  isCompleted
+                    ? "opacity-80 bg-[var(--color-primary-wash)] cursor-default"
+                    : "cursor-pointer hover:shadow-card-hover"
+                }`;
+                const body = (
+                  <>
                     <div
                       className={`flex items-center justify-center w-14 h-14 rounded-full ${
-                        task.completed
+                        isCompleted
                           ? "bg-[var(--color-success)] text-white"
                           : "bg-kids-secondary text-kids-text"
                       }`}
                     >
-                      {task.completed ? (
+                      {isCompleted ? (
                         <Check size={26} strokeWidth={3} />
                       ) : (
                         <Icon size={26} />
@@ -214,12 +213,38 @@ function HomeContent() {
                       <p className="font-bold text-kids-title">{task.title}</p>
                       <p className="text-sm text-kids-muted">{task.description}</p>
                     </div>
-                    {task.completed && (
+                    {isCompleted && (
                       <Star
                         size={20}
                         className="ml-auto text-kids-sun fill-kids-sun animate-star-pop"
                       />
                     )}
+                  </>
+                );
+                if (isSpeechLink) {
+                  return (
+                    <Link
+                      key={task.id}
+                      href={speakingTaskHref(task.id)}
+                      className={cardClass}
+                      data-task-id={task.id}
+                      data-speech-link="true"
+                      aria-label={`Open speaking practice: ${task.title}`}
+                    >
+                      {body}
+                    </Link>
+                  );
+                }
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => handleCompleteTask(task)}
+                    disabled={isCompleted || completingId === task.id}
+                    className={cardClass}
+                    aria-pressed={isCompleted}
+                    data-task-id={task.id}
+                  >
+                    {body}
                   </button>
                 );
               })}

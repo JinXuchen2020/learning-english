@@ -19,7 +19,16 @@ BeforeAll({ timeout: 60000 }, async function () {
   const envChannel = process.env.E2E_BROWSER_CHANNEL;
   const channel = envChannel !== undefined ? envChannel : "msedge";
   const launchOptions: { args: string[]; channel?: string } = {
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    // Headless media: provide a synthetic audio stream and auto-grant mic
+    // permission so SpeechRecorder's real getUserMedia/MediaRecorder path works
+    // without a physical microphone. Without these, getUserMedia rejects with
+    // NotAllowedError and the /speech record step can never reach "recording".
+    args: [
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+    ],
   };
   if (channel) launchOptions.channel = channel;
   browser = await chromium.launch(launchOptions);

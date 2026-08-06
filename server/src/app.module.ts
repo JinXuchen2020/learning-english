@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { CoursesModule } from './courses/courses.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { WordsModule } from './words/words.module';
+import { SentencesModule } from './sentences/sentences.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ProgressModule } from './progress/progress.module';
 import { buildTypeOrmModuleOptions } from './config/database.config';
@@ -26,6 +27,7 @@ import { PlanModule } from './plan/plan.module';
     CoursesModule,
     LessonsModule,
     WordsModule,
+    SentencesModule,
     TasksModule,
     ProgressModule,
     PlanModule,

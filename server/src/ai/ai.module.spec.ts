@@ -7,6 +7,12 @@ import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
+import { AiSpeechAttempt } from './ai-speech-attempt.entity';
+import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
+import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
+import { Word } from '../entities/word.entity';
+import { Sentence } from '../entities/sentence.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -21,7 +27,40 @@ const fakeAiCallLogRepo = {
   save: jest.fn(async (e) => e),
 };
 
-/** 构造并编译 AiModule（含仓库覆盖），供各用例复用。 */
+/** 假 AiSpeechAttempt 仓库：让 `AiSpeechAttemptService`(AI-301) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeAiSpeechAttemptRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+};
+
+/** 假 Word 仓库：让 `AiSpeechEvaluatorService`(AI-303) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeWordRepo = {
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 Sentence 仓库：让 `AiSpeechEvaluatorService`(AI-309 句库路径) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeSentenceRepo = {
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 AiPronunciationScorerService：让 `AiSpeechEvaluatorService`(AI-303 委托) 在无需真实 AI 链的情况下完成 DI 装配。 */
+const fakeScorer = {
+  score: jest.fn(async () => ({
+    score: 88,
+    readableText: '',
+    weakPhonemes: [],
+    feedback: '',
+    mascotExpr: 'encourage',
+    strategy: 'phoneme',
+  })),
+};
+
+/** 构造并编译 AiModule（含仓库/服务覆盖），供各用例复用。 */
 async function compileAiModule() {
   return Test.createTestingModule({
     imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), AiModule],
@@ -30,6 +69,14 @@ async function compileAiModule() {
     .useValue(fakeAiUsageRepo)
     .overrideProvider(getRepositoryToken(AiCallLog))
     .useValue(fakeAiCallLogRepo)
+    .overrideProvider(getRepositoryToken(AiSpeechAttempt))
+    .useValue(fakeAiSpeechAttemptRepo)
+    .overrideProvider(getRepositoryToken(Word))
+    .useValue(fakeWordRepo)
+    .overrideProvider(getRepositoryToken(Sentence))
+    .useValue(fakeSentenceRepo)
+    .overrideProvider(AiPronunciationScorerService)
+    .useValue(fakeScorer)
     .compile();
 }
 
@@ -73,6 +120,13 @@ describe('AiModule (DI 动态装配)', () => {
     delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiCallLogService);
+    expect(svc).toBeDefined();
+  });
+
+  it('also exposes AiSpeechFeedbackService (AI-306) for direct consumption', async () => {
+    delete process.env.AI_PROVIDER;
+    const moduleRef = await compileAiModule();
+    const svc = moduleRef.get(AiSpeechFeedbackService);
     expect(svc).toBeDefined();
   });
 });

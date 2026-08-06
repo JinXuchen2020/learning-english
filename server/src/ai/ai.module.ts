@@ -16,6 +16,15 @@ import {
 } from './usage-limited-ai-provider';
 import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
+import { AiSpeechAttempt } from './ai-speech-attempt.entity';
+import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { Word } from '../entities/word.entity';
+import { Sentence } from '../entities/sentence.entity';
+import { AiController } from './ai.controller';
+import { AiSpeechEvaluatorService } from './ai-speech-evaluator.service';
+import { AiTranscribeService } from './ai-transcribe.service';
+import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
+import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
@@ -103,18 +112,24 @@ export function createAuditedProvider(
  * 复用同一 `AiProvider`，全局注入免去各消费方重复 import（与 `ConfigModule`
  * 的 `isGlobal:true` 同一设计取向）。
  *
- * 注册 `AiUsage` / `AiCallLog` 实体（`TypeOrmModule.forFeature`）以支撑
- * `AiUsageLimitService` / `AiCallLogService` 的仓库注入；二者均导出供未来
- * 控制器按需直接调用。
+ * 注册 `AiUsage` / `AiCallLog` / `AiSpeechAttempt` 实体（`TypeOrmModule.forFeature`）以支撑
+ * `AiUsageLimitService` / `AiCallLogService` / `AiSpeechAttemptService` 的仓库注入；
+ * 三者均导出供未来控制器按需直接调用。
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog])],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, Word, Sentence])],
+  controllers: [AiController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
     { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
     AiUsageLimitService,
     AiCallLogService,
+    AiSpeechAttemptService,
+    AiSpeechEvaluatorService,
+    AiTranscribeService,
+    AiPronunciationScorerService,
+    AiSpeechFeedbackService,
     {
       provide: AI_PROVIDER_TOKEN,
       useFactory: createAuditedProvider,
@@ -127,6 +142,15 @@ export function createAuditedProvider(
       ],
     },
   ],
-  exports: [AI_PROVIDER_TOKEN, AiUsageLimitService, AiCallLogService],
+  exports: [
+    AI_PROVIDER_TOKEN,
+    AiUsageLimitService,
+    AiCallLogService,
+    AiSpeechAttemptService,
+    AiSpeechEvaluatorService,
+    AiTranscribeService,
+    AiPronunciationScorerService,
+    AiSpeechFeedbackService,
+  ],
 })
 export class AiModule {}
