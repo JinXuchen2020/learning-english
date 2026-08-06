@@ -10,6 +10,8 @@ import type {
   ApplyPlanDto,
   ApplyPlanResponse,
   PlanStatusResponse,
+  SpeechFeedback,
+  EvaluateSpeechOptions,
 } from "./types";
 
 /**
@@ -236,4 +238,76 @@ export function getPlanStatus(childId: string) {
   return request<PlanStatusResponse>(
     `/ai/plan/status?childId=${encodeURIComponent(childId)}`
   );
+}
+
+/* ----------------------------- Speech (AI-307) ---------------------------- */
+
+/**
+ * 提交一次口语录音做评测（AI-303 / AI-306）。
+ *
+ * 以 `multipart/form-data` 上传录音 + 参考文本来源（wordId / referenceText），
+ * 后端经 AI-305 评分策略 + AI-306 反馈装配返回 `SpeechFeedback`。
+ *
+ * 注意：本函数**不使用**通用 `request`（其强制 `Content-Type: application/json`
+ * 会破坏 multipart boundary），改用专用 `postFormData` 让 fetch 自动带 boundary。
+ * 鉴权沿用模块内存 token（与本项目 M2 链口径一致）。
+ *
+ * @param file 录音 Blob（来自 `SpeechRecorder` 的 `RecordingResult.blob`）
+ * @param opts 参考文本来源 / 时长 / 用户 id（字段名与后端 `EvaluateSpeechDto` 对齐）
+ */
+export function evaluateSpeech(
+  file: Blob,
+  opts: EvaluateSpeechOptions = {}
+): Promise<SpeechFeedback> {
+  const form = new FormData();
+  form.append("audio", file, "recording.webm");
+  if (opts.wordId) form.append("wordId", opts.wordId);
+  if (opts.referenceText) form.append("referenceText", opts.referenceText);
+  if (opts.durationMs != null) form.append("durationMs", String(opts.durationMs));
+  if (opts.userId) form.append("userId", opts.userId);
+
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  return postFormData<SpeechFeedback>("/ai/speech/evaluate", form, headers);
+}
+
+/**
+ * 通用 multipart POST（仅供 `evaluateSpeech` 使用）。
+ * 复用 `request` 的错误解析逻辑（非 ok → `ApiError`，优先取 `message`/`error`），
+ * 但不设置 JSON `Content-Type`（交由 fetch 自动注入 multipart boundary）。
+ */
+async function postFormData<T>(
+  path: string,
+  form: FormData,
+  headers: Record<string, string>
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    body: form,
+    headers,
+  });
+
+  let body: unknown = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
+
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    if (body && typeof body === "object") {
+      const payload = body as Record<string, unknown>;
+      const candidate = payload.message ?? payload.error;
+      if (typeof candidate === "string") message = candidate;
+      else if (Array.isArray(candidate)) message = candidate.map(String).join(", ");
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return body as T;
 }

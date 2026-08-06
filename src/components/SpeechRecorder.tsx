@@ -25,6 +25,8 @@ export interface SpeechRecorderProps {
   onRecordingComplete?: (result: RecordingResult) => void;
   /** 录音失败分类回调。 */
   onError?: (kind: RecordingErrorKind) => void;
+  /** 重置（"Try again" 回到 idle）回调，供父组件同步清除已录状态。 */
+  onReset?: () => void;
   disabled?: boolean;
   className?: string;
 }
@@ -44,6 +46,7 @@ function useSpeechRecorder(opts: {
   maxDurationMs: number;
   onRecordingComplete?: (r: RecordingResult) => void;
   onError?: (k: RecordingErrorKind) => void;
+  onReset?: () => void;
 }) {
   const [status, setStatus] = React.useState<RecorderStatus>("idle");
   const [elapsedMs, setElapsedMs] = React.useState(0);
@@ -120,7 +123,8 @@ function useSpeechRecorder(opts: {
     setErrorKind(null);
     setIsIosFallback(false);
     setStatus("idle");
-  }, [clearTimers, stopTracks]);
+    opts.onReset?.();
+  }, [clearTimers, stopTracks, opts]);
 
   const start = React.useCallback(async () => {
     if (busyRef.current) return;
@@ -239,11 +243,12 @@ export default function SpeechRecorder({
   maxDurationMs = DEFAULT_MAX_DURATION_MS,
   onRecordingComplete,
   onError,
+  onReset,
   disabled = false,
   className = "",
 }: SpeechRecorderProps) {
   const { status, elapsedMs, errorKind, result, isIosFallback, start, stop, reset } =
-    useSpeechRecorder({ maxDurationMs, onRecordingComplete, onError });
+    useSpeechRecorder({ maxDurationMs, onRecordingComplete, onError, onReset });
 
   const seconds = (elapsedMs / 1000).toFixed(1);
   const maxSeconds = Math.round(maxDurationMs / 1000);

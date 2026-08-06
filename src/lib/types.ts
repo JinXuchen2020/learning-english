@@ -147,3 +147,44 @@ export interface PlanStatusResponse {
   planId?: string;
   appliedAt?: string;
 }
+
+/* ----------------------- AI Speech (AI-307) ----------------------- */
+
+/** 口语反馈等级档位（与后端 `SpeechFeedback.level` 对齐）。 */
+export type SpeechLevel = "good" | "ok" | "weak";
+
+/**
+ * 面向儿童的口语评测反馈（AI-303/306 响应体）。
+ * 继承 `score / readableText / weakPhonemes / feedback / mascotExpr`，
+ * 追加 `passed`（是否通过）+ `level`（等级档位）。
+ * `mascotExpr` 为**后端**表情枚举（happy/encourage/thinking/cheer），
+ * 渲染到前端 `Mascot` 前须经 `mapBackendMascotExpr` 映射到前端枚举。
+ */
+export interface SpeechFeedback {
+  /** 综合发音得分 [0,100]。 */
+  score: number;
+  /** 目标可读文本（含识别/纠正后的展示文本）。 */
+  readableText: string;
+  /** 薄弱音素列表（IPA），供高亮。 */
+  weakPhonemes: string[];
+  /** 面向儿童的鼓励性反馈文案。 */
+  feedback: string;
+  /** 后端吉祥物表情（渲染前需映射）。 */
+  mascotExpr: string;
+  /** 是否通过（score >= 60 通过线，与 AI-306 `PASS_LINE` 一致）。 */
+  passed: boolean;
+  /** 等级档位：good(≥80) / ok(≥60) / weak(<60)。 */
+  level: SpeechLevel;
+}
+
+/** `POST /api/ai/speech/evaluate` 的入参（构造 multipart 用，非完整 DTO）。 */
+export interface EvaluateSpeechOptions {
+  /** 单词 id（优先）→ 后端解析 `Word.text` 作参考文本。 */
+  wordId?: string;
+  /** 直传参考文本（E2E / 句子模式便利）。 */
+  referenceText?: string;
+  /** 客户端上报录音时长（毫秒），来自 `RecordingResult.durationMs`。 */
+  durationMs?: number;
+  /** 归属用户 id（缺省后端用 `anonymous` 占位）。 */
+  userId?: string;
+}
