@@ -16,6 +16,9 @@ export default class E2EWorld extends World {
   baseUrl: string;
   // Credentials of the user created during a scenario (set by register steps)
   testUser: TestUser | null = null;
+  // AI-308: id of the speaking (mic) daily task clicked on Home, shared across
+  // steps so the completion-write-back assertion can find the right card.
+  speakingTaskId: string | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

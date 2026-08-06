@@ -179,4 +179,64 @@ export default class SpeechPage {
       });
     });
   }
+
+  async clickNext(): Promise<void> {
+    await this.page.locator('button[data-action="next-word"]').click();
+  }
+
+  async waitComplete(): Promise<void> {
+    await this.page.waitForSelector('[data-component="SpeechComplete"]', {
+      timeout: 20000,
+    });
+  }
+
+  async clickBackHome(): Promise<void> {
+    await this.page.locator('[data-component="SpeechComplete"] a[href="/"]').click();
+  }
+
+  /**
+   * Drive a full speech practice session to completion: for every word card,
+   * record → submit → (feedback appears) → next, looping until the completion
+   * screen shows. Relies on the launch flags in hooks.ts for a working
+   * headless microphone (real getUserMedia/MediaRecorder), so no fake-mic
+   * injection is required here.
+   */
+  async completeSession(): Promise<void> {
+    // Wait until the first word card (or the completion screen) is ready, so we
+    // don't race the initial word-loading spinner.
+    await this.page
+      .waitForSelector('[data-component="WordCard"], [data-component="SpeechComplete"]', {
+        timeout: 20000,
+      })
+      .catch(() => {});
+    for (let i = 0; i < 50; i++) {
+      if ((await this.page.locator('[data-component="SpeechComplete"]').count()) > 0) {
+        // Wait for the linked daily task to be written back (TaskDoneNote) before
+        // letting the caller navigate home. completeTask is an async fire-and-forget
+        // POST that resolves only after the backend PATCH commits; if we click
+        // "Back to Home" first, the Home dashboard refetches getDailyTasks() before
+        // the task is marked and the assertion fails. The 10s timeout is a no-op
+        // fallback for sessions opened without a ?taskId (no TaskDoneNote rendered).
+        await this.page
+          .locator('[data-component="TaskDoneNote"]')
+          .waitFor({ timeout: 10000 })
+          .catch(() => {});
+        return;
+      }
+      if ((await this.page.locator('[data-component="SpeechRecorder"]').count()) > 0) {
+        await this.recordVoice();
+      }
+      const submitBtn = this.page.locator('button[data-action="submit-speech"]');
+      if ((await submitBtn.count()) > 0) {
+        await submitBtn.click();
+        await this.waitFeedback();
+      }
+      const nextBtn = this.page.locator('button[data-action="next-word"]');
+      if ((await nextBtn.count()) > 0) {
+        await nextBtn.click();
+      } else {
+        return;
+      }
+    }
+  }
 }

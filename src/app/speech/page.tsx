@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Volume2, Star, Mic, ArrowRight, Trophy } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
@@ -255,6 +256,10 @@ function SpeechFeedbackPanel({
 
 function SpeechInner() {
   const { user } = useAuth();
+  // AI-308：从 URL 读取口语任务 id（Home 深链携带），会话完成后回写任务状态。
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get("taskId");
+  const [taskMarked, setTaskMarked] = useState(false);
 
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
@@ -348,6 +353,22 @@ function SpeechInner() {
     clearCardState();
   }, [currentIndex, words.length, clearCardState]);
 
+  // AI-308：口语会话完成（finished）且携带 taskId 时，回写每日任务状态。
+  // 后端 completeTask 幂等（重复完成无害），这里用 taskMarked 守卫只调一次。
+  useEffect(() => {
+    if (!finished || !taskId || taskMarked) return;
+    let active = true;
+    api
+      .completeTask(taskId)
+      .then(() => {
+        if (active) setTaskMarked(true);
+      })
+      .catch((err) => logger.error("Failed to mark speech task complete", err));
+    return () => {
+      active = false;
+    };
+  }, [finished, taskId, taskMarked]);
+
   if (loading) {
     return (
       <div
@@ -402,6 +423,14 @@ function SpeechInner() {
           <Trophy size={32} className="text-kids-sun" />
           You earned {stars} {stars === 1 ? "star" : "stars"}!
         </div>
+        {taskId && taskMarked && (
+          <p
+            className="text-sm font-semibold text-[var(--seed-primary)]"
+            data-component="TaskDoneNote"
+          >
+            Daily task complete! ✓
+          </p>
+        )}
         <Button variant="secondary" asChild>
           <Link href="/">
             <ArrowRight size={20} className="mr-2" />
@@ -454,7 +483,19 @@ function SpeechInner() {
 export default function SpeechPage() {
   return (
     <AuthGate>
-      <SpeechInner />
+      <Suspense
+        fallback={
+          <div
+            className="flex flex-col items-center justify-center py-16 gap-3"
+            data-component="SpeechSuspense"
+          >
+            <Mascot expression="thinking" size="medium" />
+            <p className="text-kids-muted font-semibold">Getting ready…</p>
+          </div>
+        }
+      >
+        <SpeechInner />
+      </Suspense>
     </AuthGate>
   );
 }
