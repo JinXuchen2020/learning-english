@@ -53,6 +53,8 @@ export function createAiProvider(config: ConfigService): AiProvider {
         baseUrl: cfg.bigmodel.baseUrl,
         model: cfg.bigmodel.model,
         visionModel: cfg.bigmodel.visionModel,
+        ttsModel: cfg.bigmodel.ttsModel,
+        ttsVoice: cfg.bigmodel.ttsVoice,
       });
       break;
     case 'mock':

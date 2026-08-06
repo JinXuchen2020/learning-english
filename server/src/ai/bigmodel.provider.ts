@@ -62,6 +62,10 @@ export interface BigModelConfig {
   model?: string;
   /** 视觉/OCR 模型。缺省读 `BIGMODEL_VISION_MODEL`。 */
   visionModel?: string;
+  /** TTS 模型。缺省读 `BIGMODEL_TTS_MODEL`（默认 `glm-tts`）。 */
+  ttsModel?: string;
+  /** 默认 TTS 音色（狐狸吉祥物音色）。缺省读 `BIGMODEL_TTS_VOICE`（默认 `tongtong`）。 */
+  ttsVoice?: string;
 }
 
 /** 注入型 fetch 签名（与全局 `fetch` 一致），便于单测 mock。 */
@@ -75,6 +79,12 @@ const DEFAULT_MODEL = 'glm-4.7-flash';
 const DEFAULT_VISION_MODEL = 'glm-4.6v-flash';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_TOKENS = 512;
+/** TTS 模型（智谱 GLM-TTS）。 */
+const DEFAULT_TTS_MODEL = 'glm-tts';
+/** 默认 TTS 音色：狐狸吉祥物儿童友好音色（智谱系统童声 `tongtong`）。 */
+const DEFAULT_TTS_VOICE = 'tongtong';
+/** TTS 单次合成超时（语音合成比 LLM 快，30s 足够）。 */
+const DEFAULT_TTS_TIMEOUT_MS = 30_000;
 
 /** BigModel / OpenAI 兼容 chat 响应的关键形状（仅取业务所需字段）。 */
 interface BigModelMessage {
@@ -117,6 +127,8 @@ export class BigModelProvider implements AiProvider {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly visionModel: string;
+  private readonly ttsModel: string;
+  private readonly ttsVoice: string;
   private readonly fetchFn: FetchFn;
 
   constructor(
@@ -130,6 +142,8 @@ export class BigModelProvider implements AiProvider {
     this.model = config.model ?? process.env.BIGMODEL_MODEL ?? DEFAULT_MODEL;
     this.visionModel =
       config.visionModel ?? process.env.BIGMODEL_VISION_MODEL ?? DEFAULT_VISION_MODEL;
+    this.ttsModel = config.ttsModel ?? process.env.BIGMODEL_TTS_MODEL ?? DEFAULT_TTS_MODEL;
+    this.ttsVoice = config.ttsVoice ?? process.env.BIGMODEL_TTS_VOICE ?? DEFAULT_TTS_VOICE;
     this.fetchFn = fetchFn;
   }
 
@@ -212,13 +226,99 @@ export class BigModelProvider implements AiProvider {
   }
 
   async synthesize(
-    _text: string,
-    _voice?: string,
-    _options?: SynthesizeOptions,
+    text: string,
+    voice?: string,
+    options?: SynthesizeOptions,
   ): Promise<AudioResult> {
-    // BigModel TTS 暂未接入（AI-102 范围外），返回降级结果，由 AI-402 接入。
-    logger.debug('BigModelProvider.synthesize 暂未实现，返回降级结果');
-    return { audioBase64: '', mimeType: 'audio/mp3', durationMs: 0 };
+    if (!this.apiKey) {
+      throw new AiProviderException('BigModel API key 未配置（BIGMODEL_API_KEY）', {
+        statusCode: 401,
+      });
+    }
+    const body = {
+      model: this.ttsModel,
+      input: text,
+      voice: voice || this.ttsVoice,
+      response_format: 'mp3',
+      speed: options?.speed ?? 1.0,
+      volume: 1.0,
+      stream: false,
+    };
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_TTS_TIMEOUT_MS;
+    const signal = AbortSignal.timeout(timeoutMs);
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.baseUrl}/audio/speech`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (e) {
+      const err = e as Error;
+      if (err?.name === 'AbortError') {
+        throw new AiProviderException(`BigModel TTS 请求超时（>${timeoutMs}ms）`, {
+          statusCode: 504,
+        });
+      }
+      throw new AiProviderException(`BigModel TTS 网络请求失败：${err?.message ?? 'unknown'}`, {
+        statusCode: 0,
+        code: 'NETWORK',
+      });
+    }
+
+    if (!res.ok) {
+      await this.throwOnError(res);
+    }
+
+    // 智谱 /audio/speech 默认返回二进制音频；少数网关/代理包 JSON 信封。
+    const contentType = res.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const j = (await res.json()) as {
+        audio?: string;
+        url?: string;
+        duration?: number;
+      };
+      if (j?.url) {
+        return {
+          audioUrl: j.url,
+          mimeType: 'audio/mpeg',
+          durationMs: j.duration ? Math.round(j.duration * 1000) : undefined,
+        };
+      }
+      if (j?.audio) {
+        return { audioBase64: j.audio, mimeType: 'audio/mpeg', durationMs: undefined };
+      }
+      throw new AiProviderException('BigModel TTS 返回结构异常：缺少 audio/url 字段', {
+        statusCode: 502,
+      });
+    }
+
+    // 二进制音频响应（直接返回 mp3/wav 字节）。
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) {
+      throw new AiProviderException('BigModel TTS 返回空音频', { statusCode: 502 });
+    }
+    return {
+      audioBase64: buf.toString('base64'),
+      mimeType: this.mimeFromContentType(contentType),
+      durationMs: undefined,
+    };
+  }
+
+  /** 从响应 Content-Type 推导音频 mime（兜底 audio/mpeg，与 response_format=mp3 一致）。 */
+  private mimeFromContentType(contentType: string): string {
+    if (contentType.includes('audio/wav') || contentType.includes('audio/x-wav')) {
+      return 'audio/wav';
+    }
+    if (contentType.includes('audio/pcm')) return 'audio/pcm';
+    if (contentType.includes('audio/mpeg') || contentType.includes('audio/mp3')) {
+      return 'audio/mpeg';
+    }
+    return 'audio/mpeg';
   }
 
   /** 统一 POST JSON + 超时 + 错误清晰化。失败抛 {@link AiProviderException}。 */

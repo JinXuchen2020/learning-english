@@ -20,6 +20,8 @@ describe('readAiConfig', () => {
     expect(cfg.bigmodel.baseUrl).toBe('https://open.bigmodel.cn/api/paas/v4');
     expect(cfg.bigmodel.model).toBe('glm-4.7-flash');
     expect(cfg.bigmodel.visionModel).toBe('glm-4.6v-flash');
+    expect(cfg.bigmodel.ttsModel).toBe('glm-tts');
+    expect(cfg.bigmodel.ttsVoice).toBe('tongtong');
   });
 
   it('reads overridden BigModel values', () => {
@@ -30,6 +32,8 @@ describe('readAiConfig', () => {
         BIGMODEL_BASE_URL: 'https://example.com/v1',
         BIGMODEL_MODEL: 'glm-x',
         BIGMODEL_VISION_MODEL: 'glm-y',
+        BIGMODEL_TTS_MODEL: 'glm-tts-custom',
+        BIGMODEL_TTS_VOICE: 'xiaochen',
       }),
     );
     expect(cfg.bigmodel).toEqual({
@@ -37,6 +41,8 @@ describe('readAiConfig', () => {
       baseUrl: 'https://example.com/v1',
       model: 'glm-x',
       visionModel: 'glm-y',
+      ttsModel: 'glm-tts-custom',
+      ttsVoice: 'xiaochen',
     });
   });
 

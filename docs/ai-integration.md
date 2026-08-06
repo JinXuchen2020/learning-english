@@ -254,7 +254,7 @@ server/src/ai/
 - `chatWithImage(prompt, imageBase64, mimeType): Promise<string>` 多模态理解/OCR
 - `transcribe(audio): Promise<TranscriptResult>` STT
 - `assessPronunciation(audio, referenceText): Promise<ScoreResult>` 发音评测
-- `synthesize(text, voice): Promise<AudioStream>` TTS
+- `synthesize(text, voice): Promise<AudioResult>` TTS（AI-402 已落地：智谱 GLM-TTS `POST {baseUrl}/audio/speech`，返回 `audioUrl` 或 `audioBase64`，默认狐狸音色 `tongtong`）
 
 **成本/速率**: 每用户每日 token/调用配额已落地（AI-107）：`server/src/ai/` 下 `AiUsage` 实体（`ai_usage` 表，`userId+date` 唯一）+ `AiUsageLimitService`（计数/超限判定）+ `UsageLimitedAiProvider`（最外层 provider 外壳，调用前 `assertWithinQuota`、成功后 `recordUsage`、失败/重试不计费）。超限抛 `AiQuotaExceededError`（HTTP 429 + `degraded`），业务层据 `degraded` 走降级（模板兜底）。配置经 `ConfigService`：`AI_DAILY_CALL_LIMIT`（默认 200）/ `AI_DAILY_TOKEN_LIMIT`（默认 100000）。
 

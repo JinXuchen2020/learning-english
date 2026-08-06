@@ -21,6 +21,10 @@ export interface BigModelConfigView {
   model?: string;
   /** 视觉 / OCR 模型。 */
   visionModel?: string;
+  /** TTS 模型（默认 `glm-tts`）。 */
+  ttsModel?: string;
+  /** 默认 TTS 音色（狐狸吉祥物音色，默认 `tongtong`）。 */
+  ttsVoice?: string;
 }
 
 /** NVIDIA NIM 相关配置视图（provider 尚未实现，仅集中读取备用）。 */
@@ -51,6 +55,8 @@ export interface AiConfig {
 const DEFAULT_BIGMODEL_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 const DEFAULT_BIGMODEL_MODEL = 'glm-4.7-flash';
 const DEFAULT_BIGMODEL_VISION_MODEL = 'glm-4.6v-flash';
+const DEFAULT_BIGMODEL_TTS_MODEL = 'glm-tts';
+const DEFAULT_BIGMODEL_TTS_VOICE = 'tongtong';
 const DEFAULT_NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 /** 从 ConfigService 读取并归一化全部 AI 配置。 */
@@ -62,6 +68,8 @@ export function readAiConfig(config: ConfigService): AiConfig {
     baseUrl: config.get<string>('BIGMODEL_BASE_URL') || DEFAULT_BIGMODEL_BASE_URL,
     model: config.get<string>('BIGMODEL_MODEL') || DEFAULT_BIGMODEL_MODEL,
     visionModel: config.get<string>('BIGMODEL_VISION_MODEL') || DEFAULT_BIGMODEL_VISION_MODEL,
+    ttsModel: config.get<string>('BIGMODEL_TTS_MODEL') || DEFAULT_BIGMODEL_TTS_MODEL,
+    ttsVoice: config.get<string>('BIGMODEL_TTS_VOICE') || DEFAULT_BIGMODEL_TTS_VOICE,
   };
 
   const nvidia: NvidiaConfigView = {

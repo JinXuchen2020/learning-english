@@ -86,7 +86,7 @@
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
 | AI-401 | **`ai_chat_sessions` / `ai_chat_messages` 实体** — session (userId/sceneId/stars), message (role/text/audioPath) | P0 | — | done | 建表; 关联 User（userId varchar 引用，与 AI-301 审计记录口径一致） |
-| AI-402 | **TTS 集成** — `synthesize(text, voice)` 生成音频, 返回 URL 或 base64; 前端自动播放 | P0 | AI-102 | backlog | 狐狸音色发音自然; 播放可中断/重播 |
+| AI-402 | **TTS 集成** — `synthesize(text, voice)` 生成音频, 返回 URL 或 base64; 前端自动播放 | P0 | AI-102 | done | 狐狸音色发音自然; 播放可中断/重播 |
 | AI-403 | **聊天接口 `POST /api/ai/chat/messages`** — 接收 sessionId/sceneId/text; 组装历史+场景 prompt; 返回 replyText + ttsUrl | P0 | AI-401, AI-402 | backlog | 多轮上下文保持; 回复落库 |
 | AI-404 | **狐狸人设 System Prompt** — 年龄适配(5-10岁)、用词简单、不懂即换说法、可中英混说确认、话题守界; temperature 低 | P0 | AI-102 | backlog | 回复词汇量适配儿童; 不出现危险/超龄内容 |
 | AI-405 | **场景包** — 5 个场景 (打招呼/动物园/买东西/天气/身体部位), 每个含 System Prompt + 起始语 + 目标词汇 | P0 | AI-404 | backlog | 场景可枚举选择; 各场景引导词正确 |

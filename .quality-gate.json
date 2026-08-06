@@ -1,14 +1,14 @@
 {
-  "phase": "ai-401",
+  "phase": "ai-402",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误[dist 重新生成]; jest 454/454 全绿; npm run seed 成功, ai_chat_sessions / ai_chat_messages 两表由 synchronize 自动建立且列正确; 纯后端数据模型无全栈契约需对齐)",
-    "tests": "PASSED (unit: 后端 jest 454/454[新增 chat.module.spec.ts 6 case + entities.metadata.spec.ts 实体数 10→12]; e2e/bdd: 0 — 纯后端数据模型, 无前端 UI 旅程(会话 UI 属 AI-407), 约束 #6「不为纯后端 API 写 BDD」豁免, 非 legacy 豁免(实体无分支逻辑))",
-    "review": "PASSED (0 open; 枚举可移植: role 用 varchar + TS 联合类型 ChatMessageRole, 不用 DB 原生 enum, sqlite/postgres 双驱动兼容; 时间列铁律: 一律 CreateDateColumn/UpdateDateColumn, 未用 @Column({type:'timestamp'})(AI-107 踩坑规避); 非硬外键: userId/sceneId/sessionId 仅 varchar 引用, 与 AiSpeechAttempt/AiCallLog 审计记录口径一致, 不修改 User 实体、不引入跨模块级联; 关联一致性: 实体数断言 10→12 且关系回调可调用; 无裸 console; 与现有 entities/chat 风格一致)",
-    "optimization": "PASSED (0 open; 无 stub/占位实现; 角色合法值提取为 CHAT_MESSAGE_ROLES 常量数组复用, 避免魔法字符串散落; ChatModule 仅做 forFeature 注册并导出 TypeOrmModule, 无冗余导出; 无临时调试代码)"
+    "consistency": "PASSED (nest build 0 错误[dist 重新生成]; jest 464/464 全绿[较 AI-401 的 454 +10]; 纯后端 TTS 集成, 无数据库 schema 变更故无 seed 建表需求; 无全栈契约需对齐)",
+    "tests": "PASSED (unit: 后端 jest 464/464[新增/改写 bigmodel.provider.spec.ts synthesize 真实路径 11 case(请求体校验/显式 voice 覆盖/二进制 mp3→audioBase64/JSON{url}→audioUrl/JSON{audio}→audioBase64/缺 audio+url→502/空二进制→502/缺 key→401/429→限流/超时→504/网络→0/正常缺 key 兜底) + ai-config.spec.ts 补 ttsModel/ttsVoice 断言 2 处]; e2e/bdd: 0 — 纯后端 TTS 集成, 狐狸音色自动播放 UI 属 AI-407, 约束 #6「不为纯后端 API 写 BDD」豁免, 非 legacy 豁免)",
+    "review": "PASSED (0 open; 枚举/常量可移植: TTS 模型与音色抽为 DEFAULT_TTS_MODEL/DEFAULT_TTS_VOICE 常量 + BigModelConfig.ttsModel/ttsVoice 注入, sqlite/postgres 不涉及(DB 无关能力); 接口忠实: 严格实现 AiProvider.synthesize 的 AudioResult 形状(audioUrl|audioBase64|mimeType|durationMs), 二进制与 JSON 信封双分支解析, mimeFromContentType 稳妥兜底 audio/mpeg; 错误分类清晰: 缺 key→401(access)、429→限流、空音频/结构异常→502、超时→504(AbortSignal.timeout)、网络→0(NETWORK), 全部 AiProviderException 携带 statusCode/code 供 AI-106 识别; 配置集中: TTS 配置经 ai-config.ts 读取 BIGMODEL_TTS_MODEL/BIGMODEL_TTS_VOICE, 缺省 glm-tts/tongtong, 经 ai.module.ts createAiProvider 透传, 符合 AI-105 单一入口约定; 无裸 console、无 stub——替换了原 AI-102 的 synthesize 降级桩为真实实现)",
+    "optimization": "PASSED (0 open; 无 stub/占位实现——原 degrade 桩已由真实 GLM-TTS 调用替换; 超时独立 DEFAULT_TTS_TIMEOUT_MS=30s(语音合成快于 LLM); 二进制响应用 Buffer.from(arrayBuffer) 一次性转 base64, 无逐块冗余; 接口形状与 AI-401 音频字段(audioPath)解耦——synthesize 返回内存音频, 落库由 AI-407 会话消息按需存 audioPath; 无临时调试代码)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-401-gate.md",
-  "notes": "AI-401 = 对话陪练数据底座: 新增 AiChatSession(ai_chat_sessions: userId/sceneId/stars/时间列) 与 AiChatMessage(ai_chat_messages: sessionId/role/text/audioPath/createdAt) 两实体 + CHAT_MESSAGE_ROLES 常量, 新建 ChatModule 注册并导出 TypeOrmModule, 两实体注册进 database.config appEntities 且 ChatModule 注册进 app.module。userId/sceneId/sessionId 采用 AI 审计记录口径(varchar 引用, 非硬外键)。新增 chat.module.spec.ts(6 case, in-memory better-sqlite3 验证建表/默认值/字段落地/枚举完整性) + 更新 entities.metadata.spec.ts(实体数 10→12)。验收全绿: nest build 0 错、jest 454/454、seed 建表成功。E2E 纯后端豁免(会话 UI 留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。"
+  "reportRef": "docs/quality/ai-402-gate.md",
+  "notes": "AI-402 = TTS 集成: 将 BigModelProvider.synthesize 从 AI-102 的降级桩替换为真实智谱 GLM-TTS 调用(POST {baseUrl}/audio/speech, model=glm-tts/voice=狐狸音色tongtong/response_format=mp3/speed/volume/stream:false), 按 content-type 解析二进制 mp3 或 JSON 信封({audio}|{url})→AudioResult; 新增 BIGMODEL_TTS_MODEL/BIGMODEL_TTS_VOICE 配置与 DEFAULT_TTS_MODEL=tongtong 常量, 经 ai-config.ts 读取 + ai.module.ts createAiProvider 透传; mock 保持返回空 audioBase64(浏览器 TTS 兜底)。新增/改写单测 11+2 case, jest 464/464 全绿, nest build 0 错。E2E 纯后端豁免(狐狸音色自动播放 UI 留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md 修正 synthesize 返回类型 AudioStream→AudioResult 并标注 AI-402 已落地。"
 }
