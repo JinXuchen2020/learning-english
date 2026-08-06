@@ -2,12 +2,13 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Word } from '../entities/word.entity';
-import { AiProvider, AI_PROVIDER_TOKEN, ScoreResult } from './ai-provider.interface';
+import { ScoreResult } from './ai-provider.interface';
 import { EvaluateSpeechDto } from './speech-evaluate.dto';
 import {
   SpeechEvaluateError,
   validateSpeechUpload,
 } from './speech-evaluate.validation';
+import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 
 /**
  * 上传音频文件的最小结构（避免依赖 `@types/multer`，仓内未安装）。
@@ -36,19 +37,18 @@ export interface EvaluateSpeechCommand {
  * 口语评测服务（AI-303）。
  *
  * 职责：**上传校验**（大小/格式/时长）→ **参考文本解析**（wordId/sentenceId/直传）
- * → 委托 `AiProvider.assessPronunciation` 打分。本 feature **不落库**（持久化属 AI-306，
- * 消费 AI-301 `ai_speech_attempts` 实体），严守边界。
+ * → 委托 `AiPronunciationScorerService`（AI-305）统一评分策略（首选 phoneme / 无 Azure 兜底相似度）。
+ * 本 feature **不落库**（持久化属 AI-306，消费 AI-301 `ai_speech_attempts` 实体），严守边界。
  *
- * 评分实现细节（STT 转写 / Azure 音素级 / 相似度兜底）在 AI-304/305 增强 provider，
- * 本服务只依赖 `AiProvider` 契约，不感知具体算法，符合 AI-101 抽象。
+ * 评分算法细节（STT 转写 / Azure 音素级 / 相似度兜底）下沉到 AI-305 的 scorer，
+ * 本服务只负责请求编排与参考文本解析，符合 AI-101 抽象。
  */
 @Injectable()
 export class AiSpeechEvaluatorService {
   constructor(
-    @Inject(AI_PROVIDER_TOKEN)
-    private readonly provider: AiProvider,
     @InjectRepository(Word)
     private readonly wordRepo: Repository<Word>,
+    private readonly scorer: AiPronunciationScorerService,
   ) {}
 
   /**
@@ -71,11 +71,11 @@ export class AiSpeechEvaluatorService {
 
     const referenceText = await this.resolveReferenceText(dto);
 
-    return this.provider.assessPronunciation(
-      { data: file.buffer, mimeType: file.mimetype },
+    return this.scorer.score({
+      audio: { data: file.buffer, mimeType: file.mimetype },
       referenceText,
-      { passLine: 60 },
-    );
+      opts: { passLine: 60 },
+    });
   }
 
   /**

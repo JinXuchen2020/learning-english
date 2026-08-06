@@ -73,7 +73,7 @@
 | AI-302 | **录音采集组件** — 前端 `SpeechRecorder` (MediaRecorder → webm/opus), 录音时长上限(如 10s), 权限引导与错误提示; iOS 降级 audio/mp4 | P0 | — | done | 平板 Safari/Chrome 均可录音; 拒绝权限时给出友好提示 |
 | AI-303 | **评测接口 `POST /api/ai/speech/evaluate`** — multer 接收 audio + wordId/sentenceId; 校验大小/格式/时长 | P0 | AI-302, AI-106 | done | 合法音频返回评分; 超大/空音频返回 4xx |
 | AI-304 | **STT 集成** — `transcribe(audio)` 转写文本+时戳; 失败时走降级 | P0 | AI-102, AI-303 | done | 清晰发音的单词可被转写; 静音音频返回低分 |
-| AI-305 | **发音评分策略** — 首选 Azure Pronunciation Assessment (phoneme 级); 无 Azure 时用"转写文本相似度 (编辑距离) + LLM 评估"兜底 | P0 | AI-304 | backlog | 两种策略输出统一 `ScoreResult`; 分数 ∈ [0,100] |
+| AI-305 | **发音评分策略** — 首选 Azure Pronunciation Assessment (phoneme 级); 无 Azure 时用"转写文本相似度 (编辑距离) + LLM 评估"兜底 | P0 | AI-304 | done | 两种策略输出统一 `ScoreResult`; 分数 ∈ [0,100] |
 | AI-306 | **评分反馈** — 返回 score/readableText/weakPhonemes/feedback/mascotExpr; 通过线 60 分; 分数与弱音素持久化 | P0 | AI-301, AI-305 | backlog | 分数正确入库; weakPhonemes 可展示 |
 | AI-307 | **`/speech` 页面 — 跟读卡片** — 单词/句子卡片 + 吉祥物 TTS 朗读按钮 + 录音/重试/提交; 完成后攒星 + 庆祝动画 | P0 | AI-302, AI-306, AI-402 | backlog | 完整流程: 听→录→评→反馈→得星; 星级动画触发 |
 | AI-308 | **口语任务联动** — 每日任务中 mic 类任务点击进入 `/speech`; 完成后任务勾选+进度回写 | P0 | AI-307, 现有 TasksModule | backlog | 从 Home 任务卡直达口语页; 完成后任务状态更新 |

@@ -22,6 +22,7 @@ import { Word } from '../entities/word.entity';
 import { AiController } from './ai.controller';
 import { AiSpeechEvaluatorService } from './ai-speech-evaluator.service';
 import { AiTranscribeService } from './ai-transcribe.service';
+import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
@@ -125,6 +126,7 @@ export function createAuditedProvider(
     AiSpeechAttemptService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
+    AiPronunciationScorerService,
     {
       provide: AI_PROVIDER_TOKEN,
       useFactory: createAuditedProvider,
@@ -144,6 +146,7 @@ export function createAuditedProvider(
     AiSpeechAttemptService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
+    AiPronunciationScorerService,
   ],
 })
 export class AiModule {}
