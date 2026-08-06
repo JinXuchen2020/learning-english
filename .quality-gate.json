@@ -1,14 +1,14 @@
 {
-  "phase": "ai-402",
+  "phase": "ai-403",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误[dist 重新生成]; jest 464/464 全绿[较 AI-401 的 454 +10]; 纯后端 TTS 集成, 无数据库 schema 变更故无 seed 建表需求; 无全栈契约需对齐)",
-    "tests": "PASSED (unit: 后端 jest 464/464[新增/改写 bigmodel.provider.spec.ts synthesize 真实路径 11 case(请求体校验/显式 voice 覆盖/二进制 mp3→audioBase64/JSON{url}→audioUrl/JSON{audio}→audioBase64/缺 audio+url→502/空二进制→502/缺 key→401/429→限流/超时→504/网络→0/正常缺 key 兜底) + ai-config.spec.ts 补 ttsModel/ttsVoice 断言 2 处]; e2e/bdd: 0 — 纯后端 TTS 集成, 狐狸音色自动播放 UI 属 AI-407, 约束 #6「不为纯后端 API 写 BDD」豁免, 非 legacy 豁免)",
-    "review": "PASSED (0 open; 枚举/常量可移植: TTS 模型与音色抽为 DEFAULT_TTS_MODEL/DEFAULT_TTS_VOICE 常量 + BigModelConfig.ttsModel/ttsVoice 注入, sqlite/postgres 不涉及(DB 无关能力); 接口忠实: 严格实现 AiProvider.synthesize 的 AudioResult 形状(audioUrl|audioBase64|mimeType|durationMs), 二进制与 JSON 信封双分支解析, mimeFromContentType 稳妥兜底 audio/mpeg; 错误分类清晰: 缺 key→401(access)、429→限流、空音频/结构异常→502、超时→504(AbortSignal.timeout)、网络→0(NETWORK), 全部 AiProviderException 携带 statusCode/code 供 AI-106 识别; 配置集中: TTS 配置经 ai-config.ts 读取 BIGMODEL_TTS_MODEL/BIGMODEL_TTS_VOICE, 缺省 glm-tts/tongtong, 经 ai.module.ts createAiProvider 透传, 符合 AI-105 单一入口约定; 无裸 console、无 stub——替换了原 AI-102 的 synthesize 降级桩为真实实现)",
-    "optimization": "PASSED (0 open; 无 stub/占位实现——原 degrade 桩已由真实 GLM-TTS 调用替换; 超时独立 DEFAULT_TTS_TIMEOUT_MS=30s(语音合成快于 LLM); 二进制响应用 Buffer.from(arrayBuffer) 一次性转 base64, 无逐块冗余; 接口形状与 AI-401 音频字段(audioPath)解耦——synthesize 返回内存音频, 落库由 AI-407 会话消息按需存 audioPath; 无临时调试代码)"
+    "consistency": "PASSED (nest build 0 错误[dist 重新生成]; jest 494/494 全绿[较 AI-402 的 464 +30]; 无数据库 schema 变更[复用 AI-401 实体]故无 seed 建表需求; 纯后端 API, 前端 /chat 页面属 AI-407 接入时对齐契约)",
+    "tests": "PASSED (unit: 后端 jest 494/494[新增 chat.service.spec 11 case + chat.controller.spec 7 case(含 ValidationPipe 边界) + chat-message.dto.spec 8 case + chat-system-prompt.spec 5 case; 更新 chat.module.spec 补 AI_PROVIDER_TOKEN mock]; e2e/bdd: 0 — 纯后端聊天 API, 用户可感知的端到端旅程(选场景→对话→狐狸朗读)属 AI-407 的 /chat 页面, 约束 #6「不为纯后端 API 写 BDD」豁免, 非 legacy 豁免)",
+    "review": "PASSED (0 open; 错误分类清晰: provider 异常经鸭子类型 statusCode 映射 429→AI_RATE_LIMITED / 401·403→AI_UNAVAILABLE / 其它→AI_GENERATION_FAILED, 经 ChatError→HttpException 不含裸状态码; TTS 优雅降级: 失败/无音频→ttsUrl=null 不阻断文本回复; 鉴权口径一致: userId 默认 anonymous 与 AI-108 审计默认/评测 DTO 一致; 关联口径一致: userId/sceneId/sessionId 均 varchar 引用[AI-301 审计记录口径], 非硬外键; 系统提示常量化 FOX_PERSONA/SCENE_PROMPTS/BASE_SAFETY_RULE + 纯函数 buildChatSystemPrompt 便于单测; 无裸 console[统一 Logger]; 场景 Prompt 范围界定: 仅内置基线人设+5 场景 framing+基线安全规则, 丰富场景包/内容安全双保险明确留待 AI-405/AI-406 不越界)",
+    "optimization": "PASSED (0 open; 无 stub/占位实现; 响应形状稳定[sessionId/messageId/replyText/ttsUrl]; TTS 归一化复用 AudioResult 形状[audioUrl 透传 / audioBase64→data URI / 空→null]; audioPath 持久化明确留待 AI-407[避免 512 varchar 存超长 data URI]; 无临时调试代码)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-402-gate.md",
-  "notes": "AI-402 = TTS 集成: 将 BigModelProvider.synthesize 从 AI-102 的降级桩替换为真实智谱 GLM-TTS 调用(POST {baseUrl}/audio/speech, model=glm-tts/voice=狐狸音色tongtong/response_format=mp3/speed/volume/stream:false), 按 content-type 解析二进制 mp3 或 JSON 信封({audio}|{url})→AudioResult; 新增 BIGMODEL_TTS_MODEL/BIGMODEL_TTS_VOICE 配置与 DEFAULT_TTS_MODEL=tongtong 常量, 经 ai-config.ts 读取 + ai.module.ts createAiProvider 透传; mock 保持返回空 audioBase64(浏览器 TTS 兜底)。新增/改写单测 11+2 case, jest 464/464 全绿, nest build 0 错。E2E 纯后端豁免(狐狸音色自动播放 UI 留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md 修正 synthesize 返回类型 AudioStream→AudioResult 并标注 AI-402 已落地。"
+  "reportRef": "docs/quality/ai-403-gate.md",
+  "notes": "AI-403 = 对话陪练聊天接口: 新增 POST /api/ai/chat/messages（ChatController in ChatModule, 全局前缀 api）, ChatMessageDto[text 必填+≤2000 / sessionId? / sceneId?≤64 / userId?默认 anonymous], ChatService[解析/创建会话→加载历史→组装 system(history+user)→provider.chat→落库 user+assistant→provider.synthesize→ttsUrl 归一化], ChatError{status,code}→HttpException, buildChatSystemPrompt(FOX_PERSONA+5 场景 framing+基线安全规则)。底层 provider 经全局 AiModule 的 AI_PROVIDER_TOKEN 注入(Logged(UsageLimited(Retryable(inner))))。新增/改写单测 36 case（4 文件 + chat.module.spec 适配), jest 494/494 全绿, nest build 0 错。E2E 纯后端豁免(狐狸朗读 UI 留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md 聊天端点伪代码细化为真实契约(sessionId/messageId/replyText/ttsUrl + 可选 userId)。"
 }

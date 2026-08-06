@@ -177,16 +177,20 @@ multipart: audio (webm/wav), wordId | sentenceId, userId
 - 每条用户消息底下"跟读"按钮(同口语训练机制)
 - N 轮后自动鼓励并给本次对话"小星星"
 
-**后端**
+**后端**（AI-403 已落地 `ChatModule` 的 `ChatController`）
 ```
-POST /api/ai/chat/messages  body: {sessionId, sceneId, text}
-→ AiProvider.chat({system: ScenePrompt+狐狸人设+safety rule, messages: history+new})
-→ 返回 {replyText, ttsUrl}
-→ TTS 由AiProvider.synthesize() → 返回音频 URL 或直接 base64
+POST /api/ai/chat/messages
+  body: { text, sessionId?, sceneId?, userId? }   // text 必填; userId 缺省 anonymous(鉴权 deferred)
+  → AiProvider.chat({ system: FOX_PERSONA+场景 framing+基线安全规则, messages: history+new })
+  → 落库 ai_chat_sessions / ai_chat_messages（user + assistant 各一条）
+  → AiProvider.synthesize(replyText) → ttsUrl(归一: audioUrl 透传 / base64→data URI / 无→null)
+  → 返回 { sessionId, messageId, replyText, ttsUrl }
+  // 错误: 404 CHAT_SESSION_NOT_FOUND / 429 AI_RATE_LIMITED / 502 AI_GENERATION_FAILED / 503 AI_UNAVAILABLE
 ```
-- 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表;
+- 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表（AI-401 建表）;
+- 系统提示由 `chat-system-prompt.ts` 的 `buildChatSystemPrompt(sceneId)` 组装：狐狸人设 + 已知场景 framing（greeting/zoo/shopping/weather/body）+ 基线儿童安全规则。丰富「场景包模板 + 内容安全双保险」属 AI-405/AI-406（本 feature 仅基线）。
 - 人设 System Prompt 极度重要: 限定年龄、不懂的单词换说法、中文确认。
-- 内容安全: 双保险 — 模型 temperature 低 + 关键词黑名单 + LLM safety classifier 二次过滤。
+- 内容安全: 基线安全规则已内置; 双保险（关键词黑名单 + LLM safety classifier 二次过滤）属 AI-406。
 
 ### 4. AI 错题与进度分析 (`AiReportModule`)
 

@@ -1,10 +1,30 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
+import { Global, Module } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { AiChatSession } from './ai-chat-session.entity';
 import { AiChatMessage, CHAT_MESSAGE_ROLES } from './ai-chat-message.entity';
 import { ChatModule } from './chat.module';
 import { appEntities } from '../config/database.config';
+import { AI_PROVIDER_TOKEN } from '../ai/ai-provider.interface';
+
+/** 仅用于让 AI-403 扩展后的 ChatModule 通过模块编译（本 spec 不直接调用 ChatService）。 */
+const mockAiProvider = {
+  name: 'mock' as const,
+  chat: async () => ({ text: '' }),
+  synthesize: async () => ({ mimeType: 'audio/mp3' }),
+};
+
+/**
+ * 临时 `@Global()` 模块，提供 `AI_PROVIDER_TOKEN` 供 ChatModule 注入，
+ * 模拟真实 `@Global()` 的 `AiModule` 导出（避免在本 spec 引入整套 AiModule）。
+ */
+@Global()
+@Module({
+  providers: [{ provide: AI_PROVIDER_TOKEN, useValue: mockAiProvider }],
+  exports: [AI_PROVIDER_TOKEN],
+})
+class TestProviderModule {}
 
 /**
  * 行为级测试：用 in-memory better-sqlite3 + 真实 `appEntities` 验证
@@ -26,9 +46,11 @@ describe('ChatModule (AI-401 数据模型)', () => {
           entities: appEntities,
           synchronize: true,
         }),
+        TestProviderModule,
         ChatModule,
       ],
     }).compile();
+
 
     moduleRef = mod;
     sessionRepo = mod.get<Repository<AiChatSession>>(getRepositoryToken(AiChatSession));
