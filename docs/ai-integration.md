@@ -197,9 +197,8 @@ GET /api/ai/chat/scenes
 - 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表（AI-401 建表）;
 - 系统提示由 `chat-system-prompt.ts` 的 `buildChatSystemPrompt(sceneId)` 组装：狐狸人设 + 已知场景 framing（greeting/zoo/shopping/weather/body）+ 基线儿童安全规则。
 - 场景包（**AI-405 已落地**）：5 个场景的「情境引导 systemPrompt + 起始语 openingLine + 目标词汇 targetVocabulary」统一维护于 `chat-scenes.ts` 的 `SCENE_PACKAGES` 注册表（单一数据源），由 `ChatScenesService`（Nest 注入 seam）暴露 `GET /api/ai/chat/scenes` 供前端枚举；`chat-system-prompt.ts` 的 `SCENE_PROMPTS` 与 `buildChatSystemPrompt` 均从注册表派生，不再重复维护场景文本。未知/自由对话（sceneId 不在 5 个内）仍走原人设流程，不附加 framing。
-- 内容安全: 基线安全规则已内置; 双保险（关键词黑名单 + LLM safety classifier 二次过滤）属 AI-406。
+- 内容安全双保险（**AI-406 已落地**）：在 `ChatService` 调 LLM **之前**对用户输入做两道闸门——① 关键词黑名单（`chat-safety.config.ts` 的 `SAFETY_BLOCKLIST`，中英文启发式、同步硬闸，归一化子串匹配）；② NVIDIA 内容安全分类器（`NvidiaSafetyClassifier` 调 `NVIDIA_SAFETY_MODEL` 默认 `nvidia/llama-3.1-nemoguard-8b-content-safety`，异步语义兜底）。任一命中 → 返回狐狸吉祥物安全兜底回复（`SAFE_FALLBACK_REPLY`，中英双语温和带离），**不调用 LLM**，响应形状不变。分类器未配置 key / 非 2xx / 异常均 **fail-open 放行**（黑名单仍是硬闸），避免安全服务抖动阻断对话。编排见 `ChatSafetyService.checkUserInput` + `SAFETY_CLASSIFIER_TOKEN` 注入。
 - 人设 System Prompt（AI-404 已强化 `FOX_PERSONA`）极度重要，须覆盖 6 维度：面向 **5-10 岁**中国小朋友、只用 **A1 简单词汇**、小朋友说错时**换说法示范而非纠错**、可用**中文确认并英文复述**、**话题守界**（不合适话题温柔带回英语小游戏）、鼓励优先+游戏化；聊天调用 **低温度 0.4** 保证稳定可预期。
-- 内容安全: 基线安全规则已内置; 双保险（关键词黑名单 + LLM safety classifier 二次过滤）属 AI-406。
 
 ### 4. AI 错题与进度分析 (`AiReportModule`)
 

@@ -1,14 +1,14 @@
 {
-  "phase": "ai-405",
+  "phase": "ai-406",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; jest 515/515 全绿[较 AI-404 的 501 +14]; 无数据库 schema 变更[纯新增静态场景注册表 + 只读枚举端点, 无新实体/无迁移]; 纯后端场景枚举, 端到端场景卡渲染属 AI-407 /chat 页面契约对齐)",
-    "tests": "PASSED (unit: 后端 jest 515/515[新增 chat-scenes.service.spec 9 case(注册表完整性: 5场景/含systemPrompt/起始语/目标词汇齐全/SCENE_PACKAGE_MAP 完整 / getScenePackage 已知返回完整包 / 未知空id→undefined / sceneExists 判定 / toSceneSummary 剥离 systemPrompt / listSceneSummaries 5 条不含 systemPrompt / 顺序即展示顺序) + chat.controller.spec scenes 端点 2 case(透传 + 枚举结构) + chat-message.dto.spec 1 case(未知 sceneId 仍合法, 自由对话兼容)]; e2e/bdd: 0 — 纯后端场景枚举端点, 用户可感知场景卡渲染属 AI-407 的 /chat 页面, 约束 #6「不为纯后端能力写 BDD」豁免, 非 legacy 豁免)",
-    "review": "PASSED (0 open; 场景包单一数据源 chat-scenes.ts 集中维护 systemPrompt/openingLine/targetVocabulary, 不散落多文件; ChatScenesService 作 Nest 注入 seam 便于 mock; GET /api/ai/chat/scenes 仅返回摘要剥离内部 systemPrompt(安全: 不向前端泄露 LLM system prompt); 未知 sceneId 不入 framing(自由对话兼容, 向后兼容 AI-403 contract); 未越界 AI-406: 仅枚举场景内容, 无内容安全拦截逻辑; 无裸 console[统一 Logger]; 响应形状与 AI-403 一致)",
-    "optimization": "PASSED (0 open; SCENE_PACKAGES 为编译期常量数组, SCENE_PACKAGE_MAP 派生自数组保证单一数据源无重复; SCENE_PROMPTS 改为从注册表派生而非独立维护(消除 AI-404 起潜在的文本漂移); listSceneSummaries 用 map 纯函数派生, 无 O(n) 冗余; 无临时调试代码; 枚举端点无 DB 访问, O(1) 内存读取)"
+    "consistency": "PASSED (nest build 0 错误; jest 530/530 全绿[较 AI-405 的 515 +15]; 无数据库 schema 变更[纯新增静态安全配置 + 只读拦截逻辑, 无新实体/无迁移]; 纯后端内容安全拦截, 端到端场景卡渲染仍属 AI-407)",
+    "tests": "PASSED (unit: 后端 jest 530/530[新增 chat-safety.classifier.spec 6 case(NVIDIA 安全/unsafe/无key fail-open/非2xx fail-open/抛错 fail-open/结构异常 fail-open 用假 fetch) + chat-safety.service.spec 6 case(黑名单命中且不调分类器/注入词命中/分类器命中/双安全/空文本/分类器抛错 fail-open) + chat.service.spec 安全拦截 3 case(黑名单→兜底且不调LLM/分类器→兜底/安全→正常LLM)]; e2e/bdd: 0 — 纯后端安全拦截, 用户可感知的对话体验属 AI-407 的 /chat 页面, 约束 #6「不为纯后端能力写 BDD」豁免, 非 legacy 豁免)",
+    "review": "PASSED (0 open; 双保险架构清晰: 黑名单(SAFETY_BLOCKLIST 同步硬闸) + NVIDIA 分类器(异步语义兜底); fail-open 降级(无key/非2xx/异常均放行, 黑名单仍为硬闸) 避免安全服务抖动阻断对话; 分类器经 @Inject(SAFETY_CLASSIFIER_TOKEN) 注入且可注入 FetchFn 便于测试; 拦截不调 LLM(降风险省成本); 仍落库 user+助手兜底回复保持会话连续; 安全兜底回复中英双语温和带离不暴露被拦截; 未越界 AI-407; 无裸 console[统一 Logger]; 响应形状不变前端无需改契约)",
+    "optimization": "PASSED (0 open; 黑名单优先于分类器(命中即拦省一次网络); matchBlocklist 归一化(小写去空白去标点)子串匹配, 选用无歧义词条降低误伤; NvidiaSafetyClassifier 与 BigModelProvider 同构(FetchFn 可注入 + 超时 AbortSignal.timeout); 无临时调试代码; 无重复逻辑)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-405-gate.md",
-  "notes": "AI-405 = 场景包注册表 + 枚举端点: 新建 chat-scenes.ts(SCENE_PACKAGES 5场景: greeting/zoo/shopping/weather/body, 每场景含 systemPrompt+openingLine+targetVocabulary) + ChatScenesService(Nest seam) + ChatController 新增 GET /api/ai/chat/scenes(list() 透传摘要); chat-system-prompt.ts 的 SCENE_PROMPTS 与 buildChatSystemPrompt 改为从注册表派生(单一数据源, 消除文本漂移); chat.module.ts 注册 ChatScenesService。新增 unit 14 case(jest 515/515 全绿), nest build 0 错。E2E 纯后端豁免(场景卡渲染留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md(新增 GET /api/ai/chat/scenes 契约 + 场景包单一数据源说明)。"
+  "reportRef": "docs/quality/ai-406-gate.md",
+  "notes": "AI-406 = 内容安全双保险: 新增 chat-safety.config.ts(SAFETY_BLOCKLIST 中英文黑名单 + SAFE_FALLBACK_REPLY 狐狸安全兜底回复) + chat-safety.classifier.ts(SafetyClassifier 接口 + NvidiaSafetyClassifier 调 NVIDIA nemoguard, fail-open 降级) + chat-safety.service.ts(ChatSafetyService 双保险 checkUserInput, 经 @Inject(SAFETY_CLASSIFIER_TOKEN)) + chat.service.ts 注入并在 LLM 前拦截(不安全→不调 LLM 直接返回兜底回复同样TTS) + chat.module.ts 装配 classifier(ConfigService 读 NVIDIA_*) + ChatSafetyService。新增 unit 15 case(jest 530/530 全绿), nest build 0 错。E2E 纯后端豁免(对话体验留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md(内容安全段标记 AI-406 已落地 + fail-open 说明)。"
 }

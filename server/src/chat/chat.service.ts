@@ -33,6 +33,8 @@ import { AiChatMessage } from './ai-chat-message.entity';
 import { ChatMessageDto } from './chat-message.dto';
 import { ChatError } from './chat.errors';
 import { buildChatSystemPrompt } from './chat-system-prompt';
+import { ChatSafetyService } from './chat-safety.service';
+import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
 import { logger } from '../common/logger/logger';
 
 /** 聊天响应（与前端 AI-407 契约一致）。 */
@@ -63,6 +65,7 @@ export class ChatService {
     private readonly messageRepo: Repository<AiChatMessage>,
     @Inject(AI_PROVIDER_TOKEN)
     private readonly provider: AiProvider,
+    private readonly safety: ChatSafetyService,
   ) {}
 
   /**
@@ -75,18 +78,29 @@ export class ChatService {
     const userId = dto.userId?.trim() || ANONYMOUS_USER_ID;
     const session = await this.resolveSession(dto, userId);
 
-    // 加载历史（按时间升序），组装对话上下文。
-    const history = await this.messageRepo.find({
-      where: { sessionId: session.id },
-      order: { createdAt: 'ASC' },
-    });
-    const messages: ChatMessage[] = [
-      { role: 'system', content: buildChatSystemPrompt(session.sceneId) },
-      ...history.map((m) => ({ role: m.role, content: m.text })),
-      { role: 'user', content: dto.text },
-    ];
-
-    const reply = await this.generateReply(messages);
+    // 内容安全双保险（AI-406）：黑名单 + NVIDIA 分类器，任一命中即拦截。
+    // 不安全 → 不调 LLM，直接返回狐狸安全兜底回复（同样 TTS），降低风险与成本。
+    const verdict = await this.safety.checkUserInput(dto.text);
+    let replyText: string;
+    if (!verdict.safe) {
+      replyText = SAFE_FALLBACK_REPLY;
+      logger.warn(
+        `[ChatService] 用户输入命中内容安全(${verdict.reason})，返回安全兜底回复 session=${session.id}`,
+      );
+    } else {
+      // 加载历史（按时间升序），组装对话上下文。
+      const history = await this.messageRepo.find({
+        where: { sessionId: session.id },
+        order: { createdAt: 'ASC' },
+      });
+      const messages: ChatMessage[] = [
+        { role: 'system', content: buildChatSystemPrompt(session.sceneId) },
+        ...history.map((m) => ({ role: m.role, content: m.text })),
+        { role: 'user', content: dto.text },
+      ];
+      const reply = await this.generateReply(messages);
+      replyText = reply.text;
+    }
 
     // 落库：用户发言 + 助手回复（audioPath 持久化留待 AI-407，详见设计文档 §3）。
     await this.messageRepo.save(
@@ -100,17 +114,17 @@ export class ChatService {
       this.messageRepo.create({
         sessionId: session.id,
         role: 'assistant',
-        text: reply.text,
+        text: replyText,
         audioPath: null,
       }),
     );
 
-    const ttsUrl = await this.synthesizeTtsUrl(reply.text);
+    const ttsUrl = await this.synthesizeTtsUrl(replyText);
 
     return {
       sessionId: session.id,
       messageId: assistantMsg.id,
-      replyText: reply.text,
+      replyText,
       ttsUrl,
     };
   }

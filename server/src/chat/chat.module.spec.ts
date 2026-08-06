@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { Global, Module } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -18,6 +19,7 @@ const mockAiProvider = {
 /**
  * 临时 `@Global()` 模块，提供 `AI_PROVIDER_TOKEN` 供 ChatModule 注入，
  * 模拟真实 `@Global()` 的 `AiModule` 导出（避免在本 spec 引入整套 AiModule）。
+ * 内容安全分类器由 `ChatModule` 自身经 `ConfigService` 提供（需 `ConfigModule`）。
  */
 @Global()
 @Module({
@@ -40,6 +42,7 @@ describe('ChatModule (AI-401 数据模型)', () => {
   beforeAll(async () => {
     const mod = await Test.createTestingModule({
       imports: [
+        ConfigModule.forRoot({ isGlobal: true }),
         TypeOrmModule.forRoot({
           type: 'better-sqlite3',
           database: ':memory:',
