@@ -38,4 +38,21 @@ export class EvaluateSpeechDto {
   @IsNumber()
   @Min(0)
   durationMs?: number;
+
+  /**
+   * 归属用户 id（AI-306 落库 `ai_speech_attempts` 用）。
+   * 鉴权 deferred（与本项目 M2 链口径一致，childId 走 body），未提供 → `anonymous` 占位。
+   */
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
+  /**
+   * 音频持久路径（AI-306 落库用）。
+   * 评测接口收 multer 内联 buffer 时无持久路径；若前端已落盘对象存储则传此值，
+   * 未提供 → `<inline>` 占位（音频持久化属后续存储 feature）。
+   */
+  @IsOptional()
+  @IsString()
+  audioPath?: string;
 }

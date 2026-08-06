@@ -10,6 +10,7 @@ import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
+import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
@@ -109,6 +110,13 @@ describe('AiModule (DI 动态装配)', () => {
     delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiCallLogService);
+    expect(svc).toBeDefined();
+  });
+
+  it('also exposes AiSpeechFeedbackService (AI-306) for direct consumption', async () => {
+    delete process.env.AI_PROVIDER;
+    const moduleRef = await compileAiModule();
+    const svc = moduleRef.get(AiSpeechFeedbackService);
     expect(svc).toBeDefined();
   });
 });

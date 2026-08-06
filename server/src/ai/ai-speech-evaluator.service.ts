@@ -9,6 +9,8 @@ import {
   validateSpeechUpload,
 } from './speech-evaluate.validation';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
+import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
+import { SpeechFeedback } from './speech-feedback.util';
 
 /**
  * 上传音频文件的最小结构（避免依赖 `@types/multer`，仓内未安装）。
@@ -37,11 +39,11 @@ export interface EvaluateSpeechCommand {
  * 口语评测服务（AI-303）。
  *
  * 职责：**上传校验**（大小/格式/时长）→ **参考文本解析**（wordId/sentenceId/直传）
- * → 委托 `AiPronunciationScorerService`（AI-305）统一评分策略（首选 phoneme / 无 Azure 兜底相似度）。
- * 本 feature **不落库**（持久化属 AI-306，消费 AI-301 `ai_speech_attempts` 实体），严守边界。
+ * → 委托 `AiPronunciationScorerService`（AI-305）统一评分策略（首选 phoneme / 无 Azure 兜底相似度）
+ * → 委托 `AiSpeechFeedbackService`（AI-306）装配反馈 + best-effort 落库（消费 AI-301 实体）。
  *
  * 评分算法细节（STT 转写 / Azure 音素级 / 相似度兜底）下沉到 AI-305 的 scorer，
- * 本服务只负责请求编排与参考文本解析，符合 AI-101 抽象。
+ * 落库细节下沉到 AI-306 的 feedback 服务，本服务只负责请求编排与参考文本解析，符合 AI-101 抽象。
  */
 @Injectable()
 export class AiSpeechEvaluatorService {
@@ -49,14 +51,15 @@ export class AiSpeechEvaluatorService {
     @InjectRepository(Word)
     private readonly wordRepo: Repository<Word>,
     private readonly scorer: AiPronunciationScorerService,
+    private readonly feedback: AiSpeechFeedbackService,
   ) {}
 
   /**
    * 评测一次口语录音。
-   * @returns 评分结果 {@link ScoreResult}
+   * @returns 面向儿童的口语反馈 {@link SpeechFeedback}（含 passed/level/mascotExpr + 已 best-effort 落库）
    * @throws SpeechEvaluateError 校验/解析失败时（status+code 供 controller 翻译）
    */
-  async evaluate(cmd: EvaluateSpeechCommand): Promise<ScoreResult> {
+  async evaluate(cmd: EvaluateSpeechCommand): Promise<SpeechFeedback> {
     const { file, dto } = cmd;
 
     if (!file || !file.buffer || file.buffer.length === 0) {
@@ -71,11 +74,14 @@ export class AiSpeechEvaluatorService {
 
     const referenceText = await this.resolveReferenceText(dto);
 
-    return this.scorer.score({
+    const score = await this.scorer.score({
       audio: { data: file.buffer, mimeType: file.mimetype },
       referenceText,
       opts: { passLine: 60 },
     });
+
+    // AI-306：装配反馈 + best-effort 落库（消费 AI-301 实体），不阻断反馈返回。
+    return this.feedback.feedback({ userId: dto.userId, dto, result: score });
   }
 
   /**

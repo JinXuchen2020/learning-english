@@ -23,6 +23,7 @@ import { AiController } from './ai.controller';
 import { AiSpeechEvaluatorService } from './ai-speech-evaluator.service';
 import { AiTranscribeService } from './ai-transcribe.service';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
+import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
@@ -127,6 +128,7 @@ export function createAuditedProvider(
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,
+    AiSpeechFeedbackService,
     {
       provide: AI_PROVIDER_TOKEN,
       useFactory: createAuditedProvider,
@@ -147,6 +149,7 @@ export function createAuditedProvider(
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,
+    AiSpeechFeedbackService,
   ],
 })
 export class AiModule {}
