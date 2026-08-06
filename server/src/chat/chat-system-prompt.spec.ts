@@ -50,4 +50,34 @@ describe('buildChatSystemPrompt (AI-403)', () => {
       expect(buildChatSystemPrompt(k)).toContain(SCENE_PROMPTS[k]);
     }
   });
+
+  describe('狐狸人设适配维度 (AI-404)', () => {
+    it('明确面向 5 到 10 岁中国小朋友', () => {
+      expect(FOX_PERSONA).toContain('5 到 10 岁');
+    });
+
+    it('约束使用 A1 级简单词汇', () => {
+      expect(FOX_PERSONA).toContain('A1 级简单词汇');
+    });
+
+    it('小朋友说错时换说法示范（不批评、不纠正语法）', () => {
+      expect(FOX_PERSONA).toContain('换一种');
+      expect(FOX_PERSONA).toContain('绝不批评');
+    });
+
+    it('允许中英混说确认并英文复述', () => {
+      expect(FOX_PERSONA).toContain('用一点点中文');
+      expect(FOX_PERSONA).toContain('复述');
+    });
+
+    it('话题守界：不合适话题温柔带回到英语小游戏', () => {
+      expect(FOX_PERSONA).toContain('带回到');
+      expect(FOX_PERSONA).toContain('话题守界');
+    });
+
+    it('人设作为 system 角色进入 LLM 上下文（自由场景）', () => {
+      const p = buildChatSystemPrompt(null);
+      expect(p.indexOf(FOX_PERSONA)).toBeGreaterThanOrEqual(0);
+    });
+  });
 });

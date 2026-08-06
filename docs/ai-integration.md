@@ -189,7 +189,7 @@ POST /api/ai/chat/messages
 ```
 - 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表（AI-401 建表）;
 - 系统提示由 `chat-system-prompt.ts` 的 `buildChatSystemPrompt(sceneId)` 组装：狐狸人设 + 已知场景 framing（greeting/zoo/shopping/weather/body）+ 基线儿童安全规则。丰富「场景包模板 + 内容安全双保险」属 AI-405/AI-406（本 feature 仅基线）。
-- 人设 System Prompt 极度重要: 限定年龄、不懂的单词换说法、中文确认。
+- 人设 System Prompt（AI-404 已强化 `FOX_PERSONA`）极度重要，须覆盖 6 维度：面向 **5-10 岁**中国小朋友、只用 **A1 简单词汇**、小朋友说错时**换说法示范而非纠错**、可用**中文确认并英文复述**、**话题守界**（不合适话题温柔带回英语小游戏）、鼓励优先+游戏化；聊天调用 **低温度 0.4** 保证稳定可预期。
 - 内容安全: 基线安全规则已内置; 双保险（关键词黑名单 + LLM safety classifier 二次过滤）属 AI-406。
 
 ### 4. AI 错题与进度分析 (`AiReportModule`)

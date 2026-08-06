@@ -116,6 +116,17 @@ describe('ChatService (AI-403)', () => {
     });
   });
 
+  it('调用 LLM 使用低温度（AI-404：儿童对话稳定可预期）', async () => {
+    const provider = makeProvider();
+    const svc = new ChatService(makeRepo() as any, makeRepo() as any, provider);
+    await svc.sendMessage(makeDto());
+
+    const opts = (provider.chat as jest.Mock).mock.calls[0][1];
+    expect(typeof opts.temperature).toBe('number');
+    expect(opts.temperature).toBeGreaterThan(0);
+    expect(opts.temperature).toBeLessThanOrEqual(0.5);
+  });
+
   it('历史消息按时间升序进入 LLM 上下文（system + history + user）', async () => {
     const session: AiChatSession = {
       id: 'sess-2',

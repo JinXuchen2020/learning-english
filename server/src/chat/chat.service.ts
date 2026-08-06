@@ -49,8 +49,8 @@ export interface ChatSendResponse {
 
 /** 鉴权 deferred：userId 缺省占位（与 AI-108 审计默认、评测 DTO 一致）。 */
 const ANONYMOUS_USER_ID = 'anonymous';
-/** 儿童对话低温度，保证稳定、可预期。 */
-const CHAT_TEMPERATURE = 0.6;
+/** 儿童对话低温度（AI-404）：降低随机性，保证输出稳定、安全、可预期。 */
+const CHAT_TEMPERATURE = 0.4;
 /** 对话回复最大 token（足够 1-3 句英文 + 少量中文解释）。 */
 const CHAT_MAX_TOKENS = 512;
 
