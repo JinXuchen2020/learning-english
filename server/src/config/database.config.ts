@@ -14,6 +14,8 @@ import { AiSpeechAttempt } from '../ai/ai-speech-attempt.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { StudyPlan } from '../plan/study-plan.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
+import { AiChatSession } from '../chat/ai-chat-session.entity';
+import { AiChatMessage } from '../chat/ai-chat-message.entity';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -34,6 +36,8 @@ export const appEntities = [
   Sentence,
   StudyPlan,
   StudyPlanDay,
+  AiChatSession,
+  AiChatMessage,
 ];
 
 export type DbType = 'sqlite' | 'postgres';

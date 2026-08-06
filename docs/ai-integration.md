@@ -169,7 +169,7 @@ multipart: audio (webm/wav), wordId | sentenceId, userId
 - 评分策略可配置, 由 `AiProvider` 实现切换。
 - 浏览器录音权限需在 `/speech` 页面提示授权。
 
-### 3. AI 对话陪练 (`AiConversationModule`)
+### 3. AI 对话陪练 (`ChatModule`)
 
 **前端 /chat**
 - 场景选择卡("打招呼"/"去动物园"/"买东西"等, 每场景对应系统提示)
@@ -214,8 +214,8 @@ POST /api/ai/report/daily body: {userId, date}
 @Entity() class AiStudyPlanDay { id, planId, dayIndex, courseId, lessonId, skillType enum, isDone }
 
 @Entity() class AiSpeechAttempt { id, userId, wordId?, sentenceId?, audioPath, score, weakPhonemes(JSON), createdAt }
-@Entity() class AiChatSession { id, userId, sceneId, startedAt, stars }
-@Entity() class AiChatMessage { id, sessionId, role enum(bot|user), text, audioPath?, createdAt }
+@Entity() class AiChatSession { id, userId, sceneId, stars, createdAt, updatedAt }
+@Entity() class AiChatMessage { id, sessionId, role(user|assistant|system), text, audioPath?, createdAt }
 @Entity() class AiReport { id, userId, date, summaryText, weakWords(JSON), suggestionText, createdAt }
 ```
 
