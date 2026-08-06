@@ -1,14 +1,14 @@
 {
-  "phase": "ai-404",
+  "phase": "ai-405",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; jest 501/501 全绿[较 AI-403 的 494 +7]; 无数据库 schema 变更[仅改 FOX_PERSONA 常量内容与 CHAT_TEMPERATURE 数值常量]故无 seed 建表需求; 纯后端人设/参数强化, 端到端旅程属 AI-407 接入时对齐契约)",
-    "tests": "PASSED (unit: 后端 jest 501/501[新增 chat-system-prompt.spec 6 case(AI-404 人设维度: 5到10岁/A1词汇/换说法/中英混说/话题守界/入上下文) + chat.service.spec 1 case(低温度 ≤0.5); 既有 chat 套件 43/43 全绿]; e2e/bdd: 0 — 纯后端人设/参数强化, 用户可感知的端到端对话体验属 AI-407 的 /chat 页面, 约束 #6「不为纯后端能力写 BDD」豁免, 非 legacy 豁免)",
-    "review": "PASSED (0 open; 人设覆盖 6 维度: 年龄 5-10 岁中国小朋友 / A1 级简单词汇 / 小朋友说错时换说法示范而非纠错[绝不批评纠正语法] / 可用中文确认并英文复述 / 话题守界[不合适话题温柔带回到英语小游戏] / 鼓励优先+游戏化; 低温度常量化 CHAT_TEMPERATURE=0.4 降低随机性保证稳定可预期; 未越界 AI-405/AI-406: SCENE_PROMPTS 与 BASE_SAFETY_RULE 保持不变, 话题守界为 persona 软约束不做硬拦截[硬拦截属 AI-406]; 无裸 console[统一 Logger]; 调用契约与 AI-403 一致响应形状不变)",
-    "optimization": "PASSED (0 open; 人设常量化[chat-system-prompt.ts FOX_PERSONA]; 无重复逻辑; 温度取值落在低区间(≤0.5); 既有人设/场景/安全三段式组装结构不变, AI-405 可无缝替换为可配置场景包; 无临时调试代码)"
+    "consistency": "PASSED (nest build 0 错误; jest 515/515 全绿[较 AI-404 的 501 +14]; 无数据库 schema 变更[纯新增静态场景注册表 + 只读枚举端点, 无新实体/无迁移]; 纯后端场景枚举, 端到端场景卡渲染属 AI-407 /chat 页面契约对齐)",
+    "tests": "PASSED (unit: 后端 jest 515/515[新增 chat-scenes.service.spec 9 case(注册表完整性: 5场景/含systemPrompt/起始语/目标词汇齐全/SCENE_PACKAGE_MAP 完整 / getScenePackage 已知返回完整包 / 未知空id→undefined / sceneExists 判定 / toSceneSummary 剥离 systemPrompt / listSceneSummaries 5 条不含 systemPrompt / 顺序即展示顺序) + chat.controller.spec scenes 端点 2 case(透传 + 枚举结构) + chat-message.dto.spec 1 case(未知 sceneId 仍合法, 自由对话兼容)]; e2e/bdd: 0 — 纯后端场景枚举端点, 用户可感知场景卡渲染属 AI-407 的 /chat 页面, 约束 #6「不为纯后端能力写 BDD」豁免, 非 legacy 豁免)",
+    "review": "PASSED (0 open; 场景包单一数据源 chat-scenes.ts 集中维护 systemPrompt/openingLine/targetVocabulary, 不散落多文件; ChatScenesService 作 Nest 注入 seam 便于 mock; GET /api/ai/chat/scenes 仅返回摘要剥离内部 systemPrompt(安全: 不向前端泄露 LLM system prompt); 未知 sceneId 不入 framing(自由对话兼容, 向后兼容 AI-403 contract); 未越界 AI-406: 仅枚举场景内容, 无内容安全拦截逻辑; 无裸 console[统一 Logger]; 响应形状与 AI-403 一致)",
+    "optimization": "PASSED (0 open; SCENE_PACKAGES 为编译期常量数组, SCENE_PACKAGE_MAP 派生自数组保证单一数据源无重复; SCENE_PROMPTS 改为从注册表派生而非独立维护(消除 AI-404 起潜在的文本漂移); listSceneSummaries 用 map 纯函数派生, 无 O(n) 冗余; 无临时调试代码; 枚举端点无 DB 访问, O(1) 内存读取)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-404-gate.md",
-  "notes": "AI-404 = 狐狸人设 System Prompt 强化: 重写 FOX_PERSONA 覆盖 6 维度儿童适配(年龄5-10/A1简单词汇/换说法示范/中英混说确认/话题守界/鼓励优先+游戏化); CHAT_TEMPERATURE 0.6→0.4(低温度)。仅改 chat-system-prompt.ts(人设内容) 与 chat.service.ts(温度常量), SCENE_PROMPTS/BASE_SAFETY_RULE 不变, 场景包模板与内容安全双保险明确留待 AI-405/AI-406。新增 unit 7 case(jest 501/501 全绿), nest build 0 错。E2E 纯后端豁免(对话体验留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md 人设段落细化 6 维度 + 低温度 0.4 标注已落地。"
+  "reportRef": "docs/quality/ai-405-gate.md",
+  "notes": "AI-405 = 场景包注册表 + 枚举端点: 新建 chat-scenes.ts(SCENE_PACKAGES 5场景: greeting/zoo/shopping/weather/body, 每场景含 systemPrompt+openingLine+targetVocabulary) + ChatScenesService(Nest seam) + ChatController 新增 GET /api/ai/chat/scenes(list() 透传摘要); chat-system-prompt.ts 的 SCENE_PROMPTS 与 buildChatSystemPrompt 改为从注册表派生(单一数据源, 消除文本漂移); chat.module.ts 注册 ChatScenesService。新增 unit 14 case(jest 515/515 全绿), nest build 0 错。E2E 纯后端豁免(场景卡渲染留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md(新增 GET /api/ai/chat/scenes 契约 + 场景包单一数据源说明)。"
 }

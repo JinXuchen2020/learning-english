@@ -1,14 +1,17 @@
 /**
- * 对话陪练系统提示组装（基线 AI-403，人设强化 AI-404）。
+ * 对话陪练系统提示组装（基线 AI-403，人设强化 AI-404，场景包下沉 AI-405）。
  *
  * 把「狐狸吉祥物人设 + 场景 framing + 基线安全规则」拼成 LLM system prompt。
  * 这是纯函数（无 Nest / DB 依赖），便于 node 环境单元测试。
  *
  * FOX_PERSONA（AI-404 落地）：完整儿童适配——年龄 5-10 岁、A1 简单词汇、
  * 不懂即换说法示范、中英混说确认、话题守界、鼓励优先。
- * SCENE_PROMPTS / BASE_SAFETY_RULE 为基线，丰富的「场景包模板 + 内容安全双保险」
- * 属 **AI-405 / AI-406**，本文件不越界实现。
+ * SCENE_PROMPTS（AI-405 起）：情境引导文本由 `chat-scenes.ts` 注册表提供
+ * （单一数据源），本文件仅从注册表派生 `SCENE_PROMPTS` 并保持导出兼容，
+ * 不重复维护场景文本。「内容安全双保险」属 **AI-406**，本文件不越界实现。
  */
+
+import { listScenePackages, getScenePackage } from './chat-scenes';
 
 /** 狐狸吉祥物人设（AI-404：完整儿童适配，5-10 岁中国小朋友英文陪练）。 */
 export const FOX_PERSONA = [
@@ -42,34 +45,15 @@ export const FOX_PERSONA = [
 /**
  * 场景 framing：已知场景包对应的情境引导。
  * key 与 `ai_chat_sessions.sceneId` 取值对齐；未知/自由对话不附加。
+ *
+ * AI-405 起：场景文本统一维护在 `chat-scenes.ts` 注册表（单一数据源），
+ * 此处仅从上述注册表派生 `SCENE_PROMPTS`，保持既有导出契约与
+ * `chat-system-prompt.spec.ts` 不受影响。
  */
-export const SCENE_PROMPTS: Readonly<Record<string, string>> = {
-  greeting: [
-    '当前场景：打招呼（greeting）。',
-    '引导小朋友练习日常问候：Hello! / Hi! / How are you? / I am fine, thank you. / What is your name? / My name is ...',
-    '可以先和小朋友互相介绍，再聊今天的心情。',
-  ].join('\n'),
-  zoo: [
-    '当前场景：动物园（zoo）。',
-    '和小朋友聊动物：What do you see? / I see a ... / It is a ... / What color is it?',
-    '鼓励说出动物名字（cat, dog, bird, rabbit, bear...）和颜色（red, blue, yellow...）。',
-  ].join('\n'),
-  shopping: [
-    '当前场景：买东西（shopping）。',
-    '和小朋友演练购物对话：I want ... / How much? / It is ... yuan. / Here you are. / Thank you!',
-    '可以卖水果或玩具，练习数字和礼貌用语。',
-  ].join('\n'),
-  weather: [
-    '当前场景：天气（weather）。',
-    '和小朋友聊天气与穿衣：What is the weather like? / It is sunny / rainy / cloudy. / I wear my ...',
-    '鼓励用简单形容词描述今天。',
-  ].join('\n'),
-  body: [
-    '当前场景：身体部位（body）。',
-    '和小朋友玩"指一指"游戏：Touch your head / nose / hand / foot. / This is my ...',
-    '引导说出身体部位单词并配合动作。',
-  ].join('\n'),
-};
+
+export const SCENE_PROMPTS: Readonly<Record<string, string>> = Object.fromEntries(
+  listScenePackages().map((pkg) => [pkg.id, pkg.systemPrompt]),
+);
 
 /** 基线安全规则（内容安全双保险属 AI-405/AI-406，此为最小基线）。 */
 export const BASE_SAFETY_RULE = [
@@ -86,6 +70,6 @@ export const BASE_SAFETY_RULE = [
  * @returns system prompt 文本（人设 + 场景 framing[已知时] + 安全规则）
  */
 export function buildChatSystemPrompt(sceneId: string | null | undefined): string {
-  const scene = sceneId ? SCENE_PROMPTS[sceneId] : undefined;
-  return [FOX_PERSONA, scene, BASE_SAFETY_RULE].filter(Boolean).join('\n\n');
+  const scene = getScenePackage(sceneId);
+  return [FOX_PERSONA, scene?.systemPrompt, BASE_SAFETY_RULE].filter(Boolean).join('\n\n');
 }

@@ -34,6 +34,13 @@ describe('ChatMessageDto (AI-403)', () => {
     expect(errs).toHaveLength(0);
   });
 
+  it('未知 sceneId 仍合法（自由对话兼容，AI-405 不限制枚举外取值）', async () => {
+    const errs = await validate(
+      build({ sceneId: 'some-future-scene' }),
+    );
+    expect(errs).toHaveLength(0);
+  });
+
   it('缺 text 被拒', async () => {
     const msgs = await errorsOf({});
     expect(msgs.length).toBeGreaterThan(0);

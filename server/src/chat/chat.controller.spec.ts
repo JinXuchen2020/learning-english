@@ -2,14 +2,28 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatError } from './chat.errors';
 import { ChatMessageDto } from './chat-message.dto';
+import { ChatScenesService } from './chat-scenes.service';
+import { SceneSummary } from './chat-scenes';
 import { HttpException, ValidationPipe, BadRequestException } from '@nestjs/common';
 
 /**
- * ChatController 单测（AI-403）：验证响应透传、ChatError→HttpException 翻译、
- * 未知异常不吞，以及全局 ValidationPipe 在控制器边界对非法 body 的拦截。
+ * ChatController 单测（AI-403 messages + AI-405 scenes）：验证响应透传、
+ * ChatError→HttpException 翻译、未知异常不吞、scenes 端点透传枚举，
+ * 以及全局 ValidationPipe 在控制器边界对非法 body 的拦截。
  */
 
-describe('ChatController (AI-403)', () => {
+/** 构造 ChatController，注入 mocked ChatService + ChatScenesService。 */
+function makeController(
+  chat: Partial<ChatService>,
+  scenes: Partial<ChatScenesService> = {},
+): ChatController {
+  return new ChatController(
+    chat as unknown as ChatService,
+    scenes as unknown as ChatScenesService,
+  );
+}
+
+describe('ChatController.messages (AI-403)', () => {
   it('service 成功 → 原样返回响应', async () => {
     const chat = {
       sendMessage: jest.fn(async () => ({
@@ -19,7 +33,7 @@ describe('ChatController (AI-403)', () => {
         ttsUrl: null,
       })),
     };
-    const c = new ChatController(chat as unknown as ChatService);
+    const c = makeController(chat);
     const res = await c.messages({ text: 'hello' } as ChatMessageDto);
     expect(res.replyText).toBe('Fox says hi!');
     expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'hello' });
@@ -31,7 +45,7 @@ describe('ChatController (AI-403)', () => {
         throw new ChatError(404, 'CHAT_SESSION_NOT_FOUND', '会话不存在：x');
       }),
     };
-    const c = new ChatController(chat as unknown as ChatService);
+    const c = makeController(chat);
     await expect(c.messages({ text: 'hi' } as ChatMessageDto)).rejects.toMatchObject({
       status: 404,
       response: { code: 'CHAT_SESSION_NOT_FOUND' },
@@ -44,8 +58,38 @@ describe('ChatController (AI-403)', () => {
         throw new Error('boom');
       }),
     };
-    const c = new ChatController(chat as unknown as ChatService);
+    const c = makeController(chat);
     await expect(c.messages({ text: 'hi' } as ChatMessageDto)).rejects.toThrow('boom');
+  });
+});
+
+describe('ChatController.scenes (AI-405)', () => {
+  it('透传 ChatScenesService.list() 结果', () => {
+    const fakeSummaries: SceneSummary[] = [
+      { id: 'greeting', title: '打招呼', openingLine: 'hi', targetVocabulary: ['hello'] },
+    ];
+    const scenes = { list: jest.fn(() => fakeSummaries) };
+    const c = makeController({}, scenes);
+    const res = c.scenes();
+    expect(res).toBe(fakeSummaries);
+    expect(scenes.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('枚举返回 5 个场景且均不含 systemPrompt 字段', () => {
+    const scenes = { list: jest.fn() };
+    const c = makeController({}, scenes);
+    // 直接用真实服务验证数据结构（控制器仅透传，真实服务保证内容正确）
+    const real = new ChatScenesService();
+    const summaries = real.list();
+    expect(summaries).toHaveLength(5);
+    const ids = summaries.map((s) => s.id).sort();
+    expect(ids).toEqual(['body', 'greeting', 'shopping', 'weather', 'zoo']);
+    for (const s of summaries) {
+      expect(s).not.toHaveProperty('systemPrompt');
+      expect(typeof s.title).toBe('string');
+      expect(typeof s.openingLine).toBe('string');
+      expect(Array.isArray(s.targetVocabulary)).toBe(true);
+    }
   });
 });
 
