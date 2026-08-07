@@ -1,14 +1,14 @@
 {
-  "phase": "ai-505",
+  "phase": "ai-506",
   "stack": "node-ts (NestJS 10 + TypeORM + better-sqlite3)",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; 全量 jest 72 suites/615 tests 全绿[含 AI-505 新增 tasks.service.spec 4 用例 + report-scheduler.service.spec]; 无新增路由/前端改动/全栈契约)",
-    "tests": "PASSED (unit: tasks.service.spec.ts 扩展 4[全部完成触发/未全部不触发/已完成不触发/零任务不触发] + 新增 report-scheduler.service.spec.ts[computeMsUntilNext/runDailySweep 遍历+容错/调度生命周期 fake-timers]; e2e/bdd: 0 [纯后端触发豁免，报告卡旅程 AI-504 已覆盖])",
-    "review": "PASSED (0 open; 副作用 catch+warn 不阻塞任务完成; AiModule @Global 导出 AiReportService 无循环依赖; 无裸 console; 幂等复用 AI-502; onModuleInit 跳过 test 环境)",
-    "optimization": "PASSED (0 open; 无 stub; 不引入新依赖; 轻量 setTimeout/setInterval 调度; maybeTriggerReport 零任务空安全)"
+    "consistency": "PASSED (nest build 0 错误; 全量 jest 76 suites/638 tests 全绿[含 AI-506 新增 37 用例]; User.parentEmail 列 + AiParentEmailLog 实体纳入 appEntities/forFeature; 无新增前端改动/全栈契约)",
+    "tests": "PASSED (unit: weekly-report.service.spec[weekStartOf/聚合6指标/弱项Top10/趋势/发信+落库sent/无收件人跳过/失败落failed不抛] + log-email-sender.spec[落盘+sanitize] + email.service.spec[委托] + ai-weekly-report.controller.spec[透传] + 扩展 report-scheduler.service.spec[每周扫描仅含parentEmail用户/computeMsUntilNextWeekday/生命周期 fake-timers] + ai.module.spec[AiParentEmailLog仓库+EMAIL_SENDER_TOKEN 假值]; e2e/bdd: 0 [纯后端能力豁免, 家长可视化 Dashboard 属 AI-507])",
+    "review": "PASSED (0 open; 发信失败 catch+落failed日志不向上抛/不阻塞整轮扫描; 无 parentEmail 用户安全跳过; Union 用 'skipped' in 收窄; 复用 AI-502 getDailyStats 不重复统计; 单日 getDailyStats 抛错视该日为0活动不致命; onModuleInit 跳过 test 环境; 无裸 console)",
+    "optimization": "PASSED (0 open; 无 stub; 不引入新依赖[LogEmailSender 落盘零外部依赖, 真实 SMTP 为文档化扩展点]; 轻量 setTimeout/setInterval 调度每日+每周独立定时器; 聚合逐日 try/catch 容错)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-505-gate.md",
-  "notes": "AI-505 = 每日 AI 报告自动生成触发(纯后端, 无新 UI/路由): Trigger A 在 TasksService.completeTask 新完成时调 maybeTriggerReport, 判定当日全部任务完成则 generateDailyReport(userId)(catch 兜底不阻塞主流程); AiModule 加导出 AiReportService + 追加 User 到 forFeature。Trigger B 新增 ReportSchedulerService(注册进 AiModule): runDailySweep 遍历所有用户各 generateDailyReport 一次(逐用户容错), computeMsUntilNext(20:00) 纯函数, onModuleInit 在 NODE_ENV!=='test' 且 REPORT_SWEEP_ENABLED!=='false' 时启动每日 setTimeout+setInterval 调度, onModuleDestroy 清除。幂等复用 AI-502 保证'完成条件触发一次; 不重复生成'。验证: nest build 0 错; jest 615 全绿(72 suites); 纯后端 E2E 豁免(AI-504 已覆盖报告卡)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-505 backlog→done) + features/ai-505.md + docs/quality/ai-505-gate.md。"
+  "reportRef": "docs/quality/ai-506-gate.md",
+  "notes": "AI-506 = 家长周报(邮件/推送)(纯后端, 无新 UI, AI-507 建 Dashboard): 新增 User.parentEmail 列 + AiParentEmailLog 实体(发送可追溯)。邮件抽象: EmailSender 接口 + 默认 LogEmailSender(落盘 server/logs/emails/, 零依赖) + EmailService。WeeklyReportService.buildWeeklyReport 复用 AI-502 getDailyStats 逐日聚合7天→6项指标/弱项Top10/趋势/每日亮点/建议+渲染 cozy-kids HTML; generateAndSendWeeklyReport 解析收件人(parentEmail||recipientEmail 覆盖)→调 EmailService→落 AiParentEmailLog(sent/failed)。端点 POST /api/ai/report/weekly(无 guard, 同 AI-502 口径)。扩展 AI-505 ReportSchedulerService: 每周默认周日20:00 扫描含 parentEmail 用户生成并发送(WEEKLY_REPORT_DAY/HOUR/ENABLED 可配, 独立定时器, 无邮箱跳过)。验证: nest build 0 错; jest 638 全绿(76 suites); 纯后端 E2E 豁免。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-506→done) + features/ai-506.md + docs/quality/ai-506-gate.md。"
 }
