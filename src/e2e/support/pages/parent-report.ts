@@ -18,8 +18,8 @@
 // on a *live* node.
 import { Locator, Page } from "@playwright/test";
 
-// Route of the parent report page. Adjust if the real route differs.
-const REPORT_PATH = "/report";
+// Route of the parent report page (src/app/parent-report/page.tsx).
+const REPORT_PATH = "/parent-report";
 
 export default class ParentReportPage {
   private page: Page;
@@ -79,7 +79,7 @@ export default class ParentReportPage {
   /** Click a weak word and wait for the practice page to mount via client-side nav. */
   async drillDownToPractice(word: string): Promise<void> {
     await this.clickWeakWord(word);
-    await this.page.waitForSelector('[data-component="PracticePage"]', { timeout: 15000 });
+    await this.page.waitForSelector('[data-component="WordPractice"]', { timeout: 15000 });
     await this.page.waitForFunction(
       (w) => new URLSearchParams(location.search).get("focusWord") === w,
       word,
@@ -89,7 +89,7 @@ export default class ParentReportPage {
 
   /** Assert we landed on the practice page focused on the given word. */
   async assertOnPracticeForWord(word: string): Promise<void> {
-    await this.page.waitForSelector('[data-component="PracticePage"]', { timeout: 15000 });
+    await this.page.waitForSelector('[data-component="WordPractice"]', { timeout: 15000 });
     const focus = await this.page.evaluate(() =>
       new URLSearchParams(location.search).get("focusWord")
     );
