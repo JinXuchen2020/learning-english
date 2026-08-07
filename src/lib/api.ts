@@ -13,6 +13,9 @@ import type {
   PlanStatusResponse,
   SpeechFeedback,
   EvaluateSpeechOptions,
+  ChatScene,
+  SendChatMessageDto,
+  SendChatMessageResponse,
 } from "./types";
 
 /**
@@ -337,4 +340,32 @@ async function postFormData<T>(
   }
 
   return body as T;
+}
+
+/* ----------------------------- Chat (AI-407) ---------------------------- */
+
+/**
+ * 枚举全部对话场景包（AI-405）。
+ * `GET /api/ai/chat/scenes`，返回 `ChatScene[]`（id/title/openingLine/targetVocabulary，
+ * 不含内部 systemPrompt）。用于 /chat 页场景选择卡。
+ */
+export function getChatScenes(): Promise<ChatScene[]> {
+  return request<ChatScene[]>("/ai/chat/scenes");
+}
+
+/**
+ * 发送一条对话发言并取回狐狸回复（AI-403/407）。
+ * `POST /api/ai/chat/messages`，body 与后端 `ChatMessageDto` 对齐。
+ * 返回 `{ sessionId, messageId, replyText, ttsUrl }`；`ttsUrl` 为狐狸音色音频引用
+ * （data URI / URL，TTS 失败时 null）。续聊时调用方应携带上次的 `sessionId`。
+ *
+ * @param dto { text, sessionId?, sceneId?, userId? }
+ */
+export function sendChatMessage(
+  dto: SendChatMessageDto,
+): Promise<SendChatMessageResponse> {
+  return request<SendChatMessageResponse>("/ai/chat/messages", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
 }

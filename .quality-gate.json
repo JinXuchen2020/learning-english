@@ -1,14 +1,14 @@
 {
-  "phase": "ai-406",
+  "phase": "ai-407",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; jest 530/530 全绿[较 AI-405 的 515 +15]; 无数据库 schema 变更[纯新增静态安全配置 + 只读拦截逻辑, 无新实体/无迁移]; 纯后端内容安全拦截, 端到端场景卡渲染仍属 AI-407)",
-    "tests": "PASSED (unit: 后端 jest 530/530[新增 chat-safety.classifier.spec 6 case(NVIDIA 安全/unsafe/无key fail-open/非2xx fail-open/抛错 fail-open/结构异常 fail-open 用假 fetch) + chat-safety.service.spec 6 case(黑名单命中且不调分类器/注入词命中/分类器命中/双安全/空文本/分类器抛错 fail-open) + chat.service.spec 安全拦截 3 case(黑名单→兜底且不调LLM/分类器→兜底/安全→正常LLM)]; e2e/bdd: 0 — 纯后端安全拦截, 用户可感知的对话体验属 AI-407 的 /chat 页面, 约束 #6「不为纯后端能力写 BDD」豁免, 非 legacy 豁免)",
-    "review": "PASSED (0 open; 双保险架构清晰: 黑名单(SAFETY_BLOCKLIST 同步硬闸) + NVIDIA 分类器(异步语义兜底); fail-open 降级(无key/非2xx/异常均放行, 黑名单仍为硬闸) 避免安全服务抖动阻断对话; 分类器经 @Inject(SAFETY_CLASSIFIER_TOKEN) 注入且可注入 FetchFn 便于测试; 拦截不调 LLM(降风险省成本); 仍落库 user+助手兜底回复保持会话连续; 安全兜底回复中英双语温和带离不暴露被拦截; 未越界 AI-407; 无裸 console[统一 Logger]; 响应形状不变前端无需改契约)",
-    "optimization": "PASSED (0 open; 黑名单优先于分类器(命中即拦省一次网络); matchBlocklist 归一化(小写去空白去标点)子串匹配, 选用无歧义词条降低误伤; NvidiaSafetyClassifier 与 BigModelProvider 同构(FetchFn 可注入 + 超时 AbortSignal.timeout); 无临时调试代码; 无重复逻辑)"
+    "consistency": "PASSED (frontend tsc --noEmit 0 错误; next build 通过; vitest 78/78 全绿[较 AI-406 基线 +11: 新增 lib/audio.spec 8 case + lib/api.spec 扩 getChatScenes/sendChatMessage 3 case]; 无数据库 schema 变更[纯前端 UI 复用 AI-403/405/406 后端端点 + AI-307 SpeechRecorder/evaluateSpeech]; node_modules 已装, 无新依赖引入)",
+    "tests": "PASSED (unit: vitest 78/78[lib/audio.spec 8 case 覆盖 normalizeTtsUrl 3 态 + playTts data URI/自动播被拒吞错/factory 抛错; lib/api.spec +3 case getChatScenes/sendChatMessage]; e2e/bdd: chat.feature 6 scenarios/52 steps 全绿[约束 #6 前端功能必做 BDD, 非 legacy 豁免]; 全部后端路由 page.route 打桩[scenes/reply/safety-fallback/evaluate], 不依赖真实 LLM 与 AI 配额, 稳定无 flake; 多轮断言改用 nth(before) 等第 N 个回复气泡规避 .first() 竞态)",
+    "review": "PASSED (0 open; 前端纯 UI + 逻辑复用清晰: TTS 自动播抽离为纯函数 lib/audio.ts[noramlizeTtsUrl/playTts] 可单测; 跟读复用 SpeechRecorder + evaluateSpeech 不重复实现录音/评测; data-component 钩子齐全[ChatPage/SceneCards/SceneCard[data-scene-id]/SceneVocab/ChatThread/ChatBubble[data-role][data-opening]/ChatTtsAudio/ChatInput/ChatComposer/ReadAlongPanel/ReadAlongFeedback] 便于 E2E 断言; 无裸 console[统一 logger]; 安全兜底由 AI-406 后端拦截, 前端仅展示, 不越界处理内容安全; 场景内容不硬编码, 由 getChatScenes 枚举)",
+    "optimization": "PASSED (0 open; 无 stub/占位实现; TTS 归一化 playTts 复用 Audio API 且自动播失败静默降级; 场景数据走后端枚举端点避免前端重复维护; 评测走既有 evaluateSpeech 管线零重复; headless 自动播加 --autoplay-policy=no-user-gesture-required 且仅测试用; 无临时调试代码)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-406-gate.md",
-  "notes": "AI-406 = 内容安全双保险: 新增 chat-safety.config.ts(SAFETY_BLOCKLIST 中英文黑名单 + SAFE_FALLBACK_REPLY 狐狸安全兜底回复) + chat-safety.classifier.ts(SafetyClassifier 接口 + NvidiaSafetyClassifier 调 NVIDIA nemoguard, fail-open 降级) + chat-safety.service.ts(ChatSafetyService 双保险 checkUserInput, 经 @Inject(SAFETY_CLASSIFIER_TOKEN)) + chat.service.ts 注入并在 LLM 前拦截(不安全→不调 LLM 直接返回兜底回复同样TTS) + chat.module.ts 装配 classifier(ConfigService 读 NVIDIA_*) + ChatSafetyService。新增 unit 15 case(jest 530/530 全绿), nest build 0 错。E2E 纯后端豁免(对话体验留待 AI-407)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(mark done) + docs/ai-integration.md(内容安全段标记 AI-406 已落地 + fail-open 说明)。"
+  "reportRef": "docs/quality/ai-407-gate.md",
+  "notes": "AI-407 = /chat 会话 UI 页面: TabNav 新增 Chat 标签(MessageCircle, href /chat); src/app/chat/page.tsx[AuthGate→ChatInner] 场景选择卡(进入即 getChatScenes 渲染 SceneCard[data-scene-id], 选中注入开场种子气泡 + SceneVocab 目标词汇) + 气泡对话(ChatThread/ChatBubble[data-role][data-opening], Enter 发送, 空消息禁用) + 狐狸回复 TTS 自动播(lib/audio.ts normalizeTtsUrl/playTts, ChatTtsAudio 语音条 autoPlay + 手动重播) + 每条回复「跟读」(ReadAlongPanel 复用 SpeechRecorder + evaluateSpeech, ReadAlongFeedback)。新增类型 ChatScene/ChatMessage/SendChatMessageDto/SendChatMessageResponse(对齐后端 SceneSummary/ChatSendResponse/ChatMessageDto); api.ts 扩 getChatScenes/sendChatMessage; e2e POM src/e2e/support/pages/chat.ts + chat.feature 6 scenarios/52 steps(全部路由 mock, 不依赖配额)。前端 tsc/e2e tsc 干净, vitest 78/78, chat E2E 6/52 绿。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-407 mark done) + docs/ai-integration.md 前端 /chat 段落地说明 + 本报告。"
 }

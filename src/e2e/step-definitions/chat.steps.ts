@@ -1,0 +1,220 @@
+// Chat page steps (AI-407).
+import { Given, When, Then } from "@cucumber/cucumber";
+import ChatPage from "../support/pages/chat";
+import type E2EWorld from "../support/world";
+
+const STUB_SCENES = [
+  {
+    id: "greeting",
+    title: "打招呼",
+    openingLine: "Hello! I am Foxy. What is your name?",
+    targetVocabulary: ["hello", "hi", "name", "fine"],
+  },
+  {
+    id: "zoo",
+    title: "动物园",
+    openingLine: "Let's go to the zoo! What animal do you see?",
+    targetVocabulary: ["cat", "dog", "bird", "rabbit"],
+  },
+];
+
+// A real, valid (silent) WAV data URI so the <audio autoPlay> element can
+// actually start decoding/playing in headless Chromium (an invalid base64
+// mp3 would stay paused and fail the auto-play assertion).
+const FOX_VOICE_WAV =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+Given("the chat scenes are stubbed with {int} scenes", async function (this: E2EWorld, count: number) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.mockScenes(STUB_SCENES.slice(0, count));
+});
+
+Given(
+  "the chat reply will be {string} with a fox voice",
+  async function (this: E2EWorld, reply: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    // A deterministic, valid fox voice (WAV data URI) so the auto-play assertion is stable.
+    await page.mockChatReply(reply, FOX_VOICE_WAV);
+  },
+);
+
+Given(
+  "the chat reply is the safety fallback {string}",
+  async function (this: E2EWorld, reply: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.mockChatSafetyFallback(reply);
+  },
+);
+
+Given(
+  "the read-along evaluation will return a passing score",
+  async function (this: E2EWorld) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.mockEvaluate(92, true, "good", "cheer");
+  },
+);
+
+When("I open the chat page", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.open();
+});
+
+Then("I should see the chat heading", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  const text = await this.page
+    .locator('[data-component="ChatTitle"]')
+    .textContent();
+  if (!text || !text.includes("Chat with Foxy")) {
+    throw new Error(`Expected chat heading but got: "${text}"`);
+  }
+});
+
+Then(
+  "I should see at least {int} scene card",
+  async function (this: E2EWorld, expected: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const count = await page.sceneCardCount();
+    if (count < expected) {
+      throw new Error(`Expected at least ${expected} scene card(s) but found ${count}`);
+    }
+  },
+);
+
+Then("I should see a chat input", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if ((await this.page.locator('[data-component="ChatInput"]').count()) === 0) {
+    throw new Error("Expected a chat input");
+  }
+});
+
+When("I select the scene {string}", async function (this: E2EWorld, title: string) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.selectScene(title);
+});
+
+Then("I should see a fox opening bubble", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (!(await page.isOpeningBubbleVisible())) {
+    throw new Error("Expected a fox opening bubble after selecting a scene");
+  }
+});
+
+Then("I should see the goal words", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (!(await page.isVocabVisible())) {
+    throw new Error("Expected the goal words (SceneVocab) to be visible");
+  }
+});
+
+When(
+  "I type {string} into the chat input",
+  async function (this: E2EWorld, text: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.typeMessage(text);
+  },
+);
+
+When("I send the chat message", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  // 发送前先数已有的「狐狸回复」气泡（data-opening=false，开场种子气泡不算）。
+  // 多轮对话时 .first() 会误判（已有回复气泡存在即瞬间 resolve），故改为等待
+  // 第 before 个（即本次新生成的）回复气泡出现，避免与下一断言发生竞态。
+  const replySel = '[data-component="ChatBubble"][data-role="assistant"][data-opening="false"]';
+  const before = await this.page.locator(replySel).count();
+  await page.clickSend();
+  await this.page.locator(replySel).nth(before).waitFor({ timeout: 15000 });
+});
+
+Then(
+  "I should see {int} user bubble(s)",
+  async function (this: E2EWorld, expected: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const count = await page.userBubbleCount();
+    if (count !== expected) {
+      throw new Error(`Expected ${expected} user bubble(s) but found ${count}`);
+    }
+  },
+);
+
+Then(
+  "I should see {int} fox reply bubble(s)",
+  async function (this: E2EWorld, expected: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const count = await page.assistantBubbleCount();
+    if (count !== expected) {
+      throw new Error(`Expected ${expected} fox reply bubble(s) but found ${count}`);
+    }
+  },
+);
+
+Then("I should see a TTS audio bar", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if ((await page.ttsAudioCount()) < 1) {
+    throw new Error("Expected a TTS audio bar on the fox reply");
+  }
+});
+
+Then("the fox voice should auto-play", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  const src = await page.ttsAudioSrc();
+  if (!src || !src.startsWith("data:audio/wav;base64,")) {
+    throw new Error(`Expected the fox TTS audio src to be the mocked fox voice, got: "${src}"`);
+  }
+  if (!(await page.isTtsAutoplaying())) {
+    throw new Error("Expected the fox voice audio to auto-play");
+  }
+});
+
+When(
+  "I click read-along on the first fox reply",
+  async function (this: E2EWorld) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.clickReadAlong(0);
+  },
+);
+
+When("I record my read-along voice", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.recordReadAlong();
+});
+
+When("I submit the read-along", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.submitReadAlong();
+  await page.waitReadAlongFeedback();
+});
+
+Then("I should see the read-along feedback", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (
+    (await this.page.locator('[data-component="ReadAlongFeedback"]').count()) === 0
+  ) {
+    throw new Error("Expected the read-along feedback panel");
+  }
+});
+
+Then("I should see a read-along star earned", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (!(await page.isReadAlongStarVisible())) {
+    throw new Error("Expected a star earned on a passing read-along score");
+  }
+});
+
+Then(
+  "the fox reply should say {string}",
+  async function (this: E2EWorld, expected: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const count = await page.assistantBubbleCount();
+    let found = false;
+    for (let i = 0; i < count; i++) {
+      const text = await page.assistantBubbleText(i);
+      if (text && text.includes(expected)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      throw new Error(`Expected a fox reply containing "${expected}"`);
+    }
+  },
+);

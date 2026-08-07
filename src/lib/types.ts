@@ -205,3 +205,55 @@ export interface EvaluateSpeechOptions {
   /** 归属用户 id（缺省后端用 `anonymous` 占位）。 */
   userId?: string;
 }
+
+/* ----------------------- AI Chat (AI-407) ----------------------- */
+
+/** 场景包摘要（与后端 `GET /api/ai/chat/scenes` 响应、AI-405 `SceneSummary` 对齐）。
+ *  不含内部 `systemPrompt`（后端不向浏览器泄露）。 */
+export interface ChatScene {
+  /** 场景 id（greeting / zoo / shopping / weather / body）。 */
+  id: string;
+  /** 展示标题（中文，如「打招呼」）。 */
+  title: string;
+  /** 狐狸开场引导语（英文，供选定场景后首条助手气泡种子）。 */
+  openingLine: string;
+  /** A1 目标词汇（英文）。 */
+  targetVocabulary: string[];
+}
+
+/** 一条对话气泡（前端本地模型，role 区分用户/狐狸）。 */
+export interface ChatMessage {
+  /** 本地唯一 id（助手开场种子以 `opening-` 前缀；真实回复用后端 `messageId`）。 */
+  id: string;
+  role: "user" | "assistant";
+  /** 消息正文。 */
+  text: string;
+  /** 狐狸朗读音频引用（data URI / URL）；用户消息与开场种子为 null。 */
+  ttsUrl?: string | null;
+  /** 是否为场景开场种子气泡（本地生成、未过后端、无 ttsUrl）。 */
+  isOpening?: boolean;
+}
+
+/** `POST /api/ai/chat/messages` 请求体（字段名/类型与后端 `ChatMessageDto` 对齐）。 */
+export interface SendChatMessageDto {
+  /** 宝宝发言（必填，≤2000 字符）。 */
+  text: string;
+  /** 续聊会话 id（缺省新建）。对应 `ai_chat_sessions.id`。 */
+  sessionId?: string | null;
+  /** 场景包 id（仅新建会话写入）。 */
+  sceneId?: string | null;
+  /** 归属用户 id（缺省后端 `anonymous`）。 */
+  userId?: string | null;
+}
+
+/** `POST /api/ai/chat/messages` 响应（与后端 `ChatSendResponse` 对齐）。 */
+export interface SendChatMessageResponse {
+  /** 本次会话 id（新建或复用），续聊时回传以便后续携带。 */
+  sessionId: string;
+  /** 助手回复消息 id。 */
+  messageId: string;
+  /** 狐狸回复正文。 */
+  replyText: string;
+  /** 狐狸朗读音频引用（data URI / URL）；TTS 失败降级为 null。 */
+  ttsUrl: string | null;
+}

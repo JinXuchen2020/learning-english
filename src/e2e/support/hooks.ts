@@ -28,6 +28,9 @@ BeforeAll({ timeout: 60000 }, async function () {
       "--disable-dev-shm-usage",
       "--use-fake-device-for-media-stream",
       "--use-fake-ui-for-media-stream",
+      // AI-407: allow the fox TTS <audio autoPlay> to actually start in headless
+      // Chromium/Edge without a prior user gesture (no real speakers needed).
+      "--autoplay-policy=no-user-gesture-required",
     ],
   };
   if (channel) launchOptions.channel = channel;

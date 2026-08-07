@@ -171,12 +171,17 @@ multipart: audio (webm/wav), wordId | sentenceId, userId
 
 ### 3. AI 对话陪练 (`ChatModule`)
 
-**前端 /chat**
-- 场景选择卡("打招呼"/"去动物园"/"买东西"等, 每场景对应系统提示)
-  - 卡片数据来自后端枚举端点 `GET /api/ai/chat/scenes`（标题 + 起始语 + 目标词汇），前端不硬编码场景内容
-- 类微信气泡 UI, 吉祥物语音 TTS 自动播
-- 每条用户消息底下"跟读"按钮(同口语训练机制)
-- N 轮后自动鼓励并给本次对话"小星星"
+**前端 /chat**（**AI-407 已落地**）
+- 入口: TabNav 新增 `Chat` 标签 (MessageCircle 图标, href `/chat`), 已登录孩子可见
+- 路由: `src/app/chat/page.tsx` (`"use client"` + `AuthGate` 包裹) → `ChatInner`
+- 场景选择卡: 进入即 `getChatScenes()`(`GET /api/ai/chat/scenes`) 拉取, 渲染 `SceneCards`/`SceneCard[data-scene-id]`; 选中场景 → 注入 `openingLine` 作为狐狸开场种子气泡(`ChatBubble[data-role=assistant][data-opening=true]`) + 展示 `SceneVocab` 目标词汇; 前端不硬编码场景内容
+- 类微信气泡 UI `ChatThread`/`ChatBubble[data-role][data-opening]`: 用户输入经 `sendChatMessage(dto)`(`POST /api/ai/chat/messages`) → 狐狸回复气泡 + **TTS 自动播**
+- TTS 自动播: 纯逻辑 `src/lib/audio.ts` 的 `normalizeTtsUrl`/`playTts`(创建 `Audio`, `autoplay=true`, 自动播放被拒 `.catch` 吞掉); `ChatTtsAudio[data-component]` 语音条 `autoPlay` + 手动 🔊 重播按钮; headless 自动播需 `--autoplay-policy=no-user-gesture-required`(hooks.ts 已加)
+- 每条狐狸回复底下"跟读"按钮(ReadAlong): 复用 `SpeechRecorder` 组件 + `evaluateSpeech`(`POST /api/ai/speech/evaluate`), 走与 `/speech` 同套录音→评测→反馈(`ReadAlongFeedback`); 通过攒星逻辑属 **AI-408**
+- 输入区 `ChatInput`/`ChatComposer`: `Enter` 发送, 空消息禁用
+- 关键 `data-component` 钩子(用于 E2E): `ChatPage`/`ChatTitle`/`SceneCards`/`SceneCard`[data-scene-id]/`SceneVocab`/`ChatThread`/`ChatBubble`[data-role][data-opening]/`ChatTtsAudio`/`ChatInput`/`ChatComposer`/`ReadAlongPanel`/`ReadAlongFeedback`
+- 类型见 `src/lib/types.ts` `ChatScene`/`ChatMessage`/`SendChatMessageDto`/`SendChatMessageResponse`(对齐后端 `SceneSummary`/`ChatSendResponse`/`ChatMessageDto`)
+- **E2E/BDD**: `src/e2e/features/chat.feature` **6 scenarios / 52 steps** 全绿(约束 #6 前端功能必做 BDD); 全部后端路由 `page.route` 打桩(场景/回复/安全兜底/评测), 不依赖真实 LLM 与 AI 配额, 稳定无 flake; 多轮对话断言改用「等待第 N 个回复气泡出现」避免 `.first()` 竞态
 
 **后端**（AI-403 已落地 `ChatModule` 的 `ChatController`）
 ```

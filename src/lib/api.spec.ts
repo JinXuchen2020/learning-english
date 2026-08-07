@@ -192,3 +192,47 @@ describe('api.getSentences (AI-309)', () => {
     expect(fetchFn.mock.calls[0][0]).toBe('http://localhost:4000/api/sentences');
   });
 });
+
+describe('api.getChatScenes / api.sendChatMessage (AI-407)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('GETs /ai/chat/scenes and returns ChatScene[]', async () => {
+    const scenes = [
+      { id: 'greeting', title: '打招呼', openingLine: 'Hello!', targetVocabulary: ['hi', 'hello'] },
+    ];
+    mockFetch(JSON.stringify(scenes), true, 200);
+    const res = await api.getChatScenes();
+    expect(res).toEqual(scenes);
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/ai/chat/scenes',
+      expect.objectContaining({ headers: { 'Content-Type': 'application/json' } })
+    );
+  });
+
+  it('POSTs a chat message and returns { sessionId, messageId, replyText, ttsUrl }', async () => {
+    const body = {
+      sessionId: 'sess-1',
+      messageId: 'msg-1',
+      replyText: 'Hello! How are you?',
+      ttsUrl: 'data:audio/mp3;base64,AAA',
+    };
+    mockFetch(JSON.stringify(body), true, 200);
+    const res = await api.sendChatMessage({ text: 'hi', sceneId: 'greeting' });
+    expect(res).toEqual(body);
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/ai/chat/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ text: 'hi', sceneId: 'greeting' }),
+      })
+    );
+  });
+
+  it('throws ApiError on a non-ok chat response', async () => {
+    mockFetch(JSON.stringify({ message: 'AI 生成失败，请稍后重试' }), false, 502);
+    await expect(api.sendChatMessage({ text: 'hi' })).rejects.toThrow(ApiError);
+    await expect(api.sendChatMessage({ text: 'hi' })).rejects.toThrow(/AI 生成失败/);
+  });
+});
