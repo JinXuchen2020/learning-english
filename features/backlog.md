@@ -104,7 +104,7 @@
 | AI-501 | **`ai_reports` 实体** — userId/date/summaryText/weakWords(JSON)/suggestionText/createdAt, (userId,date) 唯一防重复 | P0 | — | done | 同日重复生成返回已有报告 |
 | AI-502 | **报告接口 `POST /api/ai/report/daily`** — 聚合当日 attempts/speechScores/taskComplete (来自 ProgressModule), 调用 AiProvider.chat(ReportAgent) | P0 | AI-106, 现有 ProgressModule, AI-501 | done | 无学习数据时返回友好默认报告; 有数据时含真实统计 |
 | AI-503 | **ReportAgent System Prompt** — 输出 summaryText/weakWords/suggestion/mascotExpr 结构化 JSON; 语气鼓励、不批评 | P0 | AI-502 | done | 输出通过 JSON 校验; 弱项列表来自真实错题 |
-| AI-504 | **Home "今日 AI 小结" 卡片** — 吉祥物气泡展示报告摘要 + 弱项 + 明日建议; 无报告时显示生成按钮 | P0 | AI-502 | backlog | 卡片展示报告; 点击可展开详情 |
+| AI-504 | **Home "今日 AI 小结" 卡片** — 吉祥物气泡展示报告摘要 + 弱项 + 明日建议; 无报告时显示生成按钮 | P0 | AI-502 | done | 卡片展示报告; 点击可展开详情 |
 | AI-505 | **自动生成触发** — 完成当日全部任务 或 每日固定时段(如 20:00)触发生成 | P1 | AI-502 | backlog | 完成条件触发一次; 不重复生成 |
 | AI-506 | **家长周报 (邮件/推送)** — 每周聚合生成 PDF/HTML 总结发家长邮箱; 含掌握度、趋势、建议 | P1 | AI-502, 现有 AuthModule(家长邮箱) | backlog | 周报内容含 4 项以上指标; 邮件发送成功可追溯 |
 | AI-507 | **家长报告 Dashboard** — 家长视角 Web 页: 按周查看孩子学习趋势、弱项 Top10、AI 建议 | P1 | AI-506 | backlog | 图表渲染趋势; 弱项列表可点击下钻到单词 |

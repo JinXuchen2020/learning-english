@@ -180,4 +180,106 @@ export default class HomePage {
       if (!acted) break;
     }
   }
+
+  /* ----------------------- AI-504：今日 AI 小结卡片 ----------------------- */
+
+  /** Mock `POST /api/ai/report/daily` 返回一份（默认/AI）报告。
+   *  通配 `**` 以兼容 query 串（避免 E2E page.route 精准匹配漏网）。 */
+  async mockDailyReport(summary: string, weakWordsCsv: string): Promise<void> {
+    const weakWords = weakWordsCsv
+      .split(",")
+      .map((w) => w.trim())
+      .filter(Boolean);
+    await this.page.route("**/api/ai/report/daily**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          userId: "test-user",
+          date: "2026-08-07",
+          summaryText: summary,
+          weakWords,
+          suggestionText: "明天再接再厉！",
+          isDefault: weakWordsCsv.trim() === "",
+          mascotExpr: "cheer",
+        }),
+      }),
+    );
+  }
+
+  /** Mock 报告端点：持续 500 直到 `enableReportSuccess()` 被调用（用于验证「生成今日小结」重试）。
+   *  用显式开关而非「首次 500 后续 200」，以兼容 React StrictMode 在 dev 下双调用 effect
+   *  （否则第二次调用已返回 200，生成按钮瞬间被成功卡覆盖，断言永远等不到按钮）。
+   *  开关挂在共享的 `this.page` 上（各 step new 的 HomePage 都引用同一个 world.page），
+   *  使点击 step 里的 `enableReportSuccess()` 能真正翻转路由行为。 */
+  async mockDailyReportFailThenSuccess(summary: string): Promise<void> {
+    (this.page as unknown as { __reportFail?: boolean; __reportSummary?: string }).__reportFail = true;
+    (this.page as unknown as { __reportFail?: boolean; __reportSummary?: string }).__reportSummary = summary;
+    await this.page.route("**/api/ai/report/daily**", (route) => {
+      const store = this.page as unknown as { __reportFail?: boolean; __reportSummary?: string };
+      if (store.__reportFail) {
+        return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          userId: "test-user",
+          date: "2026-08-07",
+          summaryText: store.__reportSummary ?? summary,
+          weakWords: [],
+          suggestionText: "重试成功！",
+          isDefault: true,
+          mascotExpr: "encourage",
+        }),
+      });
+    });
+  }
+
+  /** 翻转报告端点为成功态（点击「生成今日小结」前调用）。 */
+  async enableReportSuccess(): Promise<void> {
+    (this.page as unknown as { __reportFail?: boolean }).__reportFail = false;
+  }
+
+  async reportCardVisible(): Promise<boolean> {
+    return (await this.page.locator('[data-component="AiReportCard"]').count()) > 0;
+  }
+
+  async reportSummaryText(): Promise<string | undefined> {
+    await this.page
+      .locator('[data-component="AiReportSummary"]')
+      .first()
+      .waitFor({ timeout: 10000 });
+    return (await this.page.locator('[data-component="AiReportSummary"]').first().textContent())?.trim();
+  }
+
+  async reportWeakWordsText(): Promise<string | undefined> {
+    await this.page
+      .locator('[data-component="AiReportWeakWords"]')
+      .first()
+      .waitFor({ timeout: 10000 });
+    return (await this.page.locator('[data-component="AiReportWeakWords"]').first().textContent())?.trim();
+  }
+
+  async expandReport(): Promise<void> {
+    await this.page.locator('[data-component="AiReportToggle"]').first().click();
+    await this.page
+      .locator('[data-component="AiReportDetails"]')
+      .first()
+      .waitFor({ timeout: 10000 });
+  }
+
+  async reportDetailsText(): Promise<string | undefined> {
+    return (await this.page.locator('[data-component="AiReportDetails"]').first().textContent())?.trim();
+  }
+
+  async generateButtonVisible(): Promise<boolean> {
+    const btn = this.page.locator('[data-component="AiReportGenerateBtn"]').first();
+    await btn.waitFor({ timeout: 10000 });
+    return (await btn.count()) > 0;
+  }
+
+  async clickGenerate(): Promise<void> {
+    await this.page.locator('[data-component="AiReportGenerateBtn"]').first().click();
+  }
 }

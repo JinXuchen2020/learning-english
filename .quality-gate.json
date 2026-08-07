@@ -1,14 +1,14 @@
 {
-  "phase": "ai-503",
-  "stack": "node-ts (NestJS 10 + TypeORM)",
+  "phase": "ai-504",
+  "stack": "node-ts (NestJS 10 + TypeORM + Next.js 14 + Vitest + Cucumber/Playwright)",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; jest 299/299 全绿[含 ai-report.service.spec + report-agent.spec 新增 13 case]; npm run seed 不抛; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: report-agent.spec 11[提示含安全红线/绝不批评/禁编造/契约字段/默认文案鼓励 + 解析鲁棒 code fence/夹带文本/字段缺失兜底/weakWords非数组兜底/mascotExpr非法退encourage/空输出抛错]; ai-report.service.spec 新增 3[候选推导:低正确率入选/全对排除/去重上限5 + 无word关联安全跳过 + 有活动断言chat消息含weakWordCandidates]; e2e/bdd: 0 — 纯后端提示精炼豁免, 已在 features/ai-503.md 标注)",
-    "review": "PASSED (0 open; 儿童安全红线:绝不批评/比较/恐吓/禁编造具象化进 prompt; weakWords 约束为候选子集保证'弱项来自真实错题'; mascotExpr 决策规则明确; 解析层兜底不变; 空安全 word?.text; 无裸 console; 不新增接口/不改 API 契约)",
-    "optimization": "PASSED (0 open; 无 stub; 候选聚合复用既有 wordRows 查询(加 relations 零额外往返); 上限5去重防 token 膨胀; 提示精炼零新增依赖)"
+    "consistency": "PASSED (前端 tsc --noEmit 0 错误; vitest 64/64 全绿[含 api.spec 新增 3: getDailyReport 成功 POST 体/date 可选/400 抛 ApiError]; e2e typecheck:e2e 0 错误; 全栈契约与 AI-502 响应体对齐)",
+    "tests": "PASSED (unit: src/lib/api.spec.ts 3[getDailyReport 成功 POST /api/ai/report/daily(userId 体/date 可选)/400 抛 ApiError]; e2e/bdd: home-dashboard.feature 新增 3 scenario[报告卡展示 summary+weakWords chip / 展开详情含日期 / 失败显示生成按钮+点击重试成功] + 全栈套件 35 scenario/278 step 全绿)",
+    "review": "PASSED (0 open; 纯前端消费层不新增后端接口; 复用既有 mapBackendMascotExpr 映射后端 mascotExpr; reportLoading 区分'未装载/失败'避免成功路径闪现生成按钮; 失败独立 try 不阻塞主数据; 无裸 console; data-component 钩子齐全)",
+    "optimization": "PASSED (0 open; 报告拉取随主数据并行独立装载零阻塞; 无 stub; 不引入新依赖; 弱项以 chip 展示零额外请求)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-503-gate.md",
-  "notes": "AI-503 = ReportAgent System Prompt 精炼(不新增接口): 重写 REPORT_AGENT_SYSTEM_PROMPT(儿童友好/绝不批评/弱项必须取自 weakWordCandidates 禁编造/mascotExpr 决策规则); 关键洞察——AI-502 仅喂计数无单词, 模型无法'从真实错题'产出 weakWords, 故 service 层新增 weakWordCandidates 真实聚合(WordProgress 当日低正确率<0.6 取 word.text, 去重上限5)随统计一并喂模型, 让验收真正可满足; parseReportAgentOutput 鲁棒解析沿用不变(已保障'输出通过JSON校验')。测试 299/299 全绿。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-503 doing→done) + features/ai-503.md + docs/quality/ai-503-gate.md + docs/ai-integration.md(ReportAgent 调用段补 weakWordCandidates 与 AI-503 精炼说明)。"
+  "reportRef": "docs/quality/ai-504-gate.md",
+  "notes": "AI-504 = Home「今日 AI 小结」卡片(纯前端消费层, 不新增后端接口): types.ts 加 DailyReportResponse/DailyReportStats; api.ts 加 getDailyReport(userId,date?)->POST /ai/report/daily; page.tsx 加 AiReportCard(吉祥物气泡+summary+weakWords chip+suggestion+展开详情; 无报告/失败显示生成按钮可重试), load() 内独立 try 拉取(与 chat stars 同口径); 复用 mapBackendMascotExpr 渲染表情。踩坑(已写入 MEMORY): E2E '失败→重试' 初版用'首次500后续200', 但 React StrictMode dev 双调用 effect 导致第2次已返回200、生成按钮瞬间被覆盖→改为显式开关挂 world.page(__reportFail), 点击 step 翻转为成功, 兼容 StrictMode; 且各 step new HomePage 不能共享实例字段, 故开关必须挂在共享 page 对象上。验证: tsc 0 错; vitest 64/64; e2e 全栈 35/35 全绿。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-504 doing→done) + features/ai-504.md + docs/quality/ai-504-gate.md。"
 }
