@@ -9,7 +9,7 @@ import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { logger } from "@/lib/logger";
 import type { DailyTask, PlanStatusResponse } from "@/lib/types";
-import { Headphones, Mic, Pencil, Star, Flame, Check } from "lucide-react";
+import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle } from "lucide-react";
 
 const taskIcons = {
   headphones: Headphones,
@@ -57,6 +57,7 @@ function HomeContent() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [progress, setProgress] = useState<api.ProgressOverview | null>(null);
   const [planStatus, setPlanStatus] = useState<PlanStatusResponse | null>(null);
+  const [chatStars, setChatStars] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
@@ -77,6 +78,13 @@ function HomeContent() {
       logger.error("Failed to load home data", err);
     } finally {
       setLoading(false);
+    }
+    // AI-408：聊天星星独立加载，失败不影响主数据（与 messages 接口口径一致：缺省 anonymous）。
+    try {
+      const stars = await api.getChatStars(user?.id);
+      setChatStars(stars.stars);
+    } catch (err) {
+      logger.error("Failed to load chat stars", err);
     }
   }, [user]);
 
@@ -146,6 +154,17 @@ function HomeContent() {
               {progress?.totalStars ?? 0}
             </span>
           </div>
+          {/* AI-408：聊天星星徽标（对话陪练累计，独立于练习星星） */}
+          {chatStars > 0 && (
+            <div
+              className="flex items-center gap-2 bg-kids-sun/20 rounded-control px-4 py-2"
+              data-component="ChatStars"
+            >
+              <MessageCircle size={22} className="text-kids-sun" />
+              <span className="font-extrabold text-kids-title">{chatStars}</span>
+              <span className="text-sm text-kids-muted">chat</span>
+            </div>
+          )}
         </div>
       </section>
 

@@ -169,24 +169,63 @@ multipart: audio (webm/wav), wordId | sentenceId, userId
 - 评分策略可配置, 由 `AiProvider` 实现切换。
 - 浏览器录音权限需在 `/speech` 页面提示授权。
 
-### 3. AI 对话陪练 (`AiConversationModule`)
+### 3. AI 对话陪练 (`ChatModule`)
 
-**前端 /chat**
-- 场景选择卡("打招呼"/"去动物园"/"买东西"等, 每场景对应系统提示)
-- 类微信气泡 UI, 吉祥物语音 TTS 自动播
-- 每条用户消息底下"跟读"按钮(同口语训练机制)
-- N 轮后自动鼓励并给本次对话"小星星"
+**前端 /chat**（**AI-407 已落地**）
+- 入口: TabNav 新增 `Chat` 标签 (MessageCircle 图标, href `/chat`), 已登录孩子可见
+- 路由: `src/app/chat/page.tsx` (`"use client"` + `AuthGate` 包裹) → `ChatInner`
+- 场景选择卡: 进入即 `getChatScenes()`(`GET /api/ai/chat/scenes`) 拉取, 渲染 `SceneCards`/`SceneCard[data-scene-id]`; 选中场景 → 注入 `openingLine` 作为狐狸开场种子气泡(`ChatBubble[data-role=assistant][data-opening=true]`) + 展示 `SceneVocab` 目标词汇; 前端不硬编码场景内容
+- 类微信气泡 UI `ChatThread`/`ChatBubble[data-role][data-opening]`: 用户输入经 `sendChatMessage(dto)`(`POST /api/ai/chat/messages`) → 狐狸回复气泡 + **TTS 自动播**
+- TTS 自动播: 纯逻辑 `src/lib/audio.ts` 的 `normalizeTtsUrl`/`playTts`(创建 `Audio`, `autoplay=true`, 自动播放被拒 `.catch` 吞掉); `ChatTtsAudio[data-component]` 语音条 `autoPlay` + 手动 🔊 重播按钮; headless 自动播需 `--autoplay-policy=no-user-gesture-required`(hooks.ts 已加)
+- 每条狐狸回复底下"跟读"按钮(ReadAlong): 复用 `SpeechRecorder` 组件 + `evaluateSpeech`(`POST /api/ai/speech/evaluate`), 走与 `/speech` 同套录音→评测→反馈(`ReadAlongFeedback`); 跟读通过星属 **AI-307/AI-408** 口语评测星, 与下方对话星标相互独立
+- 输入区 `ChatInput`/`ChatComposer`: `Enter` 发送, 空消息禁用
+- **对话星标与鼓励（AI-408 已落地）**: `POST /api/ai/chat/messages` 响应体新增 `stars`/`starAwarded`/`starsUntilNext` 三字段, 前端据此——① 头部 `ChatStarCount[data-component]` 徽标实时显示本会话累计星数(`sessionStars`); ② 当 `starAwarded` 为真时弹出 `ChatStarCelebration[data-component][data-stars]` 吉祥物庆祝横幅(`Mascot expression="celebrating"`), 4 秒后自动消失(`setTimeout`), 可点「Keep chatting!」(`data-action="dismiss-celebration"`) 立即关闭
+- **Home 聊天星星卡（AI-408 已落地）**: `src/app/page.tsx` 问候横幅新增 `ChatStars[data-component]` 卡（`MessageCircle` 图标 + 累计数 + "chat" 标签），仅在 `chatStars>0` 时渲染；`load()` 中独立 `await api.getChatStars(user?.id)`（与主数据 `Promise.all` 解耦，失败 `catch` 不阻塞主流程），聚合该用户所有会话累计星，与练习星(`progress.totalStars`)相互独立展示
+- **会话历史与续聊（AI-409 已落地）**: `/chat` 顶部新增「My conversations」面板（`ChatSessionList[data-component]`）——`useEffect` 内 `await api.getChatSessions(user?.id)` 拉取摘要列表，渲染 `ChatSessionItem[data-component][data-session-id][data-active]` 项（场景标题 + 最近消息预览 + 星星数 + 消息数），空列表显示 `ChatSessionEmpty` 提示；点项 → `handleResumeSession` 调 `api.getChatSessionMessages(id)` 取历史回显到 thread，并同步 `sessionId/selectedSceneId/sessionStars`，续聊时 `handleSend` 携带 `sessionId` 由后端自动接上上下文（验收「续聊上下文不丢」）；「+ New chat」(`data-action="new-chat"`) → `handleNewChat` 清空会话回到初始态。列表加载/续聊失败均独立 `catch`，不阻塞新对话。
+- 关键 `data-component` 钩子(用于 E2E): `ChatPage`/`ChatTitle`/`SceneCards`/`SceneCard`[data-scene-id]/`SceneVocab`/`ChatThread`/`ChatBubble`[data-role][data-opening]/`ChatTtsAudio`/`ChatInput`/`ChatComposer`/`ReadAlongPanel`/`ReadAlongFeedback`/`ChatStarCount`/`ChatStarCelebration`[data-stars]
+- 类型见 `src/lib/types.ts` `ChatScene`/`ChatMessage`/`SendChatMessageDto`/`SendChatMessageResponse`(对齐后端 `SceneSummary`/`ChatSendResponse`/`ChatMessageDto`)
+- **E2E/BDD**: `src/e2e/features/chat.feature` **7 scenarios / ~58 steps** 全绿(约束 #6 前端功能必做 BDD); 全部后端路由 `page.route` 打桩(场景/回复/安全兜底/评测/stars), 不依赖真实 LLM 与 AI 配额, 稳定无 flake; 多轮对话断言改用「等待第 N 个回复气泡出现」避免 `.first()` 竞态; 新增「AI-408 完成 8 轮得星庆祝」场景用 `mockChatReply(..., {awardOnRound:8})` 第 8 次回复返回 `starAwarded` 触发庆祝 + `I chat for 8 rounds saying` 步骤循环发 8 条; Home 端 `home-dashboard.feature` 新增「聊天星星卡」场景(`mockChatStars(3)` → 断言 `ChatStars[data-component]` 含 3)
 
-**后端**
+**后端**（AI-403 已落地 `ChatModule` 的 `ChatController`）
 ```
-POST /api/ai/chat/messages  body: {sessionId, sceneId, text}
-→ AiProvider.chat({system: ScenePrompt+狐狸人设+safety rule, messages: history+new})
-→ 返回 {replyText, ttsUrl}
-→ TTS 由AiProvider.synthesize() → 返回音频 URL 或直接 base64
+POST /api/ai/chat/messages
+  body: { text, sessionId?, sceneId?, userId? }   // text 必填; userId 缺省 anonymous(鉴权 deferred)
+  → AiProvider.chat({ system: FOX_PERSONA+场景 framing+基线安全规则, messages: history+new })
+  → 落库 ai_chat_sessions / ai_chat_messages（user + assistant 各一条）
+  → AiProvider.synthesize(replyText) → ttsUrl(归一: audioUrl 透传 / base64→data URI / 无→null)
+  → 返回 { sessionId, messageId, replyText, ttsUrl }
+  // 错误: 404 CHAT_SESSION_NOT_FOUND / 429 AI_RATE_LIMITED / 502 AI_GENERATION_FAILED / 503 AI_UNAVAILABLE
+
+GET /api/ai/chat/scenes
+  → ChatScenesService.list() 枚举全部场景摘要（不含内部 systemPrompt）
+  → 返回 [ { id, title, openingLine, targetVocabulary[] } ]   // 顺序即展示顺序
+  // 5 个场景: greeting / zoo / shopping / weather / body
+  // 场景内容由 chat-scenes.ts 的 SCENE_PACKAGES 注册表单一数据源维护
+
+GET /api/ai/chat/stars?userId=   （AI-408 新增）
+  → ChatService.getStars(userId?) 用 queryBuilder 对 ai_chat_sessions 表
+    SELECT COALESCE(SUM(stars),0) WHERE userId = :uid（缺省 anonymous 不匹配任何 userId → 0）
+  → 返回 { stars }   // 该用户所有会话累计星星数，供 Home 展示「聊天星星」徽标
+
+GET /api/ai/chat/sessions?userId=   （AI-409 新增）
+  → ChatService.listSessions(userId?) 列出该用户全部会话摘要
+  → 取 ai_chat_sessions（WHERE userId = :uid）+ 其全部 ai_chat_messages（In(sessionIds)）
+  → 纯函数 buildSessionSummaries 按「最近活动」(最后一条 user/assistant 消息时间，无消息用 createdAt) 倒序
+  → 每条含 messageCount(仅 user/assistant，排除 system) + lastMessagePreview(截断 80) + stars + createdAt/updatedAt
+  → 返回 [ ChatSessionSummary ]   // 供 /chat「我的会话」列表；接 GET .../sessions/:id/messages 取历史
+
+GET /api/ai/chat/sessions/:id/messages?userId=   （AI-409 新增）
+  → ChatService.getSessionMessages(id, userId?) 取该会话全部历史消息
+  → 按 createdAt 升序，仅 user/assistant（排除 system）；ttsUrl 当前恒 null（历史音频未落库路径，见 chat-sessions.ts）
+  → 返回 [ ChatHistoryMessage ]   // 供 /chat 续聊前回显，续聊时携带 sessionId 调 POST .../messages 即可接上上下文
 ```
-- 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表;
-- 人设 System Prompt 极度重要: 限定年龄、不懂的单词换说法、中文确认。
-- 内容安全: 双保险 — 模型 temperature 低 + 关键词黑名单 + LLM safety classifier 二次过滤。
+
+- **对话星标逻辑（AI-408 已落地）**: 纯函数 `chat-stars.ts` 的 `computeStars(rounds, prevStars)` 与阈值常量 `CHAT_STAR_ROUNDS = 8` 单一数据源——`stars = floor(rounds / 8)`, `starAwarded = stars > prevStars`, `starsUntilNext` 为距下一颗星的轮数（余数 0 时为 8）。`ChatService.sendMessage` 在 TTS 合成后, 用 `messageRepo.count({where:{sessionId, role:'user'}})` 得到本会话已完成轮数 `rounds`, 调用 `computeStars(rounds, session.stars)`, 当 `starAwarded` 时把新 `stars` 落库 `ai_chat_sessions.stars`(该列 AI-401 已建, 默认 0), 并在响应体带回 `stars/starAwarded/starsUntilNext`; 用 `stars > prevStars` 判定（而非 `rounds % 8 === 0`）避免续聊/重复 send 导致双发星。`getStars` 独立聚合, 与主对话链路解耦。
+- 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表（AI-401 建表）;
+- 系统提示由 `chat-system-prompt.ts` 的 `buildChatSystemPrompt(sceneId)` 组装：狐狸人设 + 已知场景 framing（greeting/zoo/shopping/weather/body）+ 基线儿童安全规则。
+- 场景包（**AI-405 已落地**）：5 个场景的「情境引导 systemPrompt + 起始语 openingLine + 目标词汇 targetVocabulary」统一维护于 `chat-scenes.ts` 的 `SCENE_PACKAGES` 注册表（单一数据源），由 `ChatScenesService`（Nest 注入 seam）暴露 `GET /api/ai/chat/scenes` 供前端枚举；`chat-system-prompt.ts` 的 `SCENE_PROMPTS` 与 `buildChatSystemPrompt` 均从注册表派生，不再重复维护场景文本。未知/自由对话（sceneId 不在 5 个内）仍走原人设流程，不附加 framing。
+- 内容安全双保险（**AI-406 已落地**）：在 `ChatService` 调 LLM **之前**对用户输入做两道闸门——① 关键词黑名单（`chat-safety.config.ts` 的 `SAFETY_BLOCKLIST`，中英文启发式、同步硬闸，归一化子串匹配）；② NVIDIA 内容安全分类器（`NvidiaSafetyClassifier` 调 `NVIDIA_SAFETY_MODEL` 默认 `nvidia/llama-3.1-nemoguard-8b-content-safety`，异步语义兜底）。任一命中 → 返回狐狸吉祥物安全兜底回复（`SAFE_FALLBACK_REPLY`，中英双语温和带离），**不调用 LLM**，响应形状不变。分类器未配置 key / 非 2xx / 异常均 **fail-open 放行**（黑名单仍是硬闸），避免安全服务抖动阻断对话。编排见 `ChatSafetyService.checkUserInput` + `SAFETY_CLASSIFIER_TOKEN` 注入。
+- 人设 System Prompt（AI-404 已强化 `FOX_PERSONA`）极度重要，须覆盖 6 维度：面向 **5-10 岁**中国小朋友、只用 **A1 简单词汇**、小朋友说错时**换说法示范而非纠错**、可用**中文确认并英文复述**、**话题守界**（不合适话题温柔带回英语小游戏）、鼓励优先+游戏化；聊天调用 **低温度 0.4** 保证稳定可预期。
 
 ### 4. AI 错题与进度分析 (`AiReportModule`)
 
@@ -214,8 +253,8 @@ POST /api/ai/report/daily body: {userId, date}
 @Entity() class AiStudyPlanDay { id, planId, dayIndex, courseId, lessonId, skillType enum, isDone }
 
 @Entity() class AiSpeechAttempt { id, userId, wordId?, sentenceId?, audioPath, score, weakPhonemes(JSON), createdAt }
-@Entity() class AiChatSession { id, userId, sceneId, startedAt, stars }
-@Entity() class AiChatMessage { id, sessionId, role enum(bot|user), text, audioPath?, createdAt }
+@Entity() class AiChatSession { id, userId, sceneId, stars, createdAt, updatedAt }
+@Entity() class AiChatMessage { id, sessionId, role(user|assistant|system), text, audioPath?, createdAt }
 @Entity() class AiReport { id, userId, date, summaryText, weakWords(JSON), suggestionText, createdAt }
 ```
 
@@ -254,7 +293,7 @@ server/src/ai/
 - `chatWithImage(prompt, imageBase64, mimeType): Promise<string>` 多模态理解/OCR
 - `transcribe(audio): Promise<TranscriptResult>` STT
 - `assessPronunciation(audio, referenceText): Promise<ScoreResult>` 发音评测
-- `synthesize(text, voice): Promise<AudioStream>` TTS
+- `synthesize(text, voice): Promise<AudioResult>` TTS（AI-402 已落地：智谱 GLM-TTS `POST {baseUrl}/audio/speech`，返回 `audioUrl` 或 `audioBase64`，默认狐狸音色 `tongtong`）
 
 **成本/速率**: 每用户每日 token/调用配额已落地（AI-107）：`server/src/ai/` 下 `AiUsage` 实体（`ai_usage` 表，`userId+date` 唯一）+ `AiUsageLimitService`（计数/超限判定）+ `UsageLimitedAiProvider`（最外层 provider 外壳，调用前 `assertWithinQuota`、成功后 `recordUsage`、失败/重试不计费）。超限抛 `AiQuotaExceededError`（HTTP 429 + `degraded`），业务层据 `degraded` 走降级（模板兜底）。配置经 `ConfigService`：`AI_DAILY_CALL_LIMIT`（默认 200）/ `AI_DAILY_TOKEN_LIMIT`（默认 100000）。
 

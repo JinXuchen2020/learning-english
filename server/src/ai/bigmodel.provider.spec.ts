@@ -10,12 +10,19 @@ function makeResponse(
   body: unknown,
   status = 200,
   ok: boolean = status >= 200 && status < 300,
+  opts: { contentType?: string; arrayBuffer?: ArrayBuffer } = {},
 ): Response {
+  const headers = {
+    get: (name: string) =>
+      name.toLowerCase() === 'content-type' ? (opts.contentType ?? '') : null,
+  };
   return {
     ok,
     status,
     statusText: ok ? 'OK' : 'Error',
+    headers,
     json: async () => body,
+    arrayBuffer: async () => opts.arrayBuffer ?? new ArrayBuffer(0),
   } as unknown as Response;
 }
 
@@ -222,11 +229,131 @@ describe('BigModelProvider', () => {
       expect(res.readableText).toBe('cat');
       expect(res.mascotExpr).toBe('thinking');
     });
+  });
 
-    it('synthesize returns degraded result without throwing', async () => {
-      const res = await p.synthesize('hello');
-      expect(res.mimeType).toBe('audio/mp3');
-      expect(res.audioBase64).toBe('');
+  describe('synthesize (real TTS, AI-402)', () => {
+    it('sends correct request body to the GLM-TTS endpoint with fox voice default', async () => {
+      const { fn, calls } = recordingFetch(() =>
+        makeResponse({}, 200, true, {
+          contentType: 'audio/mpeg',
+          arrayBuffer: new TextEncoder().encode('FAKEMP3').buffer,
+        }),
+      );
+      const p = new BigModelProvider(
+        { apiKey: 'k', ttsVoice: 'tongtong', ttsModel: 'glm-tts' },
+        fn,
+      );
+      await p.synthesize('Hello little fox');
+      expect(calls[0].url).toBe('https://open.bigmodel.cn/api/paas/v4/audio/speech');
+      const body = JSON.parse(calls[0].init.body as string);
+      expect(body.model).toBe('glm-tts');
+      expect(body.input).toBe('Hello little fox');
+      expect(body.voice).toBe('tongtong');
+      expect(body.response_format).toBe('mp3');
+      expect(body.speed).toBe(1.0);
+      expect(body.stream).toBe(false);
+    });
+
+    it('honors an explicit voice override', async () => {
+      const { fn, calls } = recordingFetch(() =>
+        makeResponse({}, 200, true, {
+          contentType: 'audio/mpeg',
+          arrayBuffer: new TextEncoder().encode('FAKEMP3').buffer,
+        }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k', ttsVoice: 'tongtong' }, fn);
+      await p.synthesize('hi', 'xiaochen');
+      expect(JSON.parse(calls[0].init.body as string).voice).toBe('xiaochen');
+    });
+
+    it('parses binary mp3 response into audioBase64', async () => {
+      const bytes = new TextEncoder().encode('FAKEMP3');
+      const { fn } = recordingFetch(() =>
+        makeResponse({}, 200, true, { contentType: 'audio/mpeg', arrayBuffer: bytes.buffer }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      const res = await p.synthesize('hi');
+      expect(res.audioBase64).toBe(Buffer.from(bytes).toString('base64'));
+      expect(res.mimeType).toBe('audio/mpeg');
+      expect(res.audioUrl).toBeUndefined();
+    });
+
+    it('parses JSON {url} envelope into audioUrl', async () => {
+      const { fn } = recordingFetch(() =>
+        makeResponse({ url: 'https://host/abc.mp3' }, 200, true, {
+          contentType: 'application/json',
+        }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      const res = await p.synthesize('hi');
+      expect(res.audioUrl).toBe('https://host/abc.mp3');
+      expect(res.audioBase64).toBeUndefined();
+      expect(res.mimeType).toBe('audio/mpeg');
+    });
+
+    it('parses JSON {audio} envelope (base64) into audioBase64', async () => {
+      const { fn } = recordingFetch(() =>
+        makeResponse({ audio: 'BASE64AUDIO' }, 200, true, {
+          contentType: 'application/json',
+        }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      const res = await p.synthesize('hi');
+      expect(res.audioBase64).toBe('BASE64AUDIO');
+      expect(res.audioUrl).toBeUndefined();
+    });
+
+    it('throws 502 when JSON envelope lacks audio/url', async () => {
+      const { fn } = recordingFetch(() =>
+        makeResponse({}, 200, true, { contentType: 'application/json' }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      await expect(p.synthesize('hi')).rejects.toMatchObject({ statusCode: 502 });
+    });
+
+    it('throws 502 on empty binary audio', async () => {
+      const { fn } = recordingFetch(() =>
+        makeResponse({}, 200, true, { contentType: 'audio/mpeg', arrayBuffer: new ArrayBuffer(0) }),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      await expect(p.synthesize('hi')).rejects.toMatchObject({ statusCode: 502 });
+    });
+
+    it('throws 401 when API key is missing', async () => {
+      const { fn } = recordingFetch(() => makeResponse({}, 200));
+      const p = new BigModelProvider({}, fn);
+      await expect(p.synthesize('hi')).rejects.toMatchObject({ statusCode: 401 });
+    });
+
+    it('maps 429 to rate-limit error', async () => {
+      const { fn } = recordingFetch(() =>
+        makeResponse({ error: { message: 'rate limit', code: 1305 } }, 429),
+      );
+      const p = new BigModelProvider({ apiKey: 'k' }, fn);
+      const err = (await p.synthesize('hi').catch((e) => e)) as AiProviderException;
+      expect(err.statusCode).toBe(429);
+      expect(err.code).toBe(1305);
+    });
+
+    it('maps network rejection to NETWORK error', async () => {
+      const fn = async () => {
+        throw new Error('ECONNRESET');
+      };
+      const p = new BigModelProvider({ apiKey: 'k' }, fn as never);
+      const err = (await p.synthesize('hi').catch((e) => e)) as AiProviderException;
+      expect(err.statusCode).toBe(0);
+      expect(err.code).toBe('NETWORK');
+    });
+
+    it('maps AbortError to 504 timeout', async () => {
+      const fn = async () => {
+        const e = new Error('aborted');
+        e.name = 'AbortError';
+        throw e;
+      };
+      const p = new BigModelProvider({ apiKey: 'k' }, fn as never);
+      const err = (await p.synthesize('hi').catch((e) => e)) as AiProviderException;
+      expect(err.statusCode).toBe(504);
     });
   });
 });

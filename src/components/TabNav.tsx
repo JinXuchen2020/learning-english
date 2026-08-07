@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, Gamepad2, Sparkles, Mic } from "lucide-react";
+import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle } from "lucide-react";
 
 const tabs = [
   { href: "/", label: "Home", icon: Home },
@@ -10,6 +10,7 @@ const tabs = [
   { href: "/plan", label: "Plan", icon: Sparkles },
   { href: "/practice", label: "Practice", icon: Gamepad2 },
   { href: "/speech", label: "Speak", icon: Mic },
+  { href: "/chat", label: "Chat", icon: MessageCircle },
 ];
 
 export default function TabNav() {

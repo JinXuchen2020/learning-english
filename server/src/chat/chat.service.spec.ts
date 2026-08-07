@@ -1,0 +1,587 @@
+import { ChatService, ChatSendResponse } from './chat.service';
+import { ChatMessageDto } from './chat-message.dto';
+import { ChatError } from './chat.errors';
+import { AiChatSession } from './ai-chat-session.entity';
+import { AiChatMessage } from './ai-chat-message.entity';
+import { AiProvider } from '../ai/ai-provider.interface';
+import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
+import { In } from 'typeorm';
+
+/**
+ * ChatService 单测（AI-403 + AI-406 安全拦截）。
+ * 直接注入 mock 仓库 + mock provider + mock 安全服务，聚焦纯编排逻辑。
+ */
+
+/** 构造一个带内存存储的仓库 mock（find/findOne/save/create）。 */
+function makeRepo<T extends { id?: string }>(initial: T[] = []): any {
+  const store: T[] = [...initial];
+  return {
+    store,
+    findOne: jest.fn(async (opts: { where?: { id?: string } }) => {
+      const id = opts?.where?.id;
+      return (id ? store.find((r) => r.id === id) : null) ?? null;
+    }),
+    find: jest.fn(async (opts: { where?: Record<string, unknown> }) => {
+      const where = opts?.where ?? {};
+      return store
+        .filter((r) => {
+          for (const key of Object.keys(where)) {
+            const cond = (where as any)[key];
+            const val = (r as any)[key];
+            // 支持 TypeORM In(...) 运算符（AI-409 listSessions 用 In(sessionIds)）。
+            if (cond && typeof cond === 'object' && Array.isArray((cond as any).value)) {
+              if (!(cond as any).value.includes(val)) return false;
+            } else if (cond !== undefined) {
+              if (cond === null) {
+                if (val !== null) return false;
+              } else if (val !== cond) {
+                return false;
+              }
+            }
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const ta = (a as any).createdAt?.getTime?.() ?? 0;
+          const tb = (b as any).createdAt?.getTime?.() ?? 0;
+          return ta - tb;
+        });
+    }),
+    count: jest.fn(async (opts: { where?: { sessionId?: string; role?: string } }) => {
+      const { sessionId, role } = opts?.where ?? {};
+      return store.filter(
+        (r) =>
+          (!sessionId || (r as any).sessionId === sessionId) &&
+          (!role || (r as any).role === role),
+      ).length;
+    }),
+    save: jest.fn(async (e: T) => {
+      const rec = { ...e, id: (e as any).id ?? `gen-${Math.random()}` } as T;
+      store.push(rec);
+      return rec;
+    }),
+    create: jest.fn((e: Partial<T>) => ({ ...e } as T)),
+  };
+}
+
+/** 带鸭子类型 statusCode 的 provider 异常，模拟 AI-106 透传的 AiProviderException。 */
+class FakeProviderError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message = 'boom') {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+function makeProvider(overrides: Partial<AiProvider> = {}): AiProvider {
+  return {
+    name: 'mock',
+    chat: jest.fn(async () => ({ text: 'Fox says hi!' })),
+    synthesize: jest.fn(async () => ({ audioBase64: 'BASE64', mimeType: 'audio/mp3' })),
+    ...overrides,
+  } as unknown as AiProvider;
+}
+
+function makeDto(overrides: Partial<ChatMessageDto> = {}): ChatMessageDto {
+  return { text: 'Hello fox!', ...overrides } as ChatMessageDto;
+}
+
+/** 内容安全服务 mock：默认放行（安全）。 */
+function makeSafety(overrides: Partial<any> = {}): any {
+  return { checkUserInput: jest.fn(async () => ({ safe: true })), ...overrides };
+}
+
+/** 统一构造 ChatService（含安全服务注入），减少重复 4 参构造。 */
+function makeService(
+  sessionRepo: any,
+  messageRepo: any,
+  provider: any,
+  safety: any = makeSafety(),
+): ChatService {
+  return new ChatService(sessionRepo, messageRepo, provider, safety);
+}
+
+describe('ChatService (AI-403)', () => {
+  it('无 sessionId → 新建会话（默认 anonymous + sceneId 写入），并落库 user+assistant', async () => {
+    const sessionRepo = makeRepo<AiChatSession>();
+    const messageRepo = makeRepo<AiChatMessage>();
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sceneId: 'zoo' }));
+
+    expect(sessionRepo.save).toHaveBeenCalledTimes(1);
+    const savedSession = sessionRepo.save.mock.calls[0][0];
+    expect(savedSession.userId).toBe('anonymous');
+    expect(savedSession.sceneId).toBe('zoo');
+    expect(messageRepo.save).toHaveBeenCalledTimes(2);
+    const roles = messageRepo.save.mock.calls.map((c: any) => c[0].role);
+    expect(roles).toEqual(['user', 'assistant']);
+    expect(res.sessionId).toBeDefined();
+    expect(res.replyText).toBe('Fox says hi!');
+    expect(res.messageId).toBeDefined();
+  });
+
+  it('提供 sessionId 且存在 → 复用会话，不新建', async () => {
+    const existing: AiChatSession = {
+      id: 'sess-1',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([existing]);
+    const messageRepo = makeRepo<AiChatMessage>();
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-1' }));
+
+    expect(sessionRepo.save).not.toHaveBeenCalled();
+    expect(res.sessionId).toBe('sess-1');
+    expect(res.replyText).toBe('Fox says hi!');
+  });
+
+  it('提供 sessionId 但不存在 → 抛 ChatError 404 CHAT_SESSION_NOT_FOUND', async () => {
+    const sessionRepo = makeRepo<AiChatSession>();
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, makeRepo() as any, provider);
+
+    await expect(svc.sendMessage(makeDto({ sessionId: 'nope' }))).rejects.toMatchObject({
+      status: 404,
+      code: 'CHAT_SESSION_NOT_FOUND',
+    });
+  });
+
+  it('调用 LLM 使用低温度（AI-404：儿童对话稳定可预期）', async () => {
+    const provider = makeProvider();
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    await svc.sendMessage(makeDto());
+
+    const opts = (provider.chat as jest.Mock).mock.calls[0][1];
+    expect(typeof opts.temperature).toBe('number');
+    expect(opts.temperature).toBeGreaterThan(0);
+    expect(opts.temperature).toBeLessThanOrEqual(0.5);
+  });
+
+  it('历史消息按时间升序进入 LLM 上下文（system + history + user）', async () => {
+    const session: AiChatSession = {
+      id: 'sess-2',
+      userId: 'u1',
+      sceneId: null,
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const history: AiChatMessage[] = [
+      { id: 'm1', sessionId: 'sess-2', role: 'user', text: 'old user', audioPath: null, createdAt: new Date(1) },
+      { id: 'm2', sessionId: 'sess-2', role: 'assistant', text: 'old fox', audioPath: null, createdAt: new Date(2) },
+    ];
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = makeRepo<AiChatMessage>(history);
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    await svc.sendMessage(makeDto({ sessionId: 'sess-2', text: 'new user' }));
+
+    const sent = (provider.chat as jest.Mock).mock.calls[0][0];
+    expect(sent[0].role).toBe('system');
+    expect(sent[1]).toEqual({ role: 'user', content: 'old user' });
+    expect(sent[2]).toEqual({ role: 'assistant', content: 'old fox' });
+    expect(sent[sent.length - 1]).toEqual({ role: 'user', content: 'new user' });
+    expect(sent.length).toBe(4);
+  });
+
+  it('TTS 返回 audioUrl → ttsUrl 原样透传', async () => {
+    const provider = makeProvider({
+      synthesize: jest.fn(async () => ({ audioUrl: 'https://host/a.mp3', mimeType: 'audio/mpeg' })),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    const res = await svc.sendMessage(makeDto());
+    expect(res.ttsUrl).toBe('https://host/a.mp3');
+  });
+
+  it('TTS 返回 audioBase64 → ttsUrl 包成 data URI', async () => {
+    const provider = makeProvider({
+      synthesize: jest.fn(async () => ({ audioBase64: 'BASE64', mimeType: 'audio/mp3' })),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    const res = await svc.sendMessage(makeDto());
+    expect(res.ttsUrl).toBe('data:audio/mp3;base64,BASE64');
+  });
+
+  it('TTS 无音频 → ttsUrl 为 null', async () => {
+    const provider = makeProvider({
+      synthesize: jest.fn(async () => ({ mimeType: 'audio/mp3' })),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    const res = await svc.sendMessage(makeDto());
+    expect(res.ttsUrl).toBeNull();
+  });
+
+  it('TTS 失败 → 优雅降级 ttsUrl=null，文本回复仍返回', async () => {
+    const provider = makeProvider({
+      synthesize: jest.fn(async () => {
+        throw new Error('tts down');
+      }),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    const res: ChatSendResponse = await svc.sendMessage(makeDto());
+    expect(res.ttsUrl).toBeNull();
+    expect(res.replyText).toBe('Fox says hi!');
+  });
+
+  it('provider.chat 429 → ChatError 429 AI_RATE_LIMITED', async () => {
+    const provider = makeProvider({
+      chat: jest.fn(async () => {
+        throw new FakeProviderError(429);
+      }),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    await expect(svc.sendMessage(makeDto())).rejects.toMatchObject({
+      status: 429,
+      code: 'AI_RATE_LIMITED',
+    });
+  });
+
+  it('provider.chat 401 → ChatError 503 AI_UNAVAILABLE', async () => {
+    const provider = makeProvider({
+      chat: jest.fn(async () => {
+        throw new FakeProviderError(401);
+      }),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider);
+    await expect(svc.sendMessage(makeDto())).rejects.toMatchObject({
+      status: 503,
+      code: 'AI_UNAVAILABLE',
+    });
+  });
+
+  it('provider.chat 502 / 未知异常 → ChatError 502 AI_GENERATION_FAILED', async () => {
+    const provider502 = makeProvider({
+      chat: jest.fn(async () => {
+        throw new FakeProviderError(502);
+      }),
+    });
+    const svc502 = makeService(makeRepo() as any, makeRepo() as any, provider502);
+    await expect(svc502.sendMessage(makeDto())).rejects.toMatchObject({
+      status: 502,
+      code: 'AI_GENERATION_FAILED',
+    });
+
+    const providerUnknown = makeProvider({
+      chat: jest.fn(async () => {
+        throw new Error('weird');
+      }),
+    });
+    const svcUnknown = makeService(makeRepo() as any, makeRepo() as any, providerUnknown);
+    await expect(svcUnknown.sendMessage(makeDto())).rejects.toMatchObject({
+      status: 502,
+      code: 'AI_GENERATION_FAILED',
+    });
+  });
+});
+
+describe('ChatService 内容安全拦截 (AI-406)', () => {
+  it('用户输入命中黑名单 → 返回安全兜底回复，且不调用 LLM', async () => {
+    const provider = makeProvider();
+    const safety = makeSafety({
+      checkUserInput: jest.fn(async () => ({ safe: false, reason: 'blocklist' })),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider, safety);
+    const res = await svc.sendMessage(makeDto({ text: 'you are full of shit' }));
+
+    expect(provider.chat).not.toHaveBeenCalled(); // 不调 LLM
+    expect(res.replyText).toBe(SAFE_FALLBACK_REPLY);
+    expect(res.ttsUrl).toBe('data:audio/mp3;base64,BASE64'); // 兜底回复同样走 TTS
+    // 仍落库 user + assistant（助手=兜底回复），保持会话线程连续
+    expect((provider.synthesize as jest.Mock).mock.calls[0][0]).toBe(SAFE_FALLBACK_REPLY);
+  });
+
+  it('用户输入命中分类器 → 返回安全兜底回复，且不调用 LLM', async () => {
+    const provider = makeProvider();
+    const safety = makeSafety({
+      checkUserInput: jest.fn(async () => ({ safe: false, reason: 'classifier' })),
+    });
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider, safety);
+    const res = await svc.sendMessage(makeDto({ text: 'a subtly harmful sentence' }));
+
+    expect(provider.chat).not.toHaveBeenCalled();
+    expect(res.replyText).toBe(SAFE_FALLBACK_REPLY);
+  });
+
+  it('输入安全 → 正常调 LLM 并返回 LLM 回复', async () => {
+    const provider = makeProvider();
+    const safety = makeSafety(); // 默认放行
+    const svc = makeService(makeRepo() as any, makeRepo() as any, provider, safety);
+    const res = await svc.sendMessage(makeDto({ text: 'Hello fox!' }));
+
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+    expect(res.replyText).toBe('Fox says hi!');
+  });
+});
+
+describe('ChatService 星标与鼓励 (AI-408)', () => {
+  /** 构造一个只支撑 getStars 聚合查询的 sessionRepo mock。 */
+  function makeStarsRepo(rows: Array<{ userId: string; stars: number }>): any {
+    let uid = 'anonymous';
+    const qb: any = {
+      select: jest.fn(() => qb),
+      where: jest.fn((_sql: string, params: { uid: string }) => {
+        uid = params.uid;
+        return qb;
+      }),
+      getRawOne: jest.fn(async () => {
+        const total = rows
+          .filter((r) => r.userId === uid)
+          .reduce((s, r) => s + r.stars, 0);
+        return { total };
+      }),
+    };
+    return { createQueryBuilder: jest.fn(() => qb) };
+  }
+
+  /** 预置某会话 N 条用户历史消息（不含本次发言），用于驱动「轮数」计数。 */
+  function seedUserMessages(sessionId: string, n: number): any {
+    const msgs: AiChatMessage[] = [];
+    for (let i = 0; i < n; i++) {
+      msgs.push({
+        id: `m-${i}`,
+        sessionId,
+        role: 'user',
+        text: `u${i}`,
+        audioPath: null,
+        createdAt: new Date(1000 + i),
+      });
+    }
+    return makeRepo<AiChatMessage>(msgs);
+  }
+
+  it('完成 8 轮对话 → 获得第 1 颗星星（starAwarded=true, stars=1, 持久化）', async () => {
+    const session: AiChatSession = {
+      id: 'sess-8',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    // 预置 7 条历史用户发言；本次再发 1 条 → 共 8 轮。
+    const messageRepo = seedUserMessages('sess-8', 7);
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-8', text: 'round 8' }));
+
+    expect(res.starAwarded).toBe(true);
+    expect(res.stars).toBe(1);
+    expect(res.starsUntilNext).toBe(8);
+    // 仅有一次 save（星标持久化），会话复用不新建。
+    expect(sessionRepo.save).toHaveBeenCalledTimes(1);
+    expect(sessionRepo.save.mock.calls[0][0].stars).toBe(1);
+  });
+
+  it('完成 7 轮对话 → 尚未得星（starAwarded=false, stars=0, 不持久化）', async () => {
+    const session: AiChatSession = {
+      id: 'sess-7',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-7', 6); // +本次 = 7 轮
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-7', text: 'round 7' }));
+
+    expect(res.starAwarded).toBe(false);
+    expect(res.stars).toBe(0);
+    expect(res.starsUntilNext).toBe(1);
+    expect(sessionRepo.save).not.toHaveBeenCalled(); // 未跨里程碑，不落库
+  });
+
+  it('已得 1 星，再完成 8 轮（共 16）→ 获得第 2 颗星星', async () => {
+    const session: AiChatSession = {
+      id: 'sess-16',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-16', 15); // +本次 = 16 轮
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-16', text: 'round 16' }));
+
+    expect(res.starAwarded).toBe(true);
+    expect(res.stars).toBe(2);
+    expect(res.starsUntilNext).toBe(8);
+  });
+
+  it('安全兜底回复（AI-406）仍计入轮数 → 达 8 轮同样得星', async () => {
+    const session: AiChatSession = {
+      id: 'sess-safe',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-safe', 7);
+    const provider = makeProvider();
+    const safety = makeSafety({
+      checkUserInput: jest.fn(async () => ({ safe: false, reason: 'blocklist' })),
+    });
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider, safety);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-safe', text: 'bad' }));
+
+    expect(provider.chat).not.toHaveBeenCalled();
+    expect(res.replyText).toBe(SAFE_FALLBACK_REPLY);
+    expect(res.starAwarded).toBe(true); // 轮数仍累计
+    expect(res.stars).toBe(1);
+  });
+
+  it('getStars 聚合同用户多会话星星之和', async () => {
+    const sessionRepo = makeStarsRepo([
+      { userId: 'u1', stars: 2 },
+      { userId: 'u1', stars: 3 },
+      { userId: 'u2', stars: 9 },
+    ]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars('u1');
+    expect(res.stars).toBe(5);
+  });
+
+  it('getStars 默认 anonymous 口径与 sendMessage 一致', async () => {
+    const sessionRepo = makeStarsRepo([{ userId: 'anonymous', stars: 4 }]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars();
+    expect(res.stars).toBe(4);
+  });
+
+  it('getStars 无会话 → 返回 0', async () => {
+    const sessionRepo = makeStarsRepo([]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars('nobody');
+    expect(res.stars).toBe(0);
+  });
+});
+
+describe('ChatService 会话历史与续聊 (AI-409)', () => {
+  /** 构造带 userId 的 sessionRepo（支持 listSessions 的 where.userId 过滤）。 */
+  function makeSessionRepo(rows: Array<Partial<AiChatSession> & { id: string }>): any {
+    const full: AiChatSession[] = rows.map((r) => ({
+      userId: 'anonymous',
+      sceneId: null,
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: null,
+      ...r,
+    })) as AiChatSession[];
+    return makeRepo<AiChatSession>(full);
+  }
+
+  /** 构造带 sessionId/role/createdAt 的消息 mock。 */
+  function makeMsgRepo(
+    rows: Array<{ id: string; sessionId: string; role: string; text: string; createdAt: number }>,
+  ): any {
+    const full: AiChatMessage[] = rows.map((r) => ({
+      audioPath: null,
+      ...r,
+      createdAt: new Date(r.createdAt),
+    })) as AiChatMessage[];
+    return makeRepo<AiChatMessage>(full);
+  }
+
+  it('listSessions 按最近活动倒序返回摘要', async () => {
+    const now = Date.now();
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1', createdAt: new Date(now - 1000) },
+      { id: 'b', userId: 'u1', createdAt: new Date(now) },
+    ]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'user', text: 'a-msg', createdAt: now - 500 },
+      { id: 'm2', sessionId: 'b', role: 'user', text: 'b-msg', createdAt: now + 100 }, // b 更新
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+
+    const res = await svc.listSessions('u1');
+    expect(res.map((r) => r.id)).toEqual(['b', 'a']);
+    expect(res[0].messageCount).toBe(1);
+    expect(res[0].lastMessagePreview).toBe('b-msg');
+  });
+
+  it('listSessions 无会话 → 返回空数组（不查消息）', async () => {
+    const sessionRepo = makeSessionRepo([]);
+    const messageRepo = makeMsgRepo([]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toEqual([]);
+  });
+
+  it('listSessions 按 userId 过滤（仅返回该用户会话）', async () => {
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1' },
+      { id: 'b', userId: 'u2' },
+    ]);
+    const messageRepo = makeMsgRepo([]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('a');
+  });
+
+  it('listSessions 仅统计 user/assistant（排除 system），预览取最后可回显消息，携带星星数', async () => {
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1', sceneId: 'greeting', stars: 2, createdAt: new Date(1) },
+    ]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'system', text: 'SYS', createdAt: 1 },
+      { id: 'm2', sessionId: 'a', role: 'user', text: 'hello fox', createdAt: 2 },
+      { id: 'm3', sessionId: 'a', role: 'assistant', text: 'hi kid', createdAt: 3 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].messageCount).toBe(2); // 排除 system
+    expect(res[0].lastMessagePreview).toBe('hi kid');
+    expect(res[0].stars).toBe(2);
+    expect(res[0].sceneId).toBe('greeting');
+  });
+
+  it('getSessionMessages 返回 user/assistant 升序，排除 system', async () => {
+    const sessionRepo = makeSessionRepo([{ id: 'a', userId: 'u1' }]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'system', text: 'SYS', createdAt: 1 },
+      { id: 'm2', sessionId: 'a', role: 'user', text: 'u', createdAt: 2 },
+      { id: 'm3', sessionId: 'a', role: 'assistant', text: 'a', createdAt: 3 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.getSessionMessages('a');
+    expect(res.map((r) => r.role)).toEqual(['user', 'assistant']);
+    expect(res[0].text).toBe('u');
+    expect(res[1].text).toBe('a');
+    expect(res.every((r) => r.ttsUrl === null)).toBe(true); // 历史音频未落库
+  });
+
+  it('getSessionMessages 透传 sessionId 与 userId（deferred 鉴权）', async () => {
+    const sessionRepo = makeSessionRepo([{ id: 'a', userId: 'u1' }]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'user', text: 'u', createdAt: 2 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.getSessionMessages('a', 'u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('m1');
+  });
+});

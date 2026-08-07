@@ -205,3 +205,99 @@ export interface EvaluateSpeechOptions {
   /** 归属用户 id（缺省后端用 `anonymous` 占位）。 */
   userId?: string;
 }
+
+/* ----------------------- AI Chat (AI-407) ----------------------- */
+
+/** 场景包摘要（与后端 `GET /api/ai/chat/scenes` 响应、AI-405 `SceneSummary` 对齐）。
+ *  不含内部 `systemPrompt`（后端不向浏览器泄露）。 */
+export interface ChatScene {
+  /** 场景 id（greeting / zoo / shopping / weather / body）。 */
+  id: string;
+  /** 展示标题（中文，如「打招呼」）。 */
+  title: string;
+  /** 狐狸开场引导语（英文，供选定场景后首条助手气泡种子）。 */
+  openingLine: string;
+  /** A1 目标词汇（英文）。 */
+  targetVocabulary: string[];
+}
+
+/** 一条对话气泡（前端本地模型，role 区分用户/狐狸）。 */
+export interface ChatMessage {
+  /** 本地唯一 id（助手开场种子以 `opening-` 前缀；真实回复用后端 `messageId`）。 */
+  id: string;
+  role: "user" | "assistant";
+  /** 消息正文。 */
+  text: string;
+  /** 狐狸朗读音频引用（data URI / URL）；用户消息与开场种子为 null。 */
+  ttsUrl?: string | null;
+  /** 是否为场景开场种子气泡（本地生成、未过后端、无 ttsUrl）。 */
+  isOpening?: boolean;
+}
+
+/** `POST /api/ai/chat/messages` 请求体（字段名/类型与后端 `ChatMessageDto` 对齐）。 */
+export interface SendChatMessageDto {
+  /** 宝宝发言（必填，≤2000 字符）。 */
+  text: string;
+  /** 续聊会话 id（缺省新建）。对应 `ai_chat_sessions.id`。 */
+  sessionId?: string | null;
+  /** 场景包 id（仅新建会话写入）。 */
+  sceneId?: string | null;
+  /** 归属用户 id（缺省后端 `anonymous`）。 */
+  userId?: string | null;
+}
+
+/** `POST /api/ai/chat/messages` 响应（与后端 `ChatSendResponse` 对齐）。 */
+export interface SendChatMessageResponse {
+  /** 本次会话 id（新建或复用），续聊时回传以便后续携带。 */
+  sessionId: string;
+  /** 助手回复消息 id。 */
+  messageId: string;
+  /** 狐狸回复正文。 */
+  replyText: string;
+  /** 狐狸朗读音频引用（data URI / URL）；TTS 失败降级为 null。 */
+  ttsUrl: string | null;
+  /** 本会话累计星星数（AI-408，完成 N 轮 +1）。 */
+  stars: number;
+  /** 本轮是否刚获得一颗新星星（触发庆祝动画）。 */
+  starAwarded: boolean;
+  /** 距下一颗星星还剩几轮对话。 */
+  starsUntilNext: number;
+}
+
+/** `GET /api/ai/chat/stars?userId=` 响应（AI-408：Home 展示聊天星星）。 */
+export interface ChatStarsResponse {
+  /** 该用户全部会话累计星星数之和。 */
+  stars: number;
+}
+
+/** 会话摘要（与后端 `ChatSessionSummary` 对齐，AI-409「我的会话」列表项）。 */
+export interface ChatSessionSummary {
+  /** 会话 id（uuid）。 */
+  id: string;
+  /** 场景包 id（greeting/zoo/...）；自由对话为 null。 */
+  sceneId: string | null;
+  /** 本会话累计星星数（AI-408）。 */
+  stars: number;
+  /** 用户+助手消息条数（不含 system）。 */
+  messageCount: number;
+  /** 最近一条消息文本预览（截断），无消息为 null。 */
+  lastMessagePreview: string | null;
+  /** 会话创建时间（ISO 字符串）。 */
+  createdAt: string;
+  /** 会话更新时间（ISO 字符串，可能为 null）。 */
+  updatedAt: string | null;
+}
+
+/** 历史消息（与后端 `ChatHistoryMessage` 对齐，AI-409 续聊前回显气泡）。 */
+export interface ChatHistoryMessage {
+  /** 消息 id（uuid）。 */
+  id: string;
+  /** 角色：user / assistant（不含 system）。 */
+  role: "user" | "assistant";
+  /** 消息正文。 */
+  text: string;
+  /** 狐狸朗读音频引用；历史消息当前恒为 null（历史音频未落库路径）。 */
+  ttsUrl: string | null;
+  /** 消息创建时间（ISO 字符串）。 */
+  createdAt: string;
+}

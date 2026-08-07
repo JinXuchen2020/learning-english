@@ -1,7 +1,7 @@
 # AI 集成功能 Backlog
 
 > 来源: `docs/ai-integration.md`
-> 更新: 2026-08-06
+> 更新: 2026-08-07
 > 说明: 按实施阶段(M1-M6)细分为可独立验收的 feature。每个 feature 有唯一 ID、优先级、依赖、验收标准。
 
 ## 状态图例
@@ -85,15 +85,15 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-401 | **`ai_chat_sessions` / `ai_chat_messages` 实体** — session (userId/sceneId/stars), message (role/text/audioPath) | P0 | — | backlog | 建表; 关联 User |
-| AI-402 | **TTS 集成** — `synthesize(text, voice)` 生成音频, 返回 URL 或 base64; 前端自动播放 | P0 | AI-102 | backlog | 狐狸音色发音自然; 播放可中断/重播 |
-| AI-403 | **聊天接口 `POST /api/ai/chat/messages`** — 接收 sessionId/sceneId/text; 组装历史+场景 prompt; 返回 replyText + ttsUrl | P0 | AI-401, AI-402 | backlog | 多轮上下文保持; 回复落库 |
-| AI-404 | **狐狸人设 System Prompt** — 年龄适配(5-10岁)、用词简单、不懂即换说法、可中英混说确认、话题守界; temperature 低 | P0 | AI-102 | backlog | 回复词汇量适配儿童; 不出现危险/超龄内容 |
-| AI-405 | **场景包** — 5 个场景 (打招呼/动物园/买东西/天气/身体部位), 每个含 System Prompt + 起始语 + 目标词汇 | P0 | AI-404 | backlog | 场景可枚举选择; 各场景引导词正确 |
-| AI-406 | **内容安全双保险** — 关键词黑名单拦截 + NVIDIA 内容安全模型 (`NVIDIA_SAFETY_MODEL` 默认 `nvidia/llama-3.1-nemoguard-8b-content-safety`) 二次分类过滤; 命中时返回安全兜底回复 | P0 | AI-403 | backlog | 注入测试词/恶意 prompt 被拦截或温和回应 |
-| AI-407 | **`/chat` 页面 — 会话 UI** — 场景选择卡 + 气泡对话 + 吉祥物 TTS 语音条 + 每条消息"跟读"按钮 | P0 | AI-403, AI-307 | backlog | 气泡对话流畅; 语音自动播放; 跟读复用录音组件 |
-| AI-408 | **对话星标与鼓励** — 完成 N 轮(如 8 轮)给星星 + 吉祥物庆祝; 会话 stars 持久化 | P1 | AI-407, AI-401 | backlog | 到轮数触发庆祝; 星星入库并在 Home 展示 |
-| AI-409 | **会话历史与续聊** — 我的会话列表, 可恢复历史会话继续对话 | P1 | AI-401, AI-407 | backlog | 历史消息完整回显; 续聊上下文不丢 |
+| AI-401 | **`ai_chat_sessions` / `ai_chat_messages` 实体** — session (userId/sceneId/stars), message (role/text/audioPath) | P0 | — | done | 建表; 关联 User（userId varchar 引用，与 AI-301 审计记录口径一致） |
+| AI-402 | **TTS 集成** — `synthesize(text, voice)` 生成音频, 返回 URL 或 base64; 前端自动播放 | P0 | AI-102 | done | 狐狸音色发音自然; 播放可中断/重播 |
+| AI-403 | **聊天接口 `POST /api/ai/chat/messages`** — 接收 sessionId/sceneId/text; 组装历史+场景 prompt; 返回 replyText + ttsUrl | P0 | AI-401, AI-402 | done | 多轮上下文保持; 回复落库 |
+| AI-404 | **狐狸人设 System Prompt** — 年龄适配(5-10岁)、用词简单、不懂即换说法、可中英混说确认、话题守界; temperature 低 | P0 | AI-102 | done | 回复词汇量适配儿童; 不出现危险/超龄内容 |
+| AI-405 | **场景包** — 5 个场景 (打招呼/动物园/买东西/天气/身体部位), 每个含 System Prompt + 起始语 + 目标词汇 | P0 | AI-404 | done | 场景可枚举选择; 各场景引导词正确 |
+| AI-406 | **内容安全双保险** — 关键词黑名单拦截 + NVIDIA 内容安全模型 (`NVIDIA_SAFETY_MODEL` 默认 `nvidia/llama-3.1-nemoguard-8b-content-safety`) 二次分类过滤; 命中时返回安全兜底回复 | P0 | AI-403 | done | 注入测试词/恶意 prompt 被拦截或温和回应 |
+| AI-407 | **`/chat` 页面 — 会话 UI** — 场景选择卡 + 气泡对话 + 吉祥物 TTS 语音条 + 每条消息"跟读"按钮 | P0 | AI-403, AI-307 | done | 气泡对话流畅; 语音自动播放; 跟读复用录音组件 |
+| AI-408 | **对话星标与鼓励** — 完成 N 轮(如 8 轮)给星星 + 吉祥物庆祝; 会话 stars 持久化 | P1 | AI-407, AI-401 | done | 到轮数触发庆祝; 星星入库并在 Home 展示 |
+| AI-409 | **会话历史与续聊** — 我的会话列表, 可恢复历史会话继续对话 | P1 | AI-401, AI-407 | done | 历史消息完整回显; 续聊上下文不丢 |
 
 ---
 

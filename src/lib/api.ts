@@ -13,6 +13,12 @@ import type {
   PlanStatusResponse,
   SpeechFeedback,
   EvaluateSpeechOptions,
+  ChatScene,
+  SendChatMessageDto,
+  SendChatMessageResponse,
+  ChatStarsResponse,
+  ChatSessionSummary,
+  ChatHistoryMessage,
 } from "./types";
 
 /**
@@ -337,4 +343,71 @@ async function postFormData<T>(
   }
 
   return body as T;
+}
+
+/* ----------------------------- Chat (AI-407) ---------------------------- */
+
+/**
+ * 枚举全部对话场景包（AI-405）。
+ * `GET /api/ai/chat/scenes`，返回 `ChatScene[]`（id/title/openingLine/targetVocabulary，
+ * 不含内部 systemPrompt）。用于 /chat 页场景选择卡。
+ */
+export function getChatScenes(): Promise<ChatScene[]> {
+  return request<ChatScene[]>("/ai/chat/scenes");
+}
+
+/**
+ * 发送一条对话发言并取回狐狸回复（AI-403/407）。
+ * `POST /api/ai/chat/messages`，body 与后端 `ChatMessageDto` 对齐。
+ * 返回 `{ sessionId, messageId, replyText, ttsUrl, stars, starAwarded, starsUntilNext }`
+ * （stars 字段为 AI-408 追加：完成 N 轮对话得一颗星星）；`ttsUrl` 为狐狸音色音频引用
+ * （data URI / URL，TTS 失败时 null）。续聊时调用方应携带上次的 `sessionId`。
+ *
+ * @param dto { text, sessionId?, sceneId?, userId? }
+ */
+export function sendChatMessage(
+  dto: SendChatMessageDto,
+): Promise<SendChatMessageResponse> {
+  return request<SendChatMessageResponse>("/ai/chat/messages", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 查询某用户全部对话会话累计星星数之和（AI-408）。
+ * `GET /api/ai/chat/stars?userId=`，供 Home 展示「聊天星星」。
+ * 与 messages 接口口径一致：缺省 userId → 后端用 `anonymous` 占位。
+ */
+export function getChatStars(userId?: string): Promise<ChatStarsResponse> {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return request<ChatStarsResponse>(`/ai/chat/stars${qs}`);
+}
+
+/**
+ * 列出某用户全部对话会话摘要（AI-409，「我的会话」列表）。
+ * `GET /api/ai/chat/sessions?userId=`，返回 `ChatSessionSummary[]`（按最近活动倒序）。
+ * 与 messages 接口口径一致：缺省 userId → 后端用 `anonymous` 占位。
+ */
+export function getChatSessions(
+  userId?: string,
+): Promise<ChatSessionSummary[]> {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return request<ChatSessionSummary[]>(`/ai/chat/sessions${qs}`);
+}
+
+/**
+ * 取回某会话的全部历史消息（AI-409，续聊前回显）。
+ * `GET /api/ai/chat/sessions/:id/messages?userId=`，返回 `ChatHistoryMessage[]`
+ * （按时间升序，仅 user/assistant）。
+ * @param sessionId 会话 id（对应 `ai_chat_sessions.id`）
+ */
+export function getChatSessionMessages(
+  sessionId: string,
+  userId?: string,
+): Promise<ChatHistoryMessage[]> {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return request<ChatHistoryMessage[]>(
+    `/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages${qs}`,
+  );
 }
