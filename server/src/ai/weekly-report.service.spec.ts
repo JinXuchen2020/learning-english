@@ -19,7 +19,7 @@ function zeroStats(date: string): DailyReportStats {
 function makeService(overrides: {
   user?: any;
   reports?: Partial<AiReport>[];
-  getDailyStats?: (date: string) => DailyReportStats;
+  getDailyStats?: (userId: string, date: string) => DailyReportStats;
   send?: any;
   saveLog?: any;
 } = {}) {

@@ -1,14 +1,14 @@
 {
-  "phase": "ai-506",
+  "phase": "ai-507",
   "stack": "node-ts (NestJS 10 + TypeORM + better-sqlite3)",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; 全量 jest 76 suites/638 tests 全绿[含 AI-506 新增 37 用例]; User.parentEmail 列 + AiParentEmailLog 实体纳入 appEntities/forFeature; 无新增前端改动/全栈契约)",
-    "tests": "PASSED (unit: weekly-report.service.spec[weekStartOf/聚合6指标/弱项Top10/趋势/发信+落库sent/无收件人跳过/失败落failed不抛] + log-email-sender.spec[落盘+sanitize] + email.service.spec[委托] + ai-weekly-report.controller.spec[透传] + 扩展 report-scheduler.service.spec[每周扫描仅含parentEmail用户/computeMsUntilNextWeekday/生命周期 fake-timers] + ai.module.spec[AiParentEmailLog仓库+EMAIL_SENDER_TOKEN 假值]; e2e/bdd: 0 [纯后端能力豁免, 家长可视化 Dashboard 属 AI-507])",
-    "review": "PASSED (0 open; 发信失败 catch+落failed日志不向上抛/不阻塞整轮扫描; 无 parentEmail 用户安全跳过; Union 用 'skipped' in 收窄; 复用 AI-502 getDailyStats 不重复统计; 单日 getDailyStats 抛错视该日为0活动不致命; onModuleInit 跳过 test 环境; 无裸 console)",
-    "optimization": "PASSED (0 open; 无 stub; 不引入新依赖[LogEmailSender 落盘零外部依赖, 真实 SMTP 为文档化扩展点]; 轻量 setTimeout/setInterval 调度每日+每周独立定时器; 聚合逐日 try/catch 容错)"
+    "consistency": "PASSED (nest build 0 错误; jest 76 suites/640 tests 全绿[含 AI-507 新增 2 控制器用例]; frontend tsc 0 错误 + vitest 8 files/75 tests 全绿[含 lib/weekly.spec 11 用例]; 全栈契约对齐: 后端 WeeklyReportData 镜像进 src/lib/types.ts, GET /api/ai/report/weekly/preview 与 getWeeklyReport 入参(userId/weekStart)一致; 无新增依赖)",
+    "tests": "PASSED (unit: 后端 ai-weekly-report.controller.spec[preview 透传 userId/weekStart 给 buildWeeklyReport + 缺 userId 抛 BadRequestException 共 2 例] + 前端 lib/weekly.spec[mondayOfWeekUTC/addDaysUTC/weekEndOf/todayUtc 跨月跨年/±7天导航 11 例]; e2e/bdd: parent-report.feature 3 scenarios/17 steps 全绿[趋势图7柱+6指标卡+弱项Cat,Dog+建议下钻 /practice?focusWord=Cat + 上周切换 label 含 2026-07-27], 用 page.route 模拟 preview 端点、真实后端注册新用户走 AuthGate 客户端导航)",
+    "review": "PASSED (0 open; 弱项下钻复用既有 /practice 的 focusWord query param, 改动最小向后兼容; 趋势图用原生 SVG(零新依赖)而非图表库; AuthGate 页禁 page.goto, 经 TabNav 客户端点击保内存 token; mock 端点回显请求 weekStart 使周切换 label 真实; 无裸 console)",
+    "optimization": "PASSED (0 open; 无 stub; 不引入新依赖[TrendChart 自绘 SVG + lib/weekly UTC 日期纯函数]; GET preview 直接复用 AI-506 buildWeeklyReport 聚合, 不重复统计; 前端仅在加载/周切换时请求一次, 无轮询)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-506-gate.md",
-  "notes": "AI-506 = 家长周报(邮件/推送)(纯后端, 无新 UI, AI-507 建 Dashboard): 新增 User.parentEmail 列 + AiParentEmailLog 实体(发送可追溯)。邮件抽象: EmailSender 接口 + 默认 LogEmailSender(落盘 server/logs/emails/, 零依赖) + EmailService。WeeklyReportService.buildWeeklyReport 复用 AI-502 getDailyStats 逐日聚合7天→6项指标/弱项Top10/趋势/每日亮点/建议+渲染 cozy-kids HTML; generateAndSendWeeklyReport 解析收件人(parentEmail||recipientEmail 覆盖)→调 EmailService→落 AiParentEmailLog(sent/failed)。端点 POST /api/ai/report/weekly(无 guard, 同 AI-502 口径)。扩展 AI-505 ReportSchedulerService: 每周默认周日20:00 扫描含 parentEmail 用户生成并发送(WEEKLY_REPORT_DAY/HOUR/ENABLED 可配, 独立定时器, 无邮箱跳过)。验证: nest build 0 错; jest 638 全绿(76 suites); 纯后端 E2E 豁免。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-506→done) + features/ai-506.md + docs/quality/ai-506-gate.md。"
+  "reportRef": "docs/quality/ai-507-gate.md",
+  "notes": "AI-507 = 家长报告 Dashboard(前端新页, 复用 AI-506 WeeklyReportData + buildWeeklyReport): 新增 GET /api/ai/report/weekly/preview(只读预览, 不发送邮件, 手动校验 userId)。前端: src/lib/types.ts 镜像 WeeklyReportData; src/lib/api.ts 增 getWeeklyReport; src/lib/weekly.ts 纯 UTC 日期逻辑(周一起点/±7天, 前后端一致); src/components/TrendChart.tsx 轻量 SVG(7 日柱 taskComplete + 折线 avgSpeechScore, 断点断开); src/app/parent-report/page.tsx Dashboard(6 指标卡 + 趋势图 + 弱项 Top10 可下钻 + AI 建议 + 周切换); src/components/TabNav.tsx 加「报告」Tab; src/app/practice/page.tsx 支持 focusWord 跳转弱项词。E2E: parent-report.feature 3 scenarios(看图/下钻/上周), page.route 模拟预览端点、真实注册新用户经 TabNav 客户端导航进页。验证: nest build 0 错; jest 640 全绿(76 suites); frontend tsc 0 错 + vitest 75 全绿; cucumber parent-report 3/3 绿。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-507→done) + features/ai-507.md + docs/quality/ai-507-gate.md。"
 }

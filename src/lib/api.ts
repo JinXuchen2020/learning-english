@@ -20,6 +20,7 @@ import type {
   ChatSessionSummary,
   ChatHistoryMessage,
   DailyReportResponse,
+  WeeklyReportData,
 } from "./types";
 
 /**
@@ -434,4 +435,25 @@ export function getDailyReport(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/* ----------------------- AI Weekly Report (AI-507) ----------------------- */
+
+/**
+ * 家长周报只读预览（AI-506/507 Dashboard 数据源）。
+ * `GET /api/ai/report/weekly/preview?userId=&weekStart=`，返回 `WeeklyReportData`
+ * （聚合指标/弱项Top10/趋势/每日亮点/建议），**不发送邮件**。
+ * 与每日报告同口径：路由无 guard，userId 由 query 传入（待全局鉴权收紧）。
+ *
+ * @param userId   用户 id（来自 `useAuth().user.id`）
+ * @param weekStart 可选周起始日 YYYY-MM-DD（Monday）；缺省后端按 UTC 当日推算所在周
+ */
+export function getWeeklyReport(
+  userId: string,
+  weekStart?: string,
+): Promise<WeeklyReportData> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (weekStart) params.set("weekStart", weekStart);
+  return request<WeeklyReportData>(`/ai/report/weekly/preview?${params.toString()}`);
 }

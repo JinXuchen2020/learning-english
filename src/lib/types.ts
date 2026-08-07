@@ -349,3 +349,62 @@ export interface DailyReportResponse {
   /** 当日聚合统计快照（新建时带值，幂等读回为 null）。 */
   stats?: DailyReportStats | null;
 }
+
+/* ----------------------- AI Weekly Report (AI-507) ----------------------- */
+
+/** 一周聚合指标（与后端 `WeeklyReportMetrics` 对齐）。 */
+export interface WeeklyReportMetrics {
+  /** 有学习活动的天数。 */
+  activeDays: number;
+  /** 7 日完成任务数求和。 */
+  totalTasksCompleted: number;
+  /** 7 日练习单词数求和。 */
+  totalWordsPracticed: number;
+  /** 7 日完成课程数求和。 */
+  totalLessonsCompleted: number;
+  /** 7 日口语跟读次数求和。 */
+  totalSpeechAttempts: number;
+  /** 7 日口语平均分（无口语为 null）。 */
+  avgSpeechScore: number | null;
+}
+
+/** 趋势点（每日任务完成数 + 口语平均分，供图表）。 */
+export interface MasteryTrendPoint {
+  /** 日期 YYYY-MM-DD。 */
+  date: string;
+  /** 当日口语平均分 [0,100]，无尝试为 null。 */
+  avgSpeechScore: number | null;
+  /** 当日完成任务数。 */
+  taskComplete: number;
+}
+
+/** 每日亮点（来自已落库 `ai_reports`）。 */
+export interface DailySummary {
+  date: string;
+  summaryText: string;
+  suggestionText: string;
+  isDefault: boolean;
+}
+
+/**
+ * 家长周报聚合结果（与后端 `WeeklyReportData` 对齐，AI-506/507）。
+ * 前端 Dashboard 仅消费 metrics / weakWordsTop / masteryTrend / dailySummaries / suggestions；
+ * `html` 为后端邮件正文（Dashboard 不渲染）。
+ */
+export interface WeeklyReportData {
+  userId: string;
+  childName: string;
+  /** 周起始日 YYYY-MM-DD（Monday）。 */
+  weekStart: string;
+  /** 周结束日 YYYY-MM-DD（Sunday）。 */
+  weekEnd: string;
+  metrics: WeeklyReportMetrics;
+  /** 7 日弱项单词按频次排序 Top10。 */
+  weakWordsTop: string[];
+  masteryTrend: MasteryTrendPoint[];
+  dailySummaries: DailySummary[];
+  /** 汇集的非空明日建议。 */
+  suggestions: string[];
+  /** 自包含 HTML 邮件正文（Dashboard 不渲染）。 */
+  html: string;
+}

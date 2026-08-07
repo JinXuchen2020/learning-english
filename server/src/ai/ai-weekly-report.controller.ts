@@ -1,6 +1,6 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, BadRequestException } from '@nestjs/common';
 import { GenerateWeeklyReportDto } from './generate-weekly-report.dto';
-import { WeeklyReportService, WeeklyReportSendResult } from './weekly-report.service';
+import { WeeklyReportService, WeeklyReportSendResult, WeeklyReportData } from './weekly-report.service';
 
 /**
  * 家长周报控制器（AI-506，M5 报告接口）。
@@ -21,5 +21,22 @@ export class AiWeeklyReportController {
       weekStart: dto.weekStart,
       recipientEmail: dto.recipientEmail,
     });
+  }
+
+  /**
+   * 家长 Dashboard 只读预览（AI-507）：聚合儿童一周学习数据为 `WeeklyReportData`，
+   * **不发送邮件**（与 `POST weekly` 的发送语义区分）。
+   * 路由 `GET /api/ai/report/weekly/preview?userId=&weekStart=`。
+   * 与 AI-502/504/506 同口径：不加 guard，userId 由 query 传入（待全局鉴权收紧）。
+   */
+  @Get('weekly/preview')
+  async preview(
+    @Query('userId') userId: string,
+    @Query('weekStart') weekStart?: string,
+  ): Promise<WeeklyReportData> {
+    if (!userId || !userId.trim()) {
+      throw new BadRequestException('userId is required');
+    }
+    return this.weeklyReportService.buildWeeklyReport(userId, weekStart);
   }
 }
