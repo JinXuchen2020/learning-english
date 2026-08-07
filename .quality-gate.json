@@ -1,14 +1,14 @@
 {
-  "phase": "ai-501",
+  "phase": "ai-502",
   "stack": "node-ts (NestJS 10 + TypeORM)",
   "gates": {
-    "consistency": "PASSED (nest build 0 错误; jest 271/271 全绿[含 ai-report.entity.spec 6 case]; npm run seed synchronize 成功建 ai_reports 表且无报错; 纯后端无全栈契约)",
-    "tests": "PASSED (unit: 1 file / 6 测试[建表默认值/weakWords simple-array 空+多元素 round-trip/(userId,date)唯一约束重复抛错/不同日期共存/不同用户同日共存]; e2e/bdd: 0 — 纯数据模型实体豁免, 已在 features/ai-501.md 显式标注, E2E 旅程随 AI-504 交付)",
-    "review": "PASSED (0 open; 空安全[summaryText/weakWords/suggestionText 默认]/唯一约束幂等由 AI-502 消费/可移植 simple-array 不用 json/in-memory 验证/时间列铁律 CreateDateColumn/无裸 console/与 AiUsage 风格一致/非硬 FK)",
-    "optimization": "PASSED (0 open; 无 stub/占位实现; simple-array 复用弱项存储; 无临时调试代码; 仅新增实体+注册无重构)"
+    "consistency": "PASSED (nest build 0 错误; jest 288/288 全绿[含 ai-report.service.spec 8 case + ai-report.controller.spec 2 case + ai-report.entity.spec 6 case]; npm run seed synchronize 成功建 ai_reports(isDefault 列) 且 POST /api/ai/report/daily HTTP 201 冒烟通过)",
+    "tests": "PASSED (unit: ai-report.service.spec 8[聚合口径/无活动默认不调AI且持久化/有活动调AI解析落库/幂等返回已有/幂等读回isDefault保持true/AI失败降级不持久化/JSON解析鲁棒含code fence/唯一约束race回查]; ai-report.controller.spec 2[POST透传userId/date/默认case isDefault/ValidationPipe 缺userId 400]; ai-report.entity.spec 6; e2e/bdd: 0 — 纯后端聚合接口豁免, 已在 features/ai-502.md 显式标注, E2E 旅程随 AI-504 交付)",
+    "review": "PASSED (0 open; 空安全[summaryText/weakWords??[]/suggestionText 默认]/幂等:(userId,date)唯一约束+findOne优先读回+isDefault持久化保证读回如实返回/AI失败降级不缓存/唯一约束race兜底不500/可移植simple-array/无裸console用logger.warn/与AiUsage风格一致/非硬FK/@Global模块只forFeature不export实体类)",
+    "optimization": "PASSED (0 open; 无 stub/占位实现; ReportAgent默认提示+鲁棒JSON解析(去code fence+截取首{}/尾})留AI-503精炼接缝; 4类聚合并行Promise.all; 仅新增service+controller+注册无重构)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-501-gate.md",
-  "notes": "AI-501 = 每日 AI 报告数据模型: 新增 AiReport 实体 → ai_reports 表(userId/date/summaryText/weakWords/suggestionText/createdAt), @Unique(['userId','date']) 保证同日重复生成返回已有报告(AI-502 消费); weakWords 用 simple-array 可移植(项目 better-sqlite3 无 json 列先例, 与 AiSpeechAttempt.weakPhonemes 同口径, 结构化弱项详情留 AI-502/503 DTO 层); 注册进 database.config appEntities(AI-501 核心交付: synchronize 建表) 与 AiModule.forFeature(@Global 全局可注入仓库, AI-502 直接注入无需改模块)。新增 ai-report.entity.spec.ts(in-memory better-sqlite3 + 真实 appEntities 行为测试 6 case)。BDD/E2E 豁免(纯后端实体)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-501 doing→done) + features/ai-501.md + docs/quality/ai-501-gate.md。"
+  "reportRef": "docs/quality/ai-502-gate.md",
+  "notes": "AI-502 = 每日 AI 报告聚合接口 POST /api/ai/report/daily: 聚合当日 taskComplete(来自TaskCompletion)/wordsPracticed(WordProgress.lastPracticedAt日期窗)/lessonsCompleted(LessonProgress.completed+completedAt窗)/speechAttempts+avgSpeechScore(AiSpeechAttempt), 调用 AiProvider.chat(ReportAgent默认提示) 解析 JSON 落 AiReport; 无活动→友好默认(持久化+isDefault=true, 同日幂等省AI调用); 有活动→真实小结; AI失败→降级默认不持久化可重试; 唯一约束 race→回查已有不500。isDefault 列追加进 AiReport 实体(AI-501 同 lineage, feat/ai-502 基于 feat/ai-501)保证幂等读回鼓励态不丢。Controller 不加 guard 与 ai/speech 一致(项目历史约定)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-502 doing→done) + features/ai-502.md + docs/quality/ai-502-gate.md + docs/ai-integration.md(AiReport 补 isDefault 字段)。"
 }

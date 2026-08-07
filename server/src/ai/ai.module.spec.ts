@@ -10,6 +10,9 @@ import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiReport } from './ai-report.entity';
+import { TaskCompletion } from '../entities/task-completion.entity';
+import { WordProgress } from '../entities/word-progress.entity';
+import { LessonProgress } from '../entities/lesson-progress.entity';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
@@ -41,6 +44,21 @@ const fakeAiReportRepo = {
   save: jest.fn(async (e) => e),
   find: jest.fn(async () => []),
   findOne: jest.fn(),
+};
+
+/** 假 TaskCompletion 仓库：让 `AiReportService`(AI-502 聚合 taskComplete) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeTaskCompletionRepo = {
+  count: jest.fn(async () => 0),
+};
+
+/** 假 WordProgress 仓库：让 `AiReportService`(AI-502 聚合 wordsPracticed) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeWordProgressRepo = {
+  find: jest.fn(async () => []),
+};
+
+/** 假 LessonProgress 仓库：让 `AiReportService`(AI-502 聚合 lessonsCompleted) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeLessonProgressRepo = {
+  find: jest.fn(async () => []),
 };
 
 /** 假 Word 仓库：让 `AiSpeechEvaluatorService`(AI-303) 在无需真实 DB 的情况下完成 DI 装配。 */
@@ -82,6 +100,12 @@ async function compileAiModule() {
     .useValue(fakeAiSpeechAttemptRepo)
     .overrideProvider(getRepositoryToken(AiReport))
     .useValue(fakeAiReportRepo)
+    .overrideProvider(getRepositoryToken(TaskCompletion))
+    .useValue(fakeTaskCompletionRepo)
+    .overrideProvider(getRepositoryToken(WordProgress))
+    .useValue(fakeWordProgressRepo)
+    .overrideProvider(getRepositoryToken(LessonProgress))
+    .useValue(fakeLessonProgressRepo)
     .overrideProvider(getRepositoryToken(Word))
     .useValue(fakeWordRepo)
     .overrideProvider(getRepositoryToken(Sentence))

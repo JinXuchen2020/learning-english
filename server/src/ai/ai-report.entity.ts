@@ -50,6 +50,15 @@ export class AiReport {
   @Column({ type: 'text', default: '' })
   suggestionText: string;
 
+  /**
+   * 是否为「无学习数据」的友好默认报告（AI-502）。
+   * - `true`：当日无活动，业务层未调 AI 直接落库的鼓励型默认（同日幂等复用）。
+   * - `false`：由 ReportAgent 真实聚合生成，或 AI 失败降级时的占位（前端不再展示 encourage 态）。
+   * 持久化该标志，保证幂等读回时如实返回，前端据此区分「默认鼓励」与「真实小结」。
+   */
+  @Column({ type: 'boolean', default: false })
+  isDefault: boolean;
+
   /** 报告生成时间（TypeORM 自动维护，sqlite→datetime / postgres→timestamptz）。 */
   @CreateDateColumn()
   createdAt: Date;
