@@ -65,7 +65,38 @@ describe('AiReportService.getDailyStats (AI-502 聚合口径)', () => {
       lessonsCompleted: 1,
       speechAttempts: 2,
       avgSpeechScore: 71, // round((80+61)/2)=round(70.5)=71
+      weakWordCandidates: [], // 无 word/attempts 详情 → 无候选
     });
+  });
+
+  it('弱项候选：当日低正确率真实单词入选、全对单词排除、去重上限5（AI-503）', async () => {
+    const { svc } = makeService({
+      wordProgressRepo: {
+        find: jest.fn(async () => [
+          { attempts: 3, correctCount: 1, word: { text: 'apple' } }, // 1/3≈0.33 <0.6 → 入选
+          { attempts: 2, correctCount: 0, word: { text: 'banana' } }, // 0 <0.6 → 入选
+          { attempts: 5, correctCount: 5, word: { text: 'cat' } }, // 1.0 → 排除
+          { attempts: 1, correctCount: 0, word: { text: 'apple' } }, // 重复 → 去重
+          { attempts: 4, correctCount: 2, word: { text: 'dog' } }, // 0.5 <0.6 → 入选
+          { attempts: 0, correctCount: 0, word: { text: 'egg' } }, // attempts<1 → 排除
+        ]),
+      },
+    });
+
+    const stats = await svc.getDailyStats('u1', DATE);
+
+    expect(stats.weakWordCandidates).toEqual(['apple', 'banana', 'dog']); // 去重后 3 个、均<0.6、cat/egg 排除
+    expect(stats.wordsPracticed).toBe(6);
+  });
+
+  it('弱项候选：WordProgress 无 word 关联时安全跳过，不抛', async () => {
+    const { svc } = makeService({
+      wordProgressRepo: {
+        find: jest.fn(async () => [{ attempts: 3, correctCount: 0 }]), // 无 word
+      },
+    });
+    const stats = await svc.getDailyStats('u1', DATE);
+    expect(stats.weakWordCandidates).toEqual([]);
   });
 
   it('无口语尝试时 avgSpeechScore 为 null', async () => {
@@ -104,6 +135,9 @@ describe('AiReportService.generateDailyReport (AI-502 生成流程)', () => {
     });
     const { svc, reportRepo, aiProvider } = makeService({
       taskCompletionRepo: { count: jest.fn(async () => 1) }, // 有活动
+      wordProgressRepo: {
+        find: jest.fn(async () => [{ attempts: 3, correctCount: 1, word: { text: 'apple' } }]),
+      },
       aiProvider: {
         name: 'mock',
         chat: jest.fn(async () => ({ text: agentText })),
@@ -122,6 +156,11 @@ describe('AiReportService.generateDailyReport (AI-502 生成流程)', () => {
     const res = await svc.generateDailyReport('u1', DATE);
 
     expect(aiProvider.chat).toHaveBeenCalledTimes(1);
+    // AI-503 验收：user 消息把真实弱项候选随统计一起喂给模型
+    const userMsg = (aiProvider.chat as jest.Mock).mock.calls[0][0][1].content as string;
+    const payload = JSON.parse(userMsg);
+    expect(payload).toHaveProperty('weakWordCandidates');
+    expect(Array.isArray(payload.weakWordCandidates)).toBe(true);
     expect(res.isDefault).toBe(false);
     expect(res.summaryText).toBe('今天你很棒！');
     expect(res.weakWords).toEqual(['apple', 'banana']);

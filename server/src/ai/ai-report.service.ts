@@ -30,6 +30,11 @@ export interface DailyReportStats {
   speechAttempts: number;
   /** 当日口语平均分 [0,100] 四舍五入；无口语尝试时为 null。 */
   avgSpeechScore: number | null;
+  /**
+   * 当日真实薄弱单词候选（AI-503）：来自 WordProgress 当日练习且正确率偏低（<0.6）的单词文本，
+   * 去重、上限 5。喂给 ReportAgent 作为其 weakWords 的唯一合法来源，保证「弱项来自真实错题、不编造」。
+   */
+  weakWordCandidates: string[];
 }
 
 /** `POST /api/ai/report/daily` 响应（AI-502）。 */
@@ -127,6 +132,7 @@ export class AiReportService {
       this.taskCompletionRepo.count({ where: { userId, date } }),
       this.wordProgressRepo.find({
         where: { userId, lastPracticedAt: Between(start, end) },
+        relations: ['word'],
       }),
       this.lessonProgressRepo.find({
         where: { userId, completed: true, completedAt: Between(start, end) },
@@ -146,6 +152,21 @@ export class AiReportService {
           )
         : null;
 
+    // 真实薄弱单词候选（AI-503）：当日练过且正确率偏低（<0.6）的单词，
+    // 取 word.text、去重、上限 5。作为 ReportAgent weakWords 的唯一合法来源。
+    const weakWordCandidates = Array.from(
+      new Set(
+        wordRows
+          .filter(
+            (r) =>
+              r.attempts >= 1 &&
+              r.word?.text &&
+              r.correctCount / r.attempts < 0.6,
+          )
+          .map((r) => r.word!.text),
+      ),
+    ).slice(0, 5);
+
     return {
       date,
       taskComplete,
@@ -153,6 +174,7 @@ export class AiReportService {
       lessonsCompleted,
       speechAttempts,
       avgSpeechScore,
+      weakWordCandidates,
     };
   }
 
