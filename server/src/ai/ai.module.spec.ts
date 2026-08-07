@@ -17,6 +17,7 @@ import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service'
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
+import { User } from '../entities/user.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -75,6 +76,14 @@ const fakeSentenceRepo = {
   save: jest.fn(async (e) => e),
 };
 
+/** 假 User 仓库：让 `ReportSchedulerService`(AI-505 每日扫描遍历用户) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeUserRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
 /** 假 AiPronunciationScorerService：让 `AiSpeechEvaluatorService`(AI-303 委托) 在无需真实 AI 链的情况下完成 DI 装配。 */
 const fakeScorer = {
   score: jest.fn(async () => ({
@@ -110,6 +119,8 @@ async function compileAiModule() {
     .useValue(fakeWordRepo)
     .overrideProvider(getRepositoryToken(Sentence))
     .useValue(fakeSentenceRepo)
+    .overrideProvider(getRepositoryToken(User))
+    .useValue(fakeUserRepo)
     .overrideProvider(AiPronunciationScorerService)
     .useValue(fakeScorer)
     .compile();

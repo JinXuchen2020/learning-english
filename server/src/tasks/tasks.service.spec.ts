@@ -5,6 +5,7 @@ import { TasksService } from './tasks.service';
 import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
+import { AiReportService } from '../ai/ai-report.service';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -31,15 +32,16 @@ describe('TasksService', () => {
   let tasksRepo: any;
   let completionsRepo: any;
   let dayRepo: any;
+  let aiReportService: any;
 
   beforeEach(async () => {
     tasksRepo = {
-      find: jest.fn(),
+      find: jest.fn(async () => []),
       findOne: jest.fn(async () => ({ id: 't1', planDayId: null })),
       create: jest.fn((e) => e),
     };
     completionsRepo = {
-      find: jest.fn(),
+      find: jest.fn(async () => []),
       findOne: jest.fn(),
       create: jest.fn((e) => e),
       save: jest.fn(async (e) => e),
@@ -47,12 +49,16 @@ describe('TasksService', () => {
     dayRepo = {
       update: jest.fn(async () => ({ affected: 1 })),
     };
+    aiReportService = {
+      generateDailyReport: jest.fn(async () => ({ userId: 'u1', date: '2026-08-07' })),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: getRepositoryToken(DailyTask), useValue: tasksRepo },
         { provide: getRepositoryToken(TaskCompletion), useValue: completionsRepo },
         { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
+        { provide: AiReportService, useValue: aiReportService },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
@@ -157,5 +163,62 @@ describe('TasksService', () => {
     expect(dayRepo.update).toHaveBeenCalledWith({ id: 'd9' }, { isDone: true });
     expect(completionsRepo.save).not.toHaveBeenCalled();
     expect(res).toEqual({ success: true, alreadyCompleted: true });
+  });
+
+  // ===== AI-505 Trigger A：完成当日全部任务 → 自动触发生成报告 =====
+
+  it('AI-505 完成当日全部任务（新完成）后触发生成报告一次', async () => {
+    const t = todayStr();
+    tasksRepo.findOne.mockResolvedValue({ id: 'g1', planDayId: null });
+    completionsRepo.findOne.mockResolvedValue(null);
+    // 当日仅一个全局种子任务 g1，且已完成 → getDailyTasks 判定全部完成
+    tasksRepo.find.mockImplementation(
+      mockFindByWhere([{ id: 'g1', title: 'Seed', description: '', icon: 'i', sortOrder: 0, userId: null, date: null }]),
+    );
+    completionsRepo.find.mockResolvedValue([{ taskId: 'g1', date: t }]);
+
+    await service.completeTask('u1', 'g1');
+
+    expect(aiReportService.generateDailyReport).toHaveBeenCalledTimes(1);
+    expect(aiReportService.generateDailyReport).toHaveBeenCalledWith('u1');
+  });
+
+  it('AI-505 完成一项但非全部完成 → 不触发生成', async () => {
+    const t = todayStr();
+    tasksRepo.findOne.mockResolvedValue({ id: 'g2', planDayId: null });
+    completionsRepo.findOne.mockResolvedValue(null);
+    // 两个全局任务 g1/g2，仅 g1 已完成 → 未全部完成
+    tasksRepo.find.mockImplementation(
+      mockFindByWhere([
+        { id: 'g1', title: 'A', description: '', icon: 'i', sortOrder: 0, userId: null, date: null },
+        { id: 'g2', title: 'B', description: '', icon: 'i', sortOrder: 1, userId: null, date: null },
+      ]),
+    );
+    completionsRepo.find.mockResolvedValue([{ taskId: 'g1', date: t }]);
+
+    await service.completeTask('u1', 'g2');
+
+    expect(aiReportService.generateDailyReport).not.toHaveBeenCalled();
+  });
+
+  it('AI-505 完成已完成的任务（alreadyCompleted）→ 不触发生成', async () => {
+    tasksRepo.findOne.mockResolvedValue({ id: 'g1', planDayId: null });
+    completionsRepo.findOne.mockResolvedValue({ id: 'c1' }); // 已完成 → 提前返回
+
+    await service.completeTask('u1', 'g1');
+
+    expect(aiReportService.generateDailyReport).not.toHaveBeenCalled();
+  });
+
+  it('AI-505 当日零任务（无可完成项）→ 不触发生成', async () => {
+    const t = todayStr();
+    tasksRepo.findOne.mockResolvedValue({ id: 'g1', planDayId: null });
+    completionsRepo.findOne.mockResolvedValue(null);
+    tasksRepo.find.mockImplementation(mockFindByWhere([])); // 无当日任务
+    completionsRepo.find.mockResolvedValue([]);
+
+    await service.completeTask('u1', 'g1');
+
+    expect(aiReportService.generateDailyReport).not.toHaveBeenCalled();
   });
 });

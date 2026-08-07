@@ -21,9 +21,11 @@ import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiReportService } from './ai-report.service';
 import { AiReportController } from './ai-report.controller';
 import { AiReport } from './ai-report.entity';
+import { ReportSchedulerService } from './report-scheduler.service';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { WordProgress } from '../entities/word-progress.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
+import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { AiController } from './ai.controller';
@@ -126,7 +128,7 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, TaskCompletion, WordProgress, LessonProgress, Word, Sentence])],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
   controllers: [AiController, AiReportController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
@@ -135,6 +137,7 @@ export function createAuditedProvider(
     AiCallLogService,
     AiSpeechAttemptService,
     AiReportService,
+    ReportSchedulerService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,
@@ -156,6 +159,8 @@ export function createAuditedProvider(
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,
+    AiReportService,
+    ReportSchedulerService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,

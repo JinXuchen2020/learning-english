@@ -4,6 +4,8 @@ import { In, IsNull, Repository } from 'typeorm';
 import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
+import { AiReportService } from '../ai/ai-report.service';
+import { logger } from '../common/logger/logger';
 
 /** 计划任务写入条目（AI-206 apply 时由 PlanService 组装）。 */
 export interface PlanTaskEntry {
@@ -25,6 +27,7 @@ export class TasksService {
     private completionsRepo: Repository<TaskCompletion>,
     @InjectRepository(StudyPlanDay)
     private dayRepo: Repository<StudyPlanDay>,
+    private aiReportService: AiReportService,
   ) {}
 
   /**
@@ -100,6 +103,28 @@ export class TasksService {
     await this.completionsRepo.save(
       this.completionsRepo.create({ userId, taskId, date: today }),
     );
+
+    // AI-505（Trigger A）：本次为新完成 → 检查是否「当日全部任务已完成」，是则自动触发生成每日报告。
+    // 副作用：失败仅告警，绝不阻塞任务完成主流程。
+    await this.maybeTriggerReport(userId);
+
     return { success: true, alreadyCompleted: false };
+  }
+
+  /**
+   * AI-505 Trigger A：若用户「当日全部任务已完成」（且至少有一条任务），
+   * 自动调 `AiReportService.generateDailyReport` 生成当天报告。
+   * 幂等由 AI-502 保证（同日已有报告直接返回，不重复生成）。
+   * 整段 try/catch：报告生成（含可能的 AI 调用）失败不影响任务完成响应。
+   */
+  private async maybeTriggerReport(userId: string): Promise<void> {
+    try {
+      const tasks = await this.getDailyTasks(userId);
+      if (tasks.length > 0 && tasks.every((t) => t.completed)) {
+        await this.aiReportService.generateDailyReport(userId);
+      }
+    } catch (err) {
+      logger.warn('[AI-505] 完成任务后自动生成报告失败（不影响任务完成）', err as Error);
+    }
   }
 }

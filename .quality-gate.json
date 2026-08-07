@@ -1,14 +1,14 @@
 {
-  "phase": "ai-504",
-  "stack": "node-ts (NestJS 10 + TypeORM + Next.js 14 + Vitest + Cucumber/Playwright)",
+  "phase": "ai-505",
+  "stack": "node-ts (NestJS 10 + TypeORM + better-sqlite3)",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0 错误; vitest 64/64 全绿[含 api.spec 新增 3: getDailyReport 成功 POST 体/date 可选/400 抛 ApiError]; e2e typecheck:e2e 0 错误; 全栈契约与 AI-502 响应体对齐)",
-    "tests": "PASSED (unit: src/lib/api.spec.ts 3[getDailyReport 成功 POST /api/ai/report/daily(userId 体/date 可选)/400 抛 ApiError]; e2e/bdd: home-dashboard.feature 新增 3 scenario[报告卡展示 summary+weakWords chip / 展开详情含日期 / 失败显示生成按钮+点击重试成功] + 全栈套件 35 scenario/278 step 全绿)",
-    "review": "PASSED (0 open; 纯前端消费层不新增后端接口; 复用既有 mapBackendMascotExpr 映射后端 mascotExpr; reportLoading 区分'未装载/失败'避免成功路径闪现生成按钮; 失败独立 try 不阻塞主数据; 无裸 console; data-component 钩子齐全)",
-    "optimization": "PASSED (0 open; 报告拉取随主数据并行独立装载零阻塞; 无 stub; 不引入新依赖; 弱项以 chip 展示零额外请求)"
+    "consistency": "PASSED (nest build 0 错误; 全量 jest 72 suites/615 tests 全绿[含 AI-505 新增 tasks.service.spec 4 用例 + report-scheduler.service.spec]; 无新增路由/前端改动/全栈契约)",
+    "tests": "PASSED (unit: tasks.service.spec.ts 扩展 4[全部完成触发/未全部不触发/已完成不触发/零任务不触发] + 新增 report-scheduler.service.spec.ts[computeMsUntilNext/runDailySweep 遍历+容错/调度生命周期 fake-timers]; e2e/bdd: 0 [纯后端触发豁免，报告卡旅程 AI-504 已覆盖])",
+    "review": "PASSED (0 open; 副作用 catch+warn 不阻塞任务完成; AiModule @Global 导出 AiReportService 无循环依赖; 无裸 console; 幂等复用 AI-502; onModuleInit 跳过 test 环境)",
+    "optimization": "PASSED (0 open; 无 stub; 不引入新依赖; 轻量 setTimeout/setInterval 调度; maybeTriggerReport 零任务空安全)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-504-gate.md",
-  "notes": "AI-504 = Home「今日 AI 小结」卡片(纯前端消费层, 不新增后端接口): types.ts 加 DailyReportResponse/DailyReportStats; api.ts 加 getDailyReport(userId,date?)->POST /ai/report/daily; page.tsx 加 AiReportCard(吉祥物气泡+summary+weakWords chip+suggestion+展开详情; 无报告/失败显示生成按钮可重试), load() 内独立 try 拉取(与 chat stars 同口径); 复用 mapBackendMascotExpr 渲染表情。踩坑(已写入 MEMORY): E2E '失败→重试' 初版用'首次500后续200', 但 React StrictMode dev 双调用 effect 导致第2次已返回200、生成按钮瞬间被覆盖→改为显式开关挂 world.page(__reportFail), 点击 step 翻转为成功, 兼容 StrictMode; 且各 step new HomePage 不能共享实例字段, 故开关必须挂在共享 page 对象上。验证: tsc 0 错; vitest 64/64; e2e 全栈 35/35 全绿。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-504 doing→done) + features/ai-504.md + docs/quality/ai-504-gate.md。"
+  "reportRef": "docs/quality/ai-505-gate.md",
+  "notes": "AI-505 = 每日 AI 报告自动生成触发(纯后端, 无新 UI/路由): Trigger A 在 TasksService.completeTask 新完成时调 maybeTriggerReport, 判定当日全部任务完成则 generateDailyReport(userId)(catch 兜底不阻塞主流程); AiModule 加导出 AiReportService + 追加 User 到 forFeature。Trigger B 新增 ReportSchedulerService(注册进 AiModule): runDailySweep 遍历所有用户各 generateDailyReport 一次(逐用户容错), computeMsUntilNext(20:00) 纯函数, onModuleInit 在 NODE_ENV!=='test' 且 REPORT_SWEEP_ENABLED!=='false' 时启动每日 setTimeout+setInterval 调度, onModuleDestroy 清除。幂等复用 AI-502 保证'完成条件触发一次; 不重复生成'。验证: nest build 0 错; jest 615 全绿(72 suites); 纯后端 E2E 豁免(AI-504 已覆盖报告卡)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-505 backlog→done) + features/ai-505.md + docs/quality/ai-505-gate.md。"
 }
