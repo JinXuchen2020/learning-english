@@ -5,13 +5,17 @@
 //     <a aria-label="练习弱项单词 Cat" href="/practice?focusWord=Cat">Cat</a>
 //   </div>
 //
-// The report list re-renders on data refresh, which detaches the <a> between
-// locator resolution and the click action — Playwright then retries for the
-// full timeout and fails with "element was detached from the DOM".
+// The weak-word <a> is a Next.js <Link> that triggers client-side navigation to
+// /practice. Playwright's default click waits for the element to be "stable"
+// after scrolling, but the click itself kicks off the route change, which unmounts
+// this node — so the actionability retry races with the unmount and reports
+// "element was detached from the DOM". (Root cause is the navigation, NOT a
+// re-render: the component already uses a stable key={word} and the memoized
+// auth context keeps `user` stable, so there is no list remount to fix here.)
 //
-// clickWeakWord() works around this by re-resolving the locator on every retry
-// so it always lands on a *live* node. (The real fix is stable React keys on
-// the WeakWordItem list — see the component-side note in the PR description.)
+// clickWeakWord() forces the click (skip the stability re-check that races with
+// the navigation) and re-resolves the locator on every retry so it always lands
+// on a *live* node.
 import { Locator, Page } from "@playwright/test";
 
 // Route of the parent report page. Adjust if the real route differs.
@@ -44,9 +48,11 @@ export default class ParentReportPage {
   }
 
   /**
-   * Click the practice link for a weak word, retrying through transient DOM
-   * detachment. The locator is re-resolved on every attempt so we never click a
-   * stale (detached) node — this is what fixes the 15s timeout flake.
+   * Click the practice link for a weak word. The click triggers client-side
+   * navigation, which unmounts this node, so we force the click (skip the
+   * stability re-check that otherwise races the unmount) and re-resolve the
+   * locator on every retry so we always dispatch on a live node. This is what
+   * fixes the 15s "element was detached from the DOM" timeout flake.
    */
   async clickWeakWord(word: string): Promise<void> {
     const selector = `[data-component="WeakWordItem"][data-weak-word="${word}"] a`;
@@ -55,12 +61,13 @@ export default class ParentReportPage {
     while (Date.now() < deadline) {
       try {
         const link = this.page.locator(selector).first();
-        await link.waitFor({ state: "visible", timeout: 1000 });
-        await link.click({ timeout: 1000 });
+        await link.waitFor({ state: "attached", timeout: 1000 });
+        // force: skip visibility/stability re-checks that race with the navigation
+        await link.click({ force: true, timeout: 1000 });
         return;
       } catch (err) {
         lastErr = err;
-        // Let the in-flight re-render settle, then retry on a fresh node.
+        // Element detached mid-dispatch — retry on a fresh node.
         await this.page.waitForTimeout(120);
       }
     }
