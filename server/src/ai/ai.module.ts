@@ -18,6 +18,7 @@ import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { AiReport } from './ai-report.entity';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { AiController } from './ai.controller';
@@ -120,7 +121,7 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, Word, Sentence])],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, Word, Sentence])],
   controllers: [AiController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },

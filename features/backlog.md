@@ -101,7 +101,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-501 | **`ai_reports` 实体** — userId/date/summaryText/weakWords(JSON)/suggestionText/createdAt, (userId,date) 唯一防重复 | P0 | — | backlog | 同日重复生成返回已有报告 |
+| AI-501 | **`ai_reports` 实体** — userId/date/summaryText/weakWords(JSON)/suggestionText/createdAt, (userId,date) 唯一防重复 | P0 | — | done | 同日重复生成返回已有报告 |
 | AI-502 | **报告接口 `POST /api/ai/report/daily`** — 聚合当日 attempts/speechScores/taskComplete (来自 ProgressModule), 调用 AiProvider.chat(ReportAgent) | P0 | AI-106, 现有 ProgressModule, AI-501 | backlog | 无学习数据时返回友好默认报告; 有数据时含真实统计 |
 | AI-503 | **ReportAgent System Prompt** — 输出 summaryText/weakWords/suggestion/mascotExpr 结构化 JSON; 语气鼓励、不批评 | P0 | AI-502 | backlog | 输出通过 JSON 校验; 弱项列表来自真实错题 |
 | AI-504 | **Home "今日 AI 小结" 卡片** — 吉祥物气泡展示报告摘要 + 弱项 + 明日建议; 无报告时显示生成按钮 | P0 | AI-502 | backlog | 卡片展示报告; 点击可展开详情 |

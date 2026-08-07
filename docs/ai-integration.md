@@ -255,7 +255,7 @@ POST /api/ai/report/daily body: {userId, date}
 @Entity() class AiSpeechAttempt { id, userId, wordId?, sentenceId?, audioPath, score, weakPhonemes(JSON), createdAt }
 @Entity() class AiChatSession { id, userId, sceneId, stars, createdAt, updatedAt }
 @Entity() class AiChatMessage { id, sessionId, role(user|assistant|system), text, audioPath?, createdAt }
-@Entity() class AiReport { id, userId, date, summaryText, weakWords(JSON), suggestionText, createdAt }
+@Entity('ai_reports') @Unique(['userId','date']) class AiReport { id, userId, date, summaryText, weakWords(simple-array), suggestionText, createdAt }  // 落地于 server/src/ai/ai-report.entity.ts（AI-501）
 ```
 
 ---

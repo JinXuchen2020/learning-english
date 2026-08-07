@@ -1,14 +1,14 @@
 {
-  "phase": "ai-409",
-  "stack": "node-ts",
+  "phase": "ai-501",
+  "stack": "node-ts (NestJS 10 + TypeORM)",
   "gates": {
-    "consistency": "PASSED (frontend tsc --noEmit 0 错误; next build 通过[/chat 编译 200]; vitest 84/84 全绿[较 AI-408 基线 +4: lib/api.spec 扩 getChatSessions/getChatSessionMessages 各 2 case]; backend nest build 通过; jest 聊天 111/111 全绿[chat-sessions.spec 纯函数 7 case + chat.service.spec +6 + chat.controller.spec +3]; 无数据库 schema 变更[复用 AI-401 表/列]; node_modules 已装, 无新依赖引入)",
-    "tests": "PASSED (unit: vitest 84/84[lib/api.spec +4 case getChatSessions/getChatSessionMessages 带/不带 userId]; jest 聊天 111/111[chat-sessions.spec 7 case: 空/无消息/按活动倒序/仅统计 user+assistant 排除 system/预览截断80/无updatedAt按消息时间; chat.service.spec +6: listSessions 倒序/空/按userId过滤/计数预览带星/getSessionMessages 升序排除system+ttsUrl全null/透传; chat.controller.spec +3: sessions/sessions/:id/messages 透传+缺省]; e2e/bdd: chat.feature 10 scenarios 全绿[较 AI-408 +3 AI-409: 恢复历史查看/从历史开新对话/续聊继续且历史不丢]; 全部后端路由 page.route 打桩[scenes/messages(回显sessionId)/sessions/sessions/:id/messages/safety-fallback/evaluate], 不依赖真实 LLM 与 AI 配额, 稳定无 flake)",
-    "review": "PASSED (0 open; 纯逻辑抽离 chat-sessions.ts[buildSessionSummaries/toHistoryMessage], 与 DB/Nest 解耦可单测; listSessions 排序以真实「最近活动」为准不依赖 updatedAt; getSessionMessages 仅回显 user/assistant 排除 system; 续聊上下文不丢由 AI-403 sendMessage[sessionId复用+历史重建LLM] 保证; 列表加载/续聊失败独立 catch 不阻断新对话; data-component 钩子齐全 ChatSessionList/ChatSessionItem[data-session-id][data-active]/ChatSessionEmpty/button[data-action=new-chat]; 无裸 console[统一 logger]; 复用 AI-401 实体无 migration; 鉴权 deferred 与全仓库口径一致)",
-    "optimization": "PASSED (0 open; 无 stub/占位实现; listSessions 用 In(sessionIds) 一次取回消息[2 次查询非 N+1], 内存分组后纯函数排序零副作用; 历史回显 ttsUrl 恒 null[音频未落库路径]无多余请求; 前端 loadSessions/续聊请求独立 try/catch 失败不阻塞主链路; 无临时调试代码)"
+    "consistency": "PASSED (nest build 0 错误; jest 271/271 全绿[含 ai-report.entity.spec 6 case]; npm run seed synchronize 成功建 ai_reports 表且无报错; 纯后端无全栈契约)",
+    "tests": "PASSED (unit: 1 file / 6 测试[建表默认值/weakWords simple-array 空+多元素 round-trip/(userId,date)唯一约束重复抛错/不同日期共存/不同用户同日共存]; e2e/bdd: 0 — 纯数据模型实体豁免, 已在 features/ai-501.md 显式标注, E2E 旅程随 AI-504 交付)",
+    "review": "PASSED (0 open; 空安全[summaryText/weakWords/suggestionText 默认]/唯一约束幂等由 AI-502 消费/可移植 simple-array 不用 json/in-memory 验证/时间列铁律 CreateDateColumn/无裸 console/与 AiUsage 风格一致/非硬 FK)",
+    "optimization": "PASSED (0 open; 无 stub/占位实现; simple-array 复用弱项存储; 无临时调试代码; 仅新增实体+注册无重构)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-409-gate.md",
-  "notes": "AI-409 = 会话历史与续聊: 新增 GET /api/ai/chat/sessions?userId=(ChatService.listSessions → 纯函数 buildSessionSummaries 按最近活动倒序, 仅统计 user+assistant, 预览截断80) 与 GET /api/ai/chat/sessions/:id/messages?userId=(ChatService.getSessionMessages → 仅 user/assistant 升序, toHistoryMessage 映射, ttsUrl 恒 null)。前端 /chat 顶部「My conversations」面板: useEffect 内 getChatSessions 拉列表渲染 ChatSessionItem[场景标题+预览+星星+消息数]; 点项 → handleResumeSession 调 getChatSessionMessages 回显历史并同步 sessionId/selectedSceneId/sessionStars, 续聊时 sendMessage 携 sessionId 由后端接上上下文; 「+ New chat」(data-action=new-chat) → handleNewChat 清空。新增 chat-sessions.ts + spec(7); chat.service/controller 扩 listSessions/getSessionMessages + spec(9); 前端 types/api(+getChatSessions/getChatSessionMessages+spec 4)/chat/page.tsx(面板+resume+new chat); E2E POM chat.ts 扩 mockChatSessions/mockChatSessionMessages/clickSession/sessionItemCount/clickNewChat/chatMessageContains 且 mockChatReply 回显请求 sessionId; chat.steps.ts + chat.feature +3 AI-409 scenarios。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-409 mark done) + docs/ai-integration.md 后端 sessions/sessions/:id/messages 端点 + 前端「My conversations」面板 + features/ai-409.md + docs/quality/ai-409-gate.md。"
+  "reportRef": "docs/quality/ai-501-gate.md",
+  "notes": "AI-501 = 每日 AI 报告数据模型: 新增 AiReport 实体 → ai_reports 表(userId/date/summaryText/weakWords/suggestionText/createdAt), @Unique(['userId','date']) 保证同日重复生成返回已有报告(AI-502 消费); weakWords 用 simple-array 可移植(项目 better-sqlite3 无 json 列先例, 与 AiSpeechAttempt.weakPhonemes 同口径, 结构化弱项详情留 AI-502/503 DTO 层); 注册进 database.config appEntities(AI-501 核心交付: synchronize 建表) 与 AiModule.forFeature(@Global 全局可注入仓库, AI-502 直接注入无需改模块)。新增 ai-report.entity.spec.ts(in-memory better-sqlite3 + 真实 appEntities 行为测试 6 case)。BDD/E2E 豁免(纯后端实体)。四质量门 + pre-commit hook 放行, 提交不 push。文档同步: backlog(AI-501 doing→done) + features/ai-501.md + docs/quality/ai-501-gate.md。"
 }
