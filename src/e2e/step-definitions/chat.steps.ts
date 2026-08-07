@@ -46,6 +46,19 @@ Given(
   },
 );
 
+// AI-408：模拟「完成 N 轮得星」——第 round 次调用 messages 端点时返回 starAwarded。
+Given(
+  "the chat reply will be {string} with a fox voice and awards a star on round {int}",
+  async function (this: E2EWorld, reply: string, round: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.mockChatReply(reply, FOX_VOICE_WAV, {
+      awardOnRound: round,
+      starStars: 1,
+      starsUntilNext: 8,
+    });
+  },
+);
+
 Given(
   "the read-along evaluation will return a passing score",
   async function (this: E2EWorld) {
@@ -215,6 +228,43 @@ Then(
     }
     if (!found) {
       throw new Error(`Expected a fox reply containing "${expected}"`);
+    }
+  },
+);
+
+// AI-408：连续对话 N 轮（mock 后端，不发真实请求），用于触发「第 N 轮得星」里程碑。
+When(
+  "I chat for {int} rounds saying {string}",
+  async function (this: E2EWorld, rounds: number, text: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const replySel =
+      '[data-component="ChatBubble"][data-role="assistant"][data-opening="false"]';
+    for (let i = 0; i < rounds; i++) {
+      const before = await this.page.locator(replySel).count();
+      await page.typeMessage(text);
+      await page.clickSend();
+      await this.page
+        .locator(replySel)
+        .nth(before)
+        .waitFor({ timeout: 15000 });
+    }
+  },
+);
+
+Then("I should see a star celebration", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (!(await page.isStarCelebrationVisible())) {
+    throw new Error("Expected a star celebration banner after earning a chat star");
+  }
+});
+
+Then(
+  "I should see a chat star count of {int}",
+  async function (this: E2EWorld, expected: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    const text = await page.starCountText();
+    if (!text || Number(text) !== expected) {
+      throw new Error(`Expected chat star count of ${expected} but got "${text}"`);
     }
   },
 );

@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Body, HttpException, HttpStatus } from '@nestjs/common';
-import { ChatService, ChatSendResponse } from './chat.service';
+import { Controller, Post, Get, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
+import { ChatService, ChatSendResponse, ChatStarsResponse } from './chat.service';
 import { ChatMessageDto } from './chat-message.dto';
 import { ChatError } from './chat.errors';
 import { ChatScenesService } from './chat-scenes.service';
@@ -46,5 +46,15 @@ export class ChatController {
   @Get('scenes')
   scenes(): SceneSummary[] {
     return this.chatScenes.list();
+  }
+
+  /**
+   * 查询某用户全部对话会话累计星星数之和（AI-408），供 Home 展示「聊天星星」。
+   * @param userId 用户 id（缺省 `anonymous` 占位，与 messages 接口口径一致）
+   * @returns `{ stars }` 累计星星数
+   */
+  @Get('stars')
+  async stars(@Query('userId') userId?: string): Promise<ChatStarsResponse> {
+    return this.chat.getStars(userId);
   }
 }

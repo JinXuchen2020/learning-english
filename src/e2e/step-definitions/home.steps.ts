@@ -1,6 +1,7 @@
 // Home dashboard assertions.
-import { Then, When } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
 import HomePage from "../support/pages/home";
+import ChatPage from "../support/pages/chat";
 import type E2EWorld from "../support/world";
 
 Then("I should see the greeting containing {string}", async function (this: E2EWorld, text: string) {
@@ -70,4 +71,29 @@ Then(
       throw new Error(`Expected plan done count > ${threshold} but got ${doneDays}`);
     }
   }
+);
+
+// AI-408：聊天星星 Home 展示
+Given(
+  "the chat stars endpoint returns {int} stars",
+  async function (this: E2EWorld, stars: number) {
+    const chat = new ChatPage(this.page, this.baseUrl);
+    await chat.mockChatStars(stars);
+  },
+);
+
+Then(
+  "I should see the chat stars card with {int}",
+  async function (this: E2EWorld, expected: number) {
+    const chat = new ChatPage(this.page, this.baseUrl);
+    // 等待 Home 的异步 getChatStars 装载完成（卡片仅在 chatStars>0 时渲染）。
+    await this.page
+      .locator('[data-component="ChatStars"]')
+      .first()
+      .waitFor({ timeout: 10000 });
+    const text = await chat.chatStarsText();
+    if (!text || !text.includes(String(expected))) {
+      throw new Error(`Expected chat stars card with ${expected} but got "${text}"`);
+    }
+  },
 );

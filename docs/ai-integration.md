@@ -177,11 +177,13 @@ multipart: audio (webm/wav), wordId | sentenceId, userId
 - 场景选择卡: 进入即 `getChatScenes()`(`GET /api/ai/chat/scenes`) 拉取, 渲染 `SceneCards`/`SceneCard[data-scene-id]`; 选中场景 → 注入 `openingLine` 作为狐狸开场种子气泡(`ChatBubble[data-role=assistant][data-opening=true]`) + 展示 `SceneVocab` 目标词汇; 前端不硬编码场景内容
 - 类微信气泡 UI `ChatThread`/`ChatBubble[data-role][data-opening]`: 用户输入经 `sendChatMessage(dto)`(`POST /api/ai/chat/messages`) → 狐狸回复气泡 + **TTS 自动播**
 - TTS 自动播: 纯逻辑 `src/lib/audio.ts` 的 `normalizeTtsUrl`/`playTts`(创建 `Audio`, `autoplay=true`, 自动播放被拒 `.catch` 吞掉); `ChatTtsAudio[data-component]` 语音条 `autoPlay` + 手动 🔊 重播按钮; headless 自动播需 `--autoplay-policy=no-user-gesture-required`(hooks.ts 已加)
-- 每条狐狸回复底下"跟读"按钮(ReadAlong): 复用 `SpeechRecorder` 组件 + `evaluateSpeech`(`POST /api/ai/speech/evaluate`), 走与 `/speech` 同套录音→评测→反馈(`ReadAlongFeedback`); 通过攒星逻辑属 **AI-408**
+- 每条狐狸回复底下"跟读"按钮(ReadAlong): 复用 `SpeechRecorder` 组件 + `evaluateSpeech`(`POST /api/ai/speech/evaluate`), 走与 `/speech` 同套录音→评测→反馈(`ReadAlongFeedback`); 跟读通过星属 **AI-307/AI-408** 口语评测星, 与下方对话星标相互独立
 - 输入区 `ChatInput`/`ChatComposer`: `Enter` 发送, 空消息禁用
-- 关键 `data-component` 钩子(用于 E2E): `ChatPage`/`ChatTitle`/`SceneCards`/`SceneCard`[data-scene-id]/`SceneVocab`/`ChatThread`/`ChatBubble`[data-role][data-opening]/`ChatTtsAudio`/`ChatInput`/`ChatComposer`/`ReadAlongPanel`/`ReadAlongFeedback`
+- **对话星标与鼓励（AI-408 已落地）**: `POST /api/ai/chat/messages` 响应体新增 `stars`/`starAwarded`/`starsUntilNext` 三字段, 前端据此——① 头部 `ChatStarCount[data-component]` 徽标实时显示本会话累计星数(`sessionStars`); ② 当 `starAwarded` 为真时弹出 `ChatStarCelebration[data-component][data-stars]` 吉祥物庆祝横幅(`Mascot expression="celebrating"`), 4 秒后自动消失(`setTimeout`), 可点「Keep chatting!」(`data-action="dismiss-celebration"`) 立即关闭
+- **Home 聊天星星卡（AI-408 已落地）**: `src/app/page.tsx` 问候横幅新增 `ChatStars[data-component]` 卡（`MessageCircle` 图标 + 累计数 + "chat" 标签），仅在 `chatStars>0` 时渲染；`load()` 中独立 `await api.getChatStars(user?.id)`（与主数据 `Promise.all` 解耦，失败 `catch` 不阻塞主流程），聚合该用户所有会话累计星，与练习星(`progress.totalStars`)相互独立展示
+- 关键 `data-component` 钩子(用于 E2E): `ChatPage`/`ChatTitle`/`SceneCards`/`SceneCard`[data-scene-id]/`SceneVocab`/`ChatThread`/`ChatBubble`[data-role][data-opening]/`ChatTtsAudio`/`ChatInput`/`ChatComposer`/`ReadAlongPanel`/`ReadAlongFeedback`/`ChatStarCount`/`ChatStarCelebration`[data-stars]
 - 类型见 `src/lib/types.ts` `ChatScene`/`ChatMessage`/`SendChatMessageDto`/`SendChatMessageResponse`(对齐后端 `SceneSummary`/`ChatSendResponse`/`ChatMessageDto`)
-- **E2E/BDD**: `src/e2e/features/chat.feature` **6 scenarios / 52 steps** 全绿(约束 #6 前端功能必做 BDD); 全部后端路由 `page.route` 打桩(场景/回复/安全兜底/评测), 不依赖真实 LLM 与 AI 配额, 稳定无 flake; 多轮对话断言改用「等待第 N 个回复气泡出现」避免 `.first()` 竞态
+- **E2E/BDD**: `src/e2e/features/chat.feature` **7 scenarios / ~58 steps** 全绿(约束 #6 前端功能必做 BDD); 全部后端路由 `page.route` 打桩(场景/回复/安全兜底/评测/stars), 不依赖真实 LLM 与 AI 配额, 稳定无 flake; 多轮对话断言改用「等待第 N 个回复气泡出现」避免 `.first()` 竞态; 新增「AI-408 完成 8 轮得星庆祝」场景用 `mockChatReply(..., {awardOnRound:8})` 第 8 次回复返回 `starAwarded` 触发庆祝 + `I chat for 8 rounds saying` 步骤循环发 8 条; Home 端 `home-dashboard.feature` 新增「聊天星星卡」场景(`mockChatStars(3)` → 断言 `ChatStars[data-component]` 含 3)
 
 **后端**（AI-403 已落地 `ChatModule` 的 `ChatController`）
 ```
@@ -198,7 +200,14 @@ GET /api/ai/chat/scenes
   → 返回 [ { id, title, openingLine, targetVocabulary[] } ]   // 顺序即展示顺序
   // 5 个场景: greeting / zoo / shopping / weather / body
   // 场景内容由 chat-scenes.ts 的 SCENE_PACKAGES 注册表单一数据源维护
+
+GET /api/ai/chat/stars?userId=   （AI-408 新增）
+  → ChatService.getStars(userId?) 用 queryBuilder 对 ai_chat_sessions 表
+    SELECT COALESCE(SUM(stars),0) WHERE userId = :uid（缺省 anonymous 不匹配任何 userId → 0）
+  → 返回 { stars }   // 该用户所有会话累计星星数，供 Home 展示「聊天星星」徽标
 ```
+
+- **对话星标逻辑（AI-408 已落地）**: 纯函数 `chat-stars.ts` 的 `computeStars(rounds, prevStars)` 与阈值常量 `CHAT_STAR_ROUNDS = 8` 单一数据源——`stars = floor(rounds / 8)`, `starAwarded = stars > prevStars`, `starsUntilNext` 为距下一颗星的轮数（余数 0 时为 8）。`ChatService.sendMessage` 在 TTS 合成后, 用 `messageRepo.count({where:{sessionId, role:'user'}})` 得到本会话已完成轮数 `rounds`, 调用 `computeStars(rounds, session.stars)`, 当 `starAwarded` 时把新 `stars` 落库 `ai_chat_sessions.stars`(该列 AI-401 已建, 默认 0), 并在响应体带回 `stars/starAwarded/starsUntilNext`; 用 `stars > prevStars` 判定（而非 `rounds % 8 === 0`）避免续聊/重复 send 导致双发星。`getStars` 独立聚合, 与主对话链路解耦。
 - 会话状态存 `ai_chat_sessions` / `ai_chat_messages` 表（AI-401 建表）;
 - 系统提示由 `chat-system-prompt.ts` 的 `buildChatSystemPrompt(sceneId)` 组装：狐狸人设 + 已知场景 framing（greeting/zoo/shopping/weather/body）+ 基线儿童安全规则。
 - 场景包（**AI-405 已落地**）：5 个场景的「情境引导 systemPrompt + 起始语 openingLine + 目标词汇 targetVocabulary」统一维护于 `chat-scenes.ts` 的 `SCENE_PACKAGES` 注册表（单一数据源），由 `ChatScenesService`（Nest 注入 seam）暴露 `GET /api/ai/chat/scenes` 供前端枚举；`chat-system-prompt.ts` 的 `SCENE_PROMPTS` 与 `buildChatSystemPrompt` 均从注册表派生，不再重复维护场景文本。未知/自由对话（sceneId 不在 5 个内）仍走原人设流程，不附加 framing。

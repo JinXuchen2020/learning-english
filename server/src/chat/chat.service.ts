@@ -35,9 +35,10 @@ import { ChatError } from './chat.errors';
 import { buildChatSystemPrompt } from './chat-system-prompt';
 import { ChatSafetyService } from './chat-safety.service';
 import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
+import { computeStars, type StarAward } from './chat-stars';
 import { logger } from '../common/logger/logger';
 
-/** 聊天响应（与前端 AI-407 契约一致）。 */
+/** 聊天响应（与前端 AI-407 契约一致，AI-408 追加 stars 字段）。 */
 export interface ChatSendResponse {
   /** 本次会话 id（新建或复用）。 */
   sessionId: string;
@@ -47,6 +48,18 @@ export interface ChatSendResponse {
   replyText: string;
   /** 狐狸朗读音频的可播放引用（URL 或 data URI）；无音频为 null。 */
   ttsUrl: string | null;
+  /** 本会话累计星星数（AI-408，完成 N 轮 +1）。 */
+  stars: number;
+  /** 本轮是否刚获得一颗新星星（触发前端庆祝动画）。 */
+  starAwarded: boolean;
+  /** 距下一颗星星还剩几轮对话。 */
+  starsUntilNext: number;
+}
+
+/** 会话累计星星查询响应（AI-408，供 Home 展示）。 */
+export interface ChatStarsResponse {
+  /** 该用户全部会话累计星星数之和。 */
+  stars: number;
 }
 
 /** 鉴权 deferred：userId 缺省占位（与 AI-108 审计默认、评测 DTO 一致）。 */
@@ -121,12 +134,43 @@ export class ChatService {
 
     const ttsUrl = await this.synthesizeTtsUrl(replyText);
 
+    // AI-408：完成 N 轮对话给星星。轮数 = 本会话用户发言条数（每条发言触发一条狐狸回复）。
+    const rounds = await this.messageRepo.count({
+      where: { sessionId: session.id, role: 'user' },
+    });
+    const award: StarAward = computeStars(rounds, session.stars);
+    if (award.starAwarded) {
+      session.stars = award.stars;
+      await this.sessionRepo.save(session);
+      logger.info(
+        `[ChatService] 会话 ${session.id} 达成星星里程碑：stars=${award.stars}（rounds=${rounds}）`,
+      );
+    }
+
     return {
       sessionId: session.id,
       messageId: assistantMsg.id,
       replyText,
       ttsUrl,
+      stars: session.stars,
+      starAwarded: award.starAwarded,
+      starsUntilNext: award.starsUntilNext,
     };
+  }
+
+  /**
+   * 查询某用户全部对话会话累计星星数之和（AI-408，供 Home 展示）。
+   * @param userId 用户 id（缺省 `anonymous` 占位，与 sendMessage 口径一致）
+   */
+  async getStars(userId?: string): Promise<ChatStarsResponse> {
+    const uid = userId?.trim() || ANONYMOUS_USER_ID;
+    const row = await this.sessionRepo
+      .createQueryBuilder('s')
+      .select('COALESCE(SUM(s.stars), 0)', 'total')
+      .where('s.userId = :uid', { uid })
+      .getRawOne<{ total: string | number }>();
+    const stars = Number(row?.total ?? 0);
+    return { stars };
   }
 
   /** 解析或创建会话：提供 sessionId 复用（不存在 → 404）；否则新建。 */

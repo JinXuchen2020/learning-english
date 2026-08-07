@@ -66,3 +66,13 @@ Feature: Chat with Foxy
     And I send the chat message
     Then I should see 1 fox reply bubble
     And the fox reply should say "Let's talk about something friendly instead!"
+
+  Scenario: A child earns a chat star after enough rounds and sees a celebration (AI-408)
+    Given I am logged in as a new user
+    And the chat scenes are stubbed with 2 scenes
+    And the chat reply will be "Great chatting with you!" with a fox voice and awards a star on round 8
+    When I open the chat page
+    And I select the scene "打招呼"
+    And I chat for 8 rounds saying "hello foxy"
+    Then I should see a star celebration
+    And I should see a chat star count of 1

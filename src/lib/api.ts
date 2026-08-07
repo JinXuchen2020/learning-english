@@ -16,6 +16,7 @@ import type {
   ChatScene,
   SendChatMessageDto,
   SendChatMessageResponse,
+  ChatStarsResponse,
 } from "./types";
 
 /**
@@ -356,7 +357,8 @@ export function getChatScenes(): Promise<ChatScene[]> {
 /**
  * 发送一条对话发言并取回狐狸回复（AI-403/407）。
  * `POST /api/ai/chat/messages`，body 与后端 `ChatMessageDto` 对齐。
- * 返回 `{ sessionId, messageId, replyText, ttsUrl }`；`ttsUrl` 为狐狸音色音频引用
+ * 返回 `{ sessionId, messageId, replyText, ttsUrl, stars, starAwarded, starsUntilNext }`
+ * （stars 字段为 AI-408 追加：完成 N 轮对话得一颗星星）；`ttsUrl` 为狐狸音色音频引用
  * （data URI / URL，TTS 失败时 null）。续聊时调用方应携带上次的 `sessionId`。
  *
  * @param dto { text, sessionId?, sceneId?, userId? }
@@ -368,4 +370,14 @@ export function sendChatMessage(
     method: "POST",
     body: JSON.stringify(dto),
   });
+}
+
+/**
+ * 查询某用户全部对话会话累计星星数之和（AI-408）。
+ * `GET /api/ai/chat/stars?userId=`，供 Home 展示「聊天星星」。
+ * 与 messages 接口口径一致：缺省 userId → 后端用 `anonymous` 占位。
+ */
+export function getChatStars(userId?: string): Promise<ChatStarsResponse> {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return request<ChatStarsResponse>(`/ai/chat/stars${qs}`);
 }

@@ -106,18 +106,47 @@ export default class ChatPage {
     );
   }
 
-  /** Mock the chat messages endpoint to return a deterministic fox reply (with optional TTS url). */
-  async mockChatReply(replyText: string, ttsUrl: string | null): Promise<void> {
+  /**
+   * Mock the chat messages endpoint to return a deterministic fox reply.
+   * @param replyText 狐狸回复正文
+   * @param ttsUrl 朗读音频引用（默认有效 WAV，便于自动播断言）
+   * @param opts.awardOnRound 若设置，则第 N 次调用本端点时附加 starAwarded
+   *   （模拟后端「完成 N 轮得星」），其余调用返回无星常规响应。
+   */
+  async mockChatReply(
+    replyText: string,
+    ttsUrl: string | null,
+    opts?: { awardOnRound?: number; starStars?: number; starsUntilNext?: number },
+  ): Promise<void> {
+    let n = 0;
     await this.page.route("**/api/ai/chat/messages", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           sessionId: "sess-1",
-          messageId: `msg-${Date.now()}`,
+          messageId: `msg-${Date.now()}-${n}`,
           replyText,
           ttsUrl,
+          ...(opts?.awardOnRound && ++n === opts.awardOnRound
+            ? {
+                stars: opts.starStars ?? 1,
+                starAwarded: true,
+                starsUntilNext: opts.starsUntilNext ?? 8,
+              }
+            : { stars: 0, starAwarded: false, starsUntilNext: 8 }),
         }),
+      }),
+    );
+  }
+
+  /** Mock the chat stars endpoint (Home 展示)，返回累计星星数。 */
+  async mockChatStars(stars: number): Promise<void> {
+    await this.page.route("**/api/ai/chat/stars**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ stars }),
       }),
     );
   }
@@ -224,7 +253,32 @@ export default class ChatPage {
 
   /** Whether a TTS <audio> bar is present for any assistant bubble. */
   async ttsAudioCount(): Promise<number> {
-    return this.page.locator('[data-component="ChatTtsAudio"]').count();
+    return this.page.locator('[data-component="ChatTtsAudio"]').count();  }
+
+  /** AI-408：刚得星的庆祝横幅是否可见。 */
+  async isStarCelebrationVisible(): Promise<boolean> {
+    return (
+      (await this.page.locator('[data-component="ChatStarCelebration"]').count()) > 0
+    );
+  }
+
+  /** AI-408：本会话星星徽标文本（如 "1"）。 */
+  async starCountText(): Promise<string | undefined> {
+    const el = this.page.locator('[data-component="ChatStarCount"]');
+    if ((await el.count()) === 0) return undefined;
+    return (await el.textContent())?.trim();
+  }
+
+  /** AI-408：Home 的聊天星星卡是否可见。 */
+  async isChatStarsCardVisible(): Promise<boolean> {
+    return (await this.page.locator('[data-component="ChatStars"]').count()) > 0;
+  }
+
+  /** AI-408：Home 聊天星星卡文本（如 "3"）。 */
+  async chatStarsText(): Promise<string | undefined> {
+    const el = this.page.locator('[data-component="ChatStars"]');
+    if ((await el.count()) === 0) return undefined;
+    return (await el.textContent())?.trim();
   }
 
   /** src attribute of the first TTS <audio> (for asserting the mocked fox voice url). */

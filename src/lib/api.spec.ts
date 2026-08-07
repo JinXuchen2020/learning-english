@@ -236,3 +236,29 @@ describe('api.getChatScenes / api.sendChatMessage (AI-407)', () => {
     await expect(api.sendChatMessage({ text: 'hi' })).rejects.toThrow(/AI 生成失败/);
   });
 });
+
+describe('api.getChatStars (AI-408)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('GETs /ai/chat/stars?userId= and returns { stars }', async () => {
+    mockFetch(JSON.stringify({ stars: 5 }), true, 200);
+    const res = await api.getChatStars('u1');
+    expect(res).toEqual({ stars: 5 });
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/ai/chat/stars?userId=u1',
+      expect.objectContaining({ headers: expect.objectContaining({ 'Content-Type': 'application/json' }) })
+    );
+  });
+
+  it('omits the query string when userId is absent (backend falls back to anonymous)', async () => {
+    mockFetch(JSON.stringify({ stars: 0 }), true, 200);
+    const res = await api.getChatStars();
+    expect(res).toEqual({ stars: 0 });
+    const fetchFn = (globalThis as Record<string, unknown>).fetch as ReturnType<typeof vi.fn>;
+    expect(fetchFn).toHaveBeenCalledWith(
+      'http://localhost:4000/api/ai/chat/stars',
+      expect.objectContaining({ headers: expect.objectContaining({ 'Content-Type': 'application/json' }) })
+    );
+  });
+});

@@ -30,6 +30,14 @@ function makeRepo<T extends { id?: string }>(initial: T[] = []): any {
           return ta - tb;
         });
     }),
+    count: jest.fn(async (opts: { where?: { sessionId?: string; role?: string } }) => {
+      const { sessionId, role } = opts?.where ?? {};
+      return store.filter(
+        (r) =>
+          (!sessionId || (r as any).sessionId === sessionId) &&
+          (!role || (r as any).role === role),
+      ).length;
+    }),
     save: jest.fn(async (e: T) => {
       const rec = { ...e, id: (e as any).id ?? `gen-${Math.random()}` } as T;
       store.push(rec);
@@ -294,5 +302,160 @@ describe('ChatService 内容安全拦截 (AI-406)', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
     expect(res.replyText).toBe('Fox says hi!');
+  });
+});
+
+describe('ChatService 星标与鼓励 (AI-408)', () => {
+  /** 构造一个只支撑 getStars 聚合查询的 sessionRepo mock。 */
+  function makeStarsRepo(rows: Array<{ userId: string; stars: number }>): any {
+    let uid = 'anonymous';
+    const qb: any = {
+      select: jest.fn(() => qb),
+      where: jest.fn((_sql: string, params: { uid: string }) => {
+        uid = params.uid;
+        return qb;
+      }),
+      getRawOne: jest.fn(async () => {
+        const total = rows
+          .filter((r) => r.userId === uid)
+          .reduce((s, r) => s + r.stars, 0);
+        return { total };
+      }),
+    };
+    return { createQueryBuilder: jest.fn(() => qb) };
+  }
+
+  /** 预置某会话 N 条用户历史消息（不含本次发言），用于驱动「轮数」计数。 */
+  function seedUserMessages(sessionId: string, n: number): any {
+    const msgs: AiChatMessage[] = [];
+    for (let i = 0; i < n; i++) {
+      msgs.push({
+        id: `m-${i}`,
+        sessionId,
+        role: 'user',
+        text: `u${i}`,
+        audioPath: null,
+        createdAt: new Date(1000 + i),
+      });
+    }
+    return makeRepo<AiChatMessage>(msgs);
+  }
+
+  it('完成 8 轮对话 → 获得第 1 颗星星（starAwarded=true, stars=1, 持久化）', async () => {
+    const session: AiChatSession = {
+      id: 'sess-8',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    // 预置 7 条历史用户发言；本次再发 1 条 → 共 8 轮。
+    const messageRepo = seedUserMessages('sess-8', 7);
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-8', text: 'round 8' }));
+
+    expect(res.starAwarded).toBe(true);
+    expect(res.stars).toBe(1);
+    expect(res.starsUntilNext).toBe(8);
+    // 仅有一次 save（星标持久化），会话复用不新建。
+    expect(sessionRepo.save).toHaveBeenCalledTimes(1);
+    expect(sessionRepo.save.mock.calls[0][0].stars).toBe(1);
+  });
+
+  it('完成 7 轮对话 → 尚未得星（starAwarded=false, stars=0, 不持久化）', async () => {
+    const session: AiChatSession = {
+      id: 'sess-7',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-7', 6); // +本次 = 7 轮
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-7', text: 'round 7' }));
+
+    expect(res.starAwarded).toBe(false);
+    expect(res.stars).toBe(0);
+    expect(res.starsUntilNext).toBe(1);
+    expect(sessionRepo.save).not.toHaveBeenCalled(); // 未跨里程碑，不落库
+  });
+
+  it('已得 1 星，再完成 8 轮（共 16）→ 获得第 2 颗星星', async () => {
+    const session: AiChatSession = {
+      id: 'sess-16',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-16', 15); // +本次 = 16 轮
+    const provider = makeProvider();
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-16', text: 'round 16' }));
+
+    expect(res.starAwarded).toBe(true);
+    expect(res.stars).toBe(2);
+    expect(res.starsUntilNext).toBe(8);
+  });
+
+  it('安全兜底回复（AI-406）仍计入轮数 → 达 8 轮同样得星', async () => {
+    const session: AiChatSession = {
+      id: 'sess-safe',
+      userId: 'u1',
+      sceneId: 'greeting',
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const sessionRepo = makeRepo<AiChatSession>([session]);
+    const messageRepo = seedUserMessages('sess-safe', 7);
+    const provider = makeProvider();
+    const safety = makeSafety({
+      checkUserInput: jest.fn(async () => ({ safe: false, reason: 'blocklist' })),
+    });
+    const svc = makeService(sessionRepo as any, messageRepo as any, provider, safety);
+
+    const res = await svc.sendMessage(makeDto({ sessionId: 'sess-safe', text: 'bad' }));
+
+    expect(provider.chat).not.toHaveBeenCalled();
+    expect(res.replyText).toBe(SAFE_FALLBACK_REPLY);
+    expect(res.starAwarded).toBe(true); // 轮数仍累计
+    expect(res.stars).toBe(1);
+  });
+
+  it('getStars 聚合同用户多会话星星之和', async () => {
+    const sessionRepo = makeStarsRepo([
+      { userId: 'u1', stars: 2 },
+      { userId: 'u1', stars: 3 },
+      { userId: 'u2', stars: 9 },
+    ]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars('u1');
+    expect(res.stars).toBe(5);
+  });
+
+  it('getStars 默认 anonymous 口径与 sendMessage 一致', async () => {
+    const sessionRepo = makeStarsRepo([{ userId: 'anonymous', stars: 4 }]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars();
+    expect(res.stars).toBe(4);
+  });
+
+  it('getStars 无会话 → 返回 0', async () => {
+    const sessionRepo = makeStarsRepo([]);
+    const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
+    const res = await svc.getStars('nobody');
+    expect(res.stars).toBe(0);
   });
 });

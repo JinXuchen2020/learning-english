@@ -256,4 +256,16 @@ export interface SendChatMessageResponse {
   replyText: string;
   /** 狐狸朗读音频引用（data URI / URL）；TTS 失败降级为 null。 */
   ttsUrl: string | null;
+  /** 本会话累计星星数（AI-408，完成 N 轮 +1）。 */
+  stars: number;
+  /** 本轮是否刚获得一颗新星星（触发庆祝动画）。 */
+  starAwarded: boolean;
+  /** 距下一颗星星还剩几轮对话。 */
+  starsUntilNext: number;
+}
+
+/** `GET /api/ai/chat/stars?userId=` 响应（AI-408：Home 展示聊天星星）。 */
+export interface ChatStarsResponse {
+  /** 该用户全部会话累计星星数之和。 */
+  stars: number;
 }

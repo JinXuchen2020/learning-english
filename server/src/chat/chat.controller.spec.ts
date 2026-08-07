@@ -31,6 +31,9 @@ describe('ChatController.messages (AI-403)', () => {
         messageId: 'm1',
         replyText: 'Fox says hi!',
         ttsUrl: null,
+        stars: 0,
+        starAwarded: false,
+        starsUntilNext: 8,
       })),
     };
     const c = makeController(chat);
@@ -90,6 +93,24 @@ describe('ChatController.scenes (AI-405)', () => {
       expect(typeof s.openingLine).toBe('string');
       expect(Array.isArray(s.targetVocabulary)).toBe(true);
     }
+  });
+});
+
+describe('ChatController.stars (AI-408)', () => {
+  it('透传 ChatService.getStars 结果（含 userId 透传）', async () => {
+    const chat = { getStars: jest.fn(async () => ({ stars: 5 })) };
+    const c = makeController(chat);
+    const res = await c.stars('u1');
+    expect(res).toEqual({ stars: 5 });
+    expect(chat.getStars).toHaveBeenCalledWith('u1');
+  });
+
+  it('不传 userId → 透传 undefined（service 内部回落 anonymous）', async () => {
+    const chat = { getStars: jest.fn(async () => ({ stars: 0 })) };
+    const c = makeController(chat);
+    const res = await c.stars();
+    expect(res).toEqual({ stars: 0 });
+    expect(chat.getStars).toHaveBeenCalledWith(undefined);
   });
 });
 

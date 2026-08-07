@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { Volume2, Send, Mic, RotateCcw, Star, ArrowRight, MessageCircle } from "lucide-react";
+import { Volume2, Send, Mic, RotateCcw, Star, ArrowRight, MessageCircle, Sparkles } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import SpeechRecorder from "@/components/SpeechRecorder";
@@ -178,7 +178,17 @@ function ChatInner() {
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [readAlongForId, setReadAlongForId] = useState<string | null>(null);
+  // AI-408：当前会话累计星星数 + 刚得星时的庆祝态（存星星总数，null=不庆祝）。
+  const [sessionStars, setSessionStars] = useState(0);
+  const [celebration, setCelebration] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+
+  // 庆祝态自动消失（4 秒后），避免遮挡后续对话。
+  useEffect(() => {
+    if (celebration == null) return;
+    const t = setTimeout(() => setCelebration(null), 4000);
+    return () => clearTimeout(t);
+  }, [celebration]);
 
   // 加载场景包（AI-405）：失败降级为「自由对话」入口（不阻塞聊天）。
   useEffect(() => {
@@ -264,6 +274,9 @@ function ChatInner() {
           ttsUrl: res.ttsUrl,
         },
       ]);
+      // AI-408：累计星星 + 刚得星触发庆祝（后端决定本轮是否跨里程碑）。
+      setSessionStars(res.stars);
+      if (res.starAwarded) setCelebration(res.stars);
       // 狐狸语音自动播放（无 audioUrl 时静默降级，仅文本）。
       if (res.ttsUrl) playTts(res.ttsUrl);
     } catch (err) {
@@ -306,7 +319,41 @@ function ChatInner() {
             Pick a scene and talk with your fox friend 🦊
           </p>
         </div>
+        {/* AI-408：本会话累计星星徽标 */}
+        {sessionStars > 0 && (
+          <div
+            className="ml-auto flex items-center gap-1 rounded-control bg-kids-sun/20 px-3 py-1.5"
+            data-component="ChatStarCount"
+          >
+            <Star size={18} className="text-kids-sun fill-kids-sun" />
+            <span className="font-extrabold text-kids-title">{sessionStars}</span>
+          </div>
+        )}
       </div>
+
+      {/* AI-408：刚得星庆祝横幅 */}
+      {celebration != null && (
+        <div
+          className="card-kids flex flex-col items-center gap-2 bg-[var(--color-primary-wash)] py-4 text-center animate-star-pop"
+          data-component="ChatStarCelebration"
+          data-stars={celebration}
+        >
+          <Mascot expression="celebrating" size="large" />
+          <p className="text-xl font-extrabold text-kids-title">
+            🎉 You earned a star!
+          </p>
+          <p className="text-sm font-bold text-kids-sun">
+            {celebration} ⭐ so far — keep chatting!
+          </p>
+          <button
+            onClick={() => setCelebration(null)}
+            className="rounded-full bg-white px-4 py-1 text-xs font-bold text-kids-title hover:bg-kids-secondary"
+            data-action="dismiss-celebration"
+          >
+            Keep chatting!
+          </button>
+        </div>
+      )}
 
       {/* Scene selection cards (AI-405) */}
       {loadingScenes ? (
