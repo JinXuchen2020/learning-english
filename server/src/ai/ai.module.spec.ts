@@ -9,10 +9,17 @@ import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { AiReport } from './ai-report.entity';
+import { AiParentEmailLog } from './ai-parent-email-log.entity';
+import { EMAIL_SENDER_TOKEN, EmailSender } from './email-sender.interface';
+import { TaskCompletion } from '../entities/task-completion.entity';
+import { WordProgress } from '../entities/word-progress.entity';
+import { LessonProgress } from '../entities/lesson-progress.entity';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
+import { User } from '../entities/user.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -34,6 +41,29 @@ const fakeAiSpeechAttemptRepo = {
   find: jest.fn(async () => []),
 };
 
+/** 假 AiReport 仓库：让 `AiModule`(AI-501 新增实体) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeAiReportRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+};
+
+/** 假 TaskCompletion 仓库：让 `AiReportService`(AI-502 聚合 taskComplete) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeTaskCompletionRepo = {
+  count: jest.fn(async () => 0),
+};
+
+/** 假 WordProgress 仓库：让 `AiReportService`(AI-502 聚合 wordsPracticed) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeWordProgressRepo = {
+  find: jest.fn(async () => []),
+};
+
+/** 假 LessonProgress 仓库：让 `AiReportService`(AI-502 聚合 lessonsCompleted) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeLessonProgressRepo = {
+  find: jest.fn(async () => []),
+};
+
 /** 假 Word 仓库：让 `AiSpeechEvaluatorService`(AI-303) 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeWordRepo = {
   findOne: jest.fn(),
@@ -46,6 +76,26 @@ const fakeSentenceRepo = {
   findOne: jest.fn(),
   create: jest.fn((e) => e),
   save: jest.fn(async (e) => e),
+};
+
+/** 假 User 仓库：让 `ReportSchedulerService`(AI-505/506 扫描遍历用户) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeUserRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 AiParentEmailLog 仓库：让 `WeeklyReportService`(AI-506 落发送日志) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeAiParentEmailLogRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+};
+
+/** 假邮件发送器：让 `EmailService`(AI-506) 在无需真实发送通道的情况下完成 DI 装配。 */
+const fakeEmailSender: EmailSender = {
+  send: jest.fn(async (o) => ({ messageId: 'fake-log', accepted: true, htmlPath: '/tmp/fake.html' })),
 };
 
 /** 假 AiPronunciationScorerService：让 `AiSpeechEvaluatorService`(AI-303 委托) 在无需真实 AI 链的情况下完成 DI 装配。 */
@@ -71,10 +121,24 @@ async function compileAiModule() {
     .useValue(fakeAiCallLogRepo)
     .overrideProvider(getRepositoryToken(AiSpeechAttempt))
     .useValue(fakeAiSpeechAttemptRepo)
+    .overrideProvider(getRepositoryToken(AiReport))
+    .useValue(fakeAiReportRepo)
+    .overrideProvider(getRepositoryToken(TaskCompletion))
+    .useValue(fakeTaskCompletionRepo)
+    .overrideProvider(getRepositoryToken(WordProgress))
+    .useValue(fakeWordProgressRepo)
+    .overrideProvider(getRepositoryToken(LessonProgress))
+    .useValue(fakeLessonProgressRepo)
     .overrideProvider(getRepositoryToken(Word))
     .useValue(fakeWordRepo)
     .overrideProvider(getRepositoryToken(Sentence))
     .useValue(fakeSentenceRepo)
+    .overrideProvider(getRepositoryToken(User))
+    .useValue(fakeUserRepo)
+    .overrideProvider(getRepositoryToken(AiParentEmailLog))
+    .useValue(fakeAiParentEmailLogRepo)
+    .overrideProvider(EMAIL_SENDER_TOKEN)
+    .useValue(fakeEmailSender)
     .overrideProvider(AiPronunciationScorerService)
     .useValue(fakeScorer)
     .compile();

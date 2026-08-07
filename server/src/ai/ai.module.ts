@@ -18,6 +18,20 @@ import { AiCallLog } from './ai-call-log.entity';
 import { AiCallLogService } from './ai-call-log.service';
 import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { AiReportService } from './ai-report.service';
+import { AiReportController } from './ai-report.controller';
+import { AiReport } from './ai-report.entity';
+import { AiParentEmailLog } from './ai-parent-email-log.entity';
+import { ReportSchedulerService } from './report-scheduler.service';
+import { EmailService } from './email.service';
+import { LogEmailSender } from './log-email-sender.service';
+import { EMAIL_SENDER_TOKEN } from './email-sender.interface';
+import { WeeklyReportService } from './weekly-report.service';
+import { AiWeeklyReportController } from './ai-weekly-report.controller';
+import { TaskCompletion } from '../entities/task-completion.entity';
+import { WordProgress } from '../entities/word-progress.entity';
+import { LessonProgress } from '../entities/lesson-progress.entity';
+import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { AiController } from './ai.controller';
@@ -120,18 +134,24 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, Word, Sentence])],
-  controllers: [AiController],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
+  controllers: [AiController, AiReportController, AiWeeklyReportController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
     { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,
+    AiReportService,
+    ReportSchedulerService,
+    EmailService,
+    LogEmailSender,
+    WeeklyReportService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,
     AiSpeechFeedbackService,
+    { provide: EMAIL_SENDER_TOKEN, useClass: LogEmailSender },
     {
       provide: AI_PROVIDER_TOKEN,
       useFactory: createAuditedProvider,
@@ -149,6 +169,8 @@ export function createAuditedProvider(
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,
+    AiReportService,
+    ReportSchedulerService,
     AiSpeechEvaluatorService,
     AiTranscribeService,
     AiPronunciationScorerService,

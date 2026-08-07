@@ -237,8 +237,8 @@ GET /api/ai/chat/sessions/:id/messages?userId=   （AI-409 新增）
 **后端**
 ```
 POST /api/ai/report/daily body: {userId, date}
-→ progress.module 查询今日 attempts + speechScores + taskComplete
-→ AiProvider.chat({system=ReportAgent, user=statsJSON})
+→ 聚合今日 attempts + speechScores + taskComplete + 真实薄弱单词候选(weakWordCandidates, 来自 WordProgress 当日低正确率)
+→ AiProvider.chat({system=ReportAgent( AI-503 精炼: 儿童友好/绝不批评/weakWords 必须取自 weakWordCandidates 禁编造 ), user=statsJSON(含 weakWordCandidates)})
 → 返回 {summaryText, weakWords[], suggestion, mascotExpr}
 → 持久化到 ai_reports 表, 避免重复生成
 ```
@@ -255,7 +255,7 @@ POST /api/ai/report/daily body: {userId, date}
 @Entity() class AiSpeechAttempt { id, userId, wordId?, sentenceId?, audioPath, score, weakPhonemes(JSON), createdAt }
 @Entity() class AiChatSession { id, userId, sceneId, stars, createdAt, updatedAt }
 @Entity() class AiChatMessage { id, sessionId, role(user|assistant|system), text, audioPath?, createdAt }
-@Entity() class AiReport { id, userId, date, summaryText, weakWords(JSON), suggestionText, createdAt }
+@Entity('ai_reports') @Unique(['userId','date']) class AiReport { id, userId, date, summaryText, weakWords(simple-array), suggestionText, isDefault(boolean), createdAt }  // 落地于 server/src/ai/ai-report.entity.ts（AI-501 实体 + AI-502 追加 isDefault 列）
 ```
 
 ---

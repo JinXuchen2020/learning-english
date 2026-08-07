@@ -11,6 +11,8 @@ import { TaskCompletion } from '../entities/task-completion.entity';
 import { AiUsage } from '../ai/ai-usage.entity';
 import { AiCallLog } from '../ai/ai-call-log.entity';
 import { AiSpeechAttempt } from '../ai/ai-speech-attempt.entity';
+import { AiReport } from '../ai/ai-report.entity';
+import { AiParentEmailLog } from '../ai/ai-parent-email-log.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { StudyPlan } from '../plan/study-plan.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
@@ -33,6 +35,8 @@ export const appEntities = [
   AiUsage,
   AiCallLog,
   AiSpeechAttempt,
+  AiReport,
+  AiParentEmailLog,
   Sentence,
   StudyPlan,
   StudyPlanDay,

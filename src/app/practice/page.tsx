@@ -213,16 +213,28 @@ function Quiz({
   words,
   lessonId,
   courseId,
+  focusWord,
 }: {
   words: Word[];
   lessonId: string | null;
   courseId: string | null;
+  /** AI-507：家长报告弱项下钻 —— 命中后跳到该词（不区分大小写）。 */
+  focusWord?: string | null;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<QuizPhase>("answering");
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [showPhonics, setShowPhonics] = useState(false);
+
+  // AI-507：弱项下钻 —— 单词装载完成后跳转到命中词（仅一次）。
+  useEffect(() => {
+    if (!focusWord || words.length === 0) return;
+    const idx = words.findIndex(
+      (w) => w.text.toLowerCase() === focusWord.toLowerCase(),
+    );
+    if (idx >= 0) setCurrentIndex(idx);
+  }, [focusWord, words]);
 
   const word = words[currentIndex];
   const totalWords = words.length;
@@ -341,7 +353,7 @@ function Quiz({
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-4xl tracking-tight">{word.text}</h1>
+          <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{word.text}</h1>
           <p className="text-kids-muted">{word.meaning}</p>
         </div>
 
@@ -422,6 +434,7 @@ function PracticeInner() {
   const searchParams = useSearchParams();
   const lessonId = searchParams.get("lessonId");
   const courseId = searchParams.get("courseId");
+  const focusWord = searchParams.get("focusWord");
 
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
@@ -477,7 +490,7 @@ function PracticeInner() {
     );
   }
 
-  return <Quiz words={words} lessonId={lessonId} courseId={courseId} />;
+  return <Quiz words={words} lessonId={lessonId} courseId={courseId} focusWord={focusWord} />;
 }
 
 export default function WordPracticePage() {

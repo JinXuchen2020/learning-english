@@ -29,6 +29,14 @@ export class User {
   @Column({ nullable: true })
   lastActiveDate: string; // YYYY-MM-DD
 
+  /**
+   * 家长邮箱（AI-506 家长周报收件人）。
+   * 可空：未配置家长邮箱的用户在每周扫描中被安全跳过；
+   * 自助设置入口留待 AI-702 家长模式（PIN 锁面板）提供。
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  parentEmail: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

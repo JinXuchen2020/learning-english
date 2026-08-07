@@ -19,6 +19,8 @@ import type {
   ChatStarsResponse,
   ChatSessionSummary,
   ChatHistoryMessage,
+  DailyReportResponse,
+  WeeklyReportData,
 } from "./types";
 
 /**
@@ -410,4 +412,48 @@ export function getChatSessionMessages(
   return request<ChatHistoryMessage[]>(
     `/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages${qs}`,
   );
+}
+
+/* ----------------------- AI Daily Report (AI-504) ----------------------- */
+
+/**
+ * 获取（或按需生成）当日 AI 学习小结（AI-502/504）。
+ * `POST /api/ai/report/daily`，body 与后端 `GenerateDailyReportDto` 对齐
+ * （`userId` 必填，`date` 可选 YYYY-MM-DD，缺省后端取当日）。
+ * 后端该路由无 guard，但前端随内存 token 携带（与 `/ai/chat` 同口径）；
+ * 失败（4xx/5xx）抛 `ApiError`，由调用方决定是否展示「生成今日小结」按钮。
+ *
+ * @param userId 用户 id（来自 `useAuth().user.id`）
+ * @param date   可选报告日期 YYYY-MM-DD
+ */
+export function getDailyReport(
+  userId: string,
+  date?: string,
+): Promise<DailyReportResponse> {
+  const body = date ? { userId, date } : { userId };
+  return request<DailyReportResponse>("/ai/report/daily", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/* ----------------------- AI Weekly Report (AI-507) ----------------------- */
+
+/**
+ * 家长周报只读预览（AI-506/507 Dashboard 数据源）。
+ * `GET /api/ai/report/weekly/preview?userId=&weekStart=`，返回 `WeeklyReportData`
+ * （聚合指标/弱项Top10/趋势/每日亮点/建议），**不发送邮件**。
+ * 与每日报告同口径：路由无 guard，userId 由 query 传入（待全局鉴权收紧）。
+ *
+ * @param userId   用户 id（来自 `useAuth().user.id`）
+ * @param weekStart 可选周起始日 YYYY-MM-DD（Monday）；缺省后端按 UTC 当日推算所在周
+ */
+export function getWeeklyReport(
+  userId: string,
+  weekStart?: string,
+): Promise<WeeklyReportData> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (weekStart) params.set("weekStart", weekStart);
+  return request<WeeklyReportData>(`/ai/report/weekly/preview?${params.toString()}`);
 }

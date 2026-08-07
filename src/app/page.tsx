@@ -7,8 +7,9 @@ import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
+import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
-import type { DailyTask, PlanStatusResponse } from "@/lib/types";
+import type { DailyReportResponse, DailyTask, PlanStatusResponse } from "@/lib/types";
 import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle } from "lucide-react";
 
 const taskIcons = {
@@ -51,6 +52,106 @@ function ProgressRing({ progress, color }: { progress: number; color: string }) 
   );
 }
 
+function AiReportCard({
+  report,
+  reportLoading,
+  onRetry,
+}: {
+  report: DailyReportResponse | null;
+  reportLoading: boolean;
+  onRetry: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // 尚未装载完成 → 思考态占位（不显示生成按钮，避免成功路径闪现按钮）。
+  if (reportLoading) {
+    return (
+      <section
+        data-component="AiReportCard"
+        className="card-kids flex items-center gap-4"
+      >
+        <Mascot expression="thinking" size="medium" />
+        <div className="flex-1">
+          <p className="font-bold text-kids-title">今日 AI 小结</p>
+          <p className="text-kids-muted">小狐正在准备今天的小结…</p>
+        </div>
+      </section>
+    );
+  }
+
+  // 拉取失败 / 无报告 → 吉祥物思考态 + 生成按钮（可重试）。
+  if (!report) {
+    return (
+      <section
+        data-component="AiReportCard"
+        className="card-kids flex items-center gap-4"
+      >
+        <Mascot expression="thinking" size="medium" />
+        <div className="flex-1">
+          <p className="font-bold text-kids-title">今日 AI 小结</p>
+          <p className="text-kids-muted">小狐还没准备好今天的小结～</p>
+        </div>
+        <button
+          data-component="AiReportGenerateBtn"
+          onClick={onRetry}
+          className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90"
+        >
+          生成今日小结
+        </button>
+      </section>
+    );
+  }
+
+  const expr = mapBackendMascotExpr(report.mascotExpr);
+  return (
+    <section
+      data-component="AiReportCard"
+      className="card-kids flex items-start gap-4"
+    >
+      <Mascot expression={expr} size="medium" />
+      <div className="flex-1">
+        <p className="font-bold text-kids-title">今日 AI 小结</p>
+        <p data-component="AiReportSummary" className="text-kids-text">
+          {report.summaryText}
+        </p>
+        {report.weakWords.length > 0 && (
+          <div data-component="AiReportWeakWords" className="mt-2 flex flex-wrap gap-2">
+            {report.weakWords.map((w) => (
+              <span
+                key={w}
+                className="rounded-control bg-kids-secondary px-3 py-1 text-sm font-semibold text-kids-text"
+              >
+                {w}
+              </span>
+            ))}
+          </div>
+        )}
+        {report.suggestionText && (
+          <p data-component="AiReportSuggestion" className="mt-1 text-sm text-kids-muted">
+            💡 {report.suggestionText}
+          </p>
+        )}
+        <button
+          data-component="AiReportToggle"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-sm font-semibold text-[var(--seed-primary)] hover:underline"
+        >
+          {expanded ? "收起" : "查看详情"}
+        </button>
+        {expanded && (
+          <div
+            data-component="AiReportDetails"
+            className="mt-2 space-y-1 text-sm text-kids-muted"
+          >
+            <p>日期：{report.date}</p>
+            {report.isDefault && <p>这是小狐给你的鼓励小贴士，今天先玩起来吧～</p>}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function HomeContent() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<api.CourseSummary[]>([]);
@@ -58,8 +159,25 @@ function HomeContent() {
   const [progress, setProgress] = useState<api.ProgressOverview | null>(null);
   const [planStatus, setPlanStatus] = useState<PlanStatusResponse | null>(null);
   const [chatStars, setChatStars] = useState(0);
+  const [report, setReport] = useState<DailyReportResponse | null>(null);
+  const [reportLoading, setReportLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
+
+  const loadReport = useCallback(async () => {
+    if (!user) return;
+    setReportLoading(true);
+    try {
+      const r = await api.getDailyReport(user.id);
+      setReport(r);
+    } catch (err) {
+      // AI-504：拉取失败（4xx/5xx）→ 不阻塞主数据，展示「生成今日小结」按钮。
+      logger.error("Failed to load daily AI report", err);
+      setReport(null);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [user]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,7 +204,9 @@ function HomeContent() {
     } catch (err) {
       logger.error("Failed to load chat stars", err);
     }
-  }, [user]);
+    // AI-504：每日 AI 小结独立加载（失败不影响主数据）。
+    await loadReport();
+  }, [user, loadReport]);
 
   useEffect(() => {
     load();
@@ -175,6 +295,9 @@ function HomeContent() {
         </div>
       ) : (
         <>
+          {/* AI-504：今日 AI 小结卡片（吉祥物气泡 + 弱项 + 明日建议，可展开详情） */}
+          <AiReportCard report={report} reportLoading={reportLoading} onRetry={loadReport} />
+
           {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}
           {planStatus?.hasPlan && (
             <section

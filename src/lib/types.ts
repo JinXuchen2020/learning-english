@@ -301,3 +301,110 @@ export interface ChatHistoryMessage {
   /** 消息创建时间（ISO 字符串）。 */
   createdAt: string;
 }
+
+/* ----------------------- AI Daily Report (AI-504) ----------------------- */
+
+/** 当日聚合统计（与后端 `DailyReportStats` 对齐，AI-502/503）。 */
+export interface DailyReportStats {
+  /** 报告日期 YYYY-MM-DD。 */
+  date: string;
+  /** 当日完成任务数。 */
+  taskComplete: number;
+  /** 当日练习单词数。 */
+  wordsPracticed: number;
+  /** 当日完成课程数。 */
+  lessonsCompleted: number;
+  /** 当日口语尝试次数。 */
+  speechAttempts: number;
+  /** 当日口语平均分 [0,100]，无尝试为 null。 */
+  avgSpeechScore: number | null;
+  /** 当日真实薄弱单词候选（AI-503：低正确率推导，weakWords 子集来源）。 */
+  weakWordCandidates: string[];
+}
+
+/**
+ * `POST /api/ai/report/daily` 响应（与后端 `DailyReportResponse` 对齐，AI-502）。
+ * `mascotExpr` 为**后端**表情枚举（happy/encourage/thinking/cheer），
+ * 渲染到前端 `Mascot` 前须经 `mapBackendMascotExpr` 映射到前端枚举。
+ */
+export interface DailyReportResponse {
+  /** 报告 id（新建/读回时存在）。 */
+  id?: string;
+  /** 归属用户 id。 */
+  userId: string;
+  /** 报告日期 YYYY-MM-DD。 */
+  date: string;
+  /** 一句话总体小结（中文，鼓励语气）。 */
+  summaryText: string;
+  /** 当日薄弱英文单词（真实错题候选子集；无则空数组）。 */
+  weakWords: string[];
+  /** 给儿童的明日建议（1-2 句）。 */
+  suggestionText: string;
+  /** 是否为「无活动友好默认」报告（true 时鼓励语气、非真实 AI 生成）。 */
+  isDefault: boolean;
+  /** 后端吉祥物表情（渲染前需映射）。 */
+  mascotExpr?: string;
+  /** 报告生成时间（ISO 字符串，读回时存在）。 */
+  createdAt?: string;
+  /** 当日聚合统计快照（新建时带值，幂等读回为 null）。 */
+  stats?: DailyReportStats | null;
+}
+
+/* ----------------------- AI Weekly Report (AI-507) ----------------------- */
+
+/** 一周聚合指标（与后端 `WeeklyReportMetrics` 对齐）。 */
+export interface WeeklyReportMetrics {
+  /** 有学习活动的天数。 */
+  activeDays: number;
+  /** 7 日完成任务数求和。 */
+  totalTasksCompleted: number;
+  /** 7 日练习单词数求和。 */
+  totalWordsPracticed: number;
+  /** 7 日完成课程数求和。 */
+  totalLessonsCompleted: number;
+  /** 7 日口语跟读次数求和。 */
+  totalSpeechAttempts: number;
+  /** 7 日口语平均分（无口语为 null）。 */
+  avgSpeechScore: number | null;
+}
+
+/** 趋势点（每日任务完成数 + 口语平均分，供图表）。 */
+export interface MasteryTrendPoint {
+  /** 日期 YYYY-MM-DD。 */
+  date: string;
+  /** 当日口语平均分 [0,100]，无尝试为 null。 */
+  avgSpeechScore: number | null;
+  /** 当日完成任务数。 */
+  taskComplete: number;
+}
+
+/** 每日亮点（来自已落库 `ai_reports`）。 */
+export interface DailySummary {
+  date: string;
+  summaryText: string;
+  suggestionText: string;
+  isDefault: boolean;
+}
+
+/**
+ * 家长周报聚合结果（与后端 `WeeklyReportData` 对齐，AI-506/507）。
+ * 前端 Dashboard 仅消费 metrics / weakWordsTop / masteryTrend / dailySummaries / suggestions；
+ * `html` 为后端邮件正文（Dashboard 不渲染）。
+ */
+export interface WeeklyReportData {
+  userId: string;
+  childName: string;
+  /** 周起始日 YYYY-MM-DD（Monday）。 */
+  weekStart: string;
+  /** 周结束日 YYYY-MM-DD（Sunday）。 */
+  weekEnd: string;
+  metrics: WeeklyReportMetrics;
+  /** 7 日弱项单词按频次排序 Top10。 */
+  weakWordsTop: string[];
+  masteryTrend: MasteryTrendPoint[];
+  dailySummaries: DailySummary[];
+  /** 汇集的非空明日建议。 */
+  suggestions: string[];
+  /** 自包含 HTML 邮件正文（Dashboard 不渲染）。 */
+  html: string;
+}
