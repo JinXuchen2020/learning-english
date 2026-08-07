@@ -108,6 +108,8 @@ export default class ChatPage {
 
   /**
    * Mock the chat messages endpoint to return a deterministic fox reply.
+   * 回显请求体中的 `sessionId`（若缺失回落 "sess-1"），便于「续聊」场景断言
+   * 会话 id 不漂移。
    * @param replyText 狐狸回复正文
    * @param ttsUrl 朗读音频引用（默认有效 WAV，便于自动播断言）
    * @param opts.awardOnRound 若设置，则第 N 次调用本端点时附加 starAwarded
@@ -119,12 +121,22 @@ export default class ChatPage {
     opts?: { awardOnRound?: number; starStars?: number; starsUntilNext?: number },
   ): Promise<void> {
     let n = 0;
-    await this.page.route("**/api/ai/chat/messages", (route) =>
-      route.fulfill({
+    await this.page.route("**/api/ai/chat/messages", async (route) => {
+      let reqSessionId = "sess-1";
+      try {
+        const post = route.request().postData();
+        if (post) {
+          const body = JSON.parse(post) as { sessionId?: string };
+          if (body.sessionId) reqSessionId = body.sessionId;
+        }
+      } catch {
+        /* best-effort */
+      }
+      await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          sessionId: "sess-1",
+          sessionId: reqSessionId,
           messageId: `msg-${Date.now()}-${n}`,
           replyText,
           ttsUrl,
@@ -136,8 +148,8 @@ export default class ChatPage {
               }
             : { stars: 0, starAwarded: false, starsUntilNext: 8 }),
         }),
-      }),
-    );
+      });
+    });
   }
 
   /** Mock the chat stars endpoint (Home 展示)，返回累计星星数。 */
@@ -148,6 +160,46 @@ export default class ChatPage {
         contentType: "application/json",
         body: JSON.stringify({ stars }),
       }),
+    );
+  }
+
+  /** AI-409：Mock 会话列表端点，返回给定摘要数组（按前端期望结构）。
+   *  注意末位 `*`，用于匹配带 `?userId=` 查询串的请求 URL（Playwright glob
+   *  对完整 URL 含 query 做匹配，缺 `*` 会漏拦截而打到真实后端 → 新用户返回空列表）。 */
+  async mockChatSessions(
+    sessions: Array<{
+      id: string;
+      sceneId: string | null;
+      stars: number;
+      messageCount: number;
+      lastMessagePreview: string | null;
+      createdAt?: string;
+      updatedAt?: string | null;
+    }>,
+  ): Promise<void> {
+    await this.page.route("**/api/ai/chat/sessions*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(sessions),
+      }),
+    );
+  }
+
+  /** AI-409：Mock 某会话的历史消息端点，返回给定消息数组（user/assistant）。
+   *  末位 `*` 同样用于匹配 `?userId=` 查询串。 */
+  async mockChatSessionMessages(
+    sessionId: string,
+    messages: Array<{ id: string; role: "user" | "assistant"; text: string }>,
+  ): Promise<void> {
+    await this.page.route(
+      `**/api/ai/chat/sessions/${sessionId}/messages*`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(messages),
+        }),
     );
   }
 
@@ -345,5 +397,33 @@ export default class ChatPage {
       .locator('[data-component="ReadAlongFeedback"]')
       .textContent();
     return !!text && text.includes("star");
+  }
+
+  /** AI-409：会话列表中的会话项数量（data-component="ChatSessionItem"）。 */
+  async sessionItemCount(): Promise<number> {
+    return this.page.locator('[data-component="ChatSessionItem"]').count();
+  }
+
+  /** AI-409：点击某个历史会话项以续聊（data-session-id 定位）。 */
+  async clickSession(sessionId: string): Promise<void> {
+    await this.page
+      .locator(`[data-component="ChatSessionItem"][data-session-id="${sessionId}"]`)
+      .click();
+  }
+
+  /** AI-409：点击「+ New chat」按钮（data-action="new-chat"）。 */
+  async clickNewChat(): Promise<void> {
+    await this.page.locator('button[data-action="new-chat"]').click();
+  }
+
+  /** AI-409：整个对话 thread 中（任何角色气泡）是否含某段文本。 */
+  async chatMessageContains(text: string): Promise<boolean> {
+    const bubbles = this.page.locator('[data-component="ChatBubble"]');
+    const n = await bubbles.count();
+    for (let i = 0; i < n; i++) {
+      const t = await bubbles.nth(i).textContent();
+      if (t && t.includes(text)) return true;
+    }
+    return false;
   }
 }

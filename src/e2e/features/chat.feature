@@ -76,3 +76,37 @@ Feature: Chat with Foxy
     And I chat for 8 rounds saying "hello foxy"
     Then I should see a star celebration
     And I should see a chat star count of 1
+
+  Scenario: A child can see past chats and resume one to view its history (AI-409)
+    Given I am logged in as a new user
+    And the chat scenes are stubbed with 2 scenes
+    And the chat sessions endpoint returns a session "sess-old" in scene "greeting" with 2 stars
+    And the chat session "sess-old" has history: the user said "I am happy!" and the fox said "How are you today?"
+    When I open the chat page
+    Then I should see 1 chat session item
+    When I resume the chat session "sess-old"
+    Then I should see a chat bubble containing "How are you today?"
+    And I should see a chat bubble containing "I am happy!"
+
+  Scenario: A child can start a new chat after viewing past sessions (AI-409)
+    Given I am logged in as a new user
+    And the chat scenes are stubbed with 2 scenes
+    And the chat sessions endpoint returns a session "sess-old" in scene "greeting" with 1 star
+    When I open the chat page
+    Then I should see 1 chat session item
+    When I start a new chat
+    Then I should see an empty chat thread
+
+  Scenario: A child resumes a past chat and continues the conversation without losing history (AI-409)
+    Given I am logged in as a new user
+    And the chat scenes are stubbed with 2 scenes
+    And the chat sessions endpoint returns a session "sess-old" in scene "greeting" with 1 star
+    And the chat session "sess-old" has history: the user said "I like dogs" and the fox said "Dogs are great!"
+    And the chat reply will be "What else do you like?" with a fox voice
+    When I open the chat page
+    And I resume the chat session "sess-old"
+    Then I should see a chat bubble containing "Dogs are great!"
+    When I type "I like cats" into the chat input
+    And I send the chat message
+    Then I should see a chat bubble containing "Dogs are great!"
+    And I should see a chat bubble containing "What else do you like?"

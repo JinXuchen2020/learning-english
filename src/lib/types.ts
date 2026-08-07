@@ -269,3 +269,35 @@ export interface ChatStarsResponse {
   /** 该用户全部会话累计星星数之和。 */
   stars: number;
 }
+
+/** 会话摘要（与后端 `ChatSessionSummary` 对齐，AI-409「我的会话」列表项）。 */
+export interface ChatSessionSummary {
+  /** 会话 id（uuid）。 */
+  id: string;
+  /** 场景包 id（greeting/zoo/...）；自由对话为 null。 */
+  sceneId: string | null;
+  /** 本会话累计星星数（AI-408）。 */
+  stars: number;
+  /** 用户+助手消息条数（不含 system）。 */
+  messageCount: number;
+  /** 最近一条消息文本预览（截断），无消息为 null。 */
+  lastMessagePreview: string | null;
+  /** 会话创建时间（ISO 字符串）。 */
+  createdAt: string;
+  /** 会话更新时间（ISO 字符串，可能为 null）。 */
+  updatedAt: string | null;
+}
+
+/** 历史消息（与后端 `ChatHistoryMessage` 对齐，AI-409 续聊前回显气泡）。 */
+export interface ChatHistoryMessage {
+  /** 消息 id（uuid）。 */
+  id: string;
+  /** 角色：user / assistant（不含 system）。 */
+  role: "user" | "assistant";
+  /** 消息正文。 */
+  text: string;
+  /** 狐狸朗读音频引用；历史消息当前恒为 null（历史音频未落库路径）。 */
+  ttsUrl: string | null;
+  /** 消息创建时间（ISO 字符串）。 */
+  createdAt: string;
+}

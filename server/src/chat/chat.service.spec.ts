@@ -5,6 +5,7 @@ import { AiChatSession } from './ai-chat-session.entity';
 import { AiChatMessage } from './ai-chat-message.entity';
 import { AiProvider } from '../ai/ai-provider.interface';
 import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
+import { In } from 'typeorm';
 
 /**
  * ChatService 单测（AI-403 + AI-406 安全拦截）。
@@ -20,10 +21,26 @@ function makeRepo<T extends { id?: string }>(initial: T[] = []): any {
       const id = opts?.where?.id;
       return (id ? store.find((r) => r.id === id) : null) ?? null;
     }),
-    find: jest.fn(async (opts: { where?: { sessionId?: string } }) => {
-      const sid = opts?.where?.sessionId;
+    find: jest.fn(async (opts: { where?: Record<string, unknown> }) => {
+      const where = opts?.where ?? {};
       return store
-        .filter((r) => !sid || (r as any).sessionId === sid)
+        .filter((r) => {
+          for (const key of Object.keys(where)) {
+            const cond = (where as any)[key];
+            const val = (r as any)[key];
+            // 支持 TypeORM In(...) 运算符（AI-409 listSessions 用 In(sessionIds)）。
+            if (cond && typeof cond === 'object' && Array.isArray((cond as any).value)) {
+              if (!(cond as any).value.includes(val)) return false;
+            } else if (cond !== undefined) {
+              if (cond === null) {
+                if (val !== null) return false;
+              } else if (val !== cond) {
+                return false;
+              }
+            }
+          }
+          return true;
+        })
         .sort((a, b) => {
           const ta = (a as any).createdAt?.getTime?.() ?? 0;
           const tb = (b as any).createdAt?.getTime?.() ?? 0;
@@ -457,5 +474,114 @@ describe('ChatService 星标与鼓励 (AI-408)', () => {
     const svc = makeService(sessionRepo, makeRepo() as any, makeProvider());
     const res = await svc.getStars('nobody');
     expect(res.stars).toBe(0);
+  });
+});
+
+describe('ChatService 会话历史与续聊 (AI-409)', () => {
+  /** 构造带 userId 的 sessionRepo（支持 listSessions 的 where.userId 过滤）。 */
+  function makeSessionRepo(rows: Array<Partial<AiChatSession> & { id: string }>): any {
+    const full: AiChatSession[] = rows.map((r) => ({
+      userId: 'anonymous',
+      sceneId: null,
+      stars: 0,
+      createdAt: new Date(),
+      updatedAt: null,
+      ...r,
+    })) as AiChatSession[];
+    return makeRepo<AiChatSession>(full);
+  }
+
+  /** 构造带 sessionId/role/createdAt 的消息 mock。 */
+  function makeMsgRepo(
+    rows: Array<{ id: string; sessionId: string; role: string; text: string; createdAt: number }>,
+  ): any {
+    const full: AiChatMessage[] = rows.map((r) => ({
+      audioPath: null,
+      ...r,
+      createdAt: new Date(r.createdAt),
+    })) as AiChatMessage[];
+    return makeRepo<AiChatMessage>(full);
+  }
+
+  it('listSessions 按最近活动倒序返回摘要', async () => {
+    const now = Date.now();
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1', createdAt: new Date(now - 1000) },
+      { id: 'b', userId: 'u1', createdAt: new Date(now) },
+    ]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'user', text: 'a-msg', createdAt: now - 500 },
+      { id: 'm2', sessionId: 'b', role: 'user', text: 'b-msg', createdAt: now + 100 }, // b 更新
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+
+    const res = await svc.listSessions('u1');
+    expect(res.map((r) => r.id)).toEqual(['b', 'a']);
+    expect(res[0].messageCount).toBe(1);
+    expect(res[0].lastMessagePreview).toBe('b-msg');
+  });
+
+  it('listSessions 无会话 → 返回空数组（不查消息）', async () => {
+    const sessionRepo = makeSessionRepo([]);
+    const messageRepo = makeMsgRepo([]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toEqual([]);
+  });
+
+  it('listSessions 按 userId 过滤（仅返回该用户会话）', async () => {
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1' },
+      { id: 'b', userId: 'u2' },
+    ]);
+    const messageRepo = makeMsgRepo([]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('a');
+  });
+
+  it('listSessions 仅统计 user/assistant（排除 system），预览取最后可回显消息，携带星星数', async () => {
+    const sessionRepo = makeSessionRepo([
+      { id: 'a', userId: 'u1', sceneId: 'greeting', stars: 2, createdAt: new Date(1) },
+    ]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'system', text: 'SYS', createdAt: 1 },
+      { id: 'm2', sessionId: 'a', role: 'user', text: 'hello fox', createdAt: 2 },
+      { id: 'm3', sessionId: 'a', role: 'assistant', text: 'hi kid', createdAt: 3 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.listSessions('u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].messageCount).toBe(2); // 排除 system
+    expect(res[0].lastMessagePreview).toBe('hi kid');
+    expect(res[0].stars).toBe(2);
+    expect(res[0].sceneId).toBe('greeting');
+  });
+
+  it('getSessionMessages 返回 user/assistant 升序，排除 system', async () => {
+    const sessionRepo = makeSessionRepo([{ id: 'a', userId: 'u1' }]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'system', text: 'SYS', createdAt: 1 },
+      { id: 'm2', sessionId: 'a', role: 'user', text: 'u', createdAt: 2 },
+      { id: 'm3', sessionId: 'a', role: 'assistant', text: 'a', createdAt: 3 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.getSessionMessages('a');
+    expect(res.map((r) => r.role)).toEqual(['user', 'assistant']);
+    expect(res[0].text).toBe('u');
+    expect(res[1].text).toBe('a');
+    expect(res.every((r) => r.ttsUrl === null)).toBe(true); // 历史音频未落库
+  });
+
+  it('getSessionMessages 透传 sessionId 与 userId（deferred 鉴权）', async () => {
+    const sessionRepo = makeSessionRepo([{ id: 'a', userId: 'u1' }]);
+    const messageRepo = makeMsgRepo([
+      { id: 'm1', sessionId: 'a', role: 'user', text: 'u', createdAt: 2 },
+    ]);
+    const svc = makeService(sessionRepo as any, messageRepo as any, makeProvider());
+    const res = await svc.getSessionMessages('a', 'u1');
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('m1');
   });
 });

@@ -20,7 +20,7 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
   AI_PROVIDER_TOKEN,
   AiProvider,
@@ -36,6 +36,12 @@ import { buildChatSystemPrompt } from './chat-system-prompt';
 import { ChatSafetyService } from './chat-safety.service';
 import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
 import { computeStars, type StarAward } from './chat-stars';
+import {
+  buildSessionSummaries,
+  toHistoryMessage,
+  type ChatSessionSummary,
+  type ChatHistoryMessage,
+} from './chat-sessions';
 import { logger } from '../common/logger/logger';
 
 /** 聊天响应（与前端 AI-407 契约一致，AI-408 追加 stars 字段）。 */
@@ -171,6 +177,58 @@ export class ChatService {
       .getRawOne<{ total: string | number }>();
     const stars = Number(row?.total ?? 0);
     return { stars };
+  }
+
+  /**
+   * 列出某用户全部对话会话摘要（AI-409，「我的会话」列表）。
+   * 按「最近活动」倒序（最新对话的会话排最前），每条含消息数、最近消息预览、
+   * 累计星星数。仅取 user/assistant 消息做统计（排除 system 系统提示）。
+   * @param userId 用户 id（缺省 `anonymous` 占位，与 sendMessage 口径一致）
+   */
+  async listSessions(userId?: string): Promise<ChatSessionSummary[]> {
+    const uid = userId?.trim() || ANONYMOUS_USER_ID;
+    const sessions = await this.sessionRepo.find({ where: { userId: uid } });
+    if (sessions.length === 0) return [];
+    const sessionIds = sessions.map((s) => s.id);
+    const messages = await this.messageRepo.find({
+      where: { sessionId: In(sessionIds) },
+      order: { createdAt: 'ASC' },
+    });
+    return buildSessionSummaries(
+      sessions.map((s) => ({
+        id: s.id,
+        sceneId: s.sceneId,
+        stars: s.stars,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
+      messages.map((m) => ({
+        sessionId: m.sessionId,
+        role: m.role,
+        text: m.text,
+        createdAt: m.createdAt,
+      })),
+    );
+  }
+
+  /**
+   * 取回某会话的全部历史消息（AI-409，续聊前回显）。按时间升序，仅
+   * user/assistant（排除 system 系统提示）；`ttsUrl` 当前恒为 null（历史音频
+   * 未落库路径，见 chat-sessions.ts 文件头说明）。
+   * @param sessionId 会话 id（对应 `ai_chat_sessions.id`）
+   * @param userId 预留鉴权字段（当前 deferred，未做跨用户过滤，与全仓库 AI 接口口径一致）
+   */
+  async getSessionMessages(
+    sessionId: string,
+    _userId?: string,
+  ): Promise<ChatHistoryMessage[]> {
+    const messages = await this.messageRepo.find({
+      where: { sessionId },
+      order: { createdAt: 'ASC' },
+    });
+    return messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => toHistoryMessage(m));
   }
 
   /** 解析或创建会话：提供 sessionId 复用（不存在 → 404）；否则新建。 */

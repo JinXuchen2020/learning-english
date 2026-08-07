@@ -4,6 +4,7 @@ import { ChatError } from './chat.errors';
 import { ChatMessageDto } from './chat-message.dto';
 import { ChatScenesService } from './chat-scenes.service';
 import { SceneSummary } from './chat-scenes';
+import type { ChatSessionSummary, ChatHistoryMessage } from './chat-sessions';
 import { HttpException, ValidationPipe, BadRequestException } from '@nestjs/common';
 
 /**
@@ -111,6 +112,37 @@ describe('ChatController.stars (AI-408)', () => {
     const res = await c.stars();
     expect(res).toEqual({ stars: 0 });
     expect(chat.getStars).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe('ChatController 会话历史与续聊 (AI-409)', () => {
+  it('GET sessions 透传 ChatService.listSessions（含 userId 透传）', async () => {
+    const fake: ChatSessionSummary[] = [
+      { id: 's1', sceneId: 'greeting', stars: 1, messageCount: 4, lastMessagePreview: 'hi', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: null },
+    ];
+    const chat = { listSessions: jest.fn(async () => fake) };
+    const c = makeController(chat);
+    const res = await c.sessions('u1');
+    expect(res).toBe(fake);
+    expect(chat.listSessions).toHaveBeenCalledWith('u1');
+  });
+
+  it('GET sessions/:id/messages 透传 ChatService.getSessionMessages（id + userId）', async () => {
+    const fake: ChatHistoryMessage[] = [
+      { id: 'm1', role: 'user', text: 'hi', ttsUrl: null, createdAt: '2026-01-01T00:00:00.000Z' },
+    ];
+    const chat = { getSessionMessages: jest.fn(async () => fake) };
+    const c = makeController(chat);
+    const res = await c.sessionMessages('sess-9', 'u1');
+    expect(res).toBe(fake);
+    expect(chat.getSessionMessages).toHaveBeenCalledWith('sess-9', 'u1');
+  });
+
+  it('GET sessions/:id/messages 不传 userId → 透传 undefined', async () => {
+    const chat = { getSessionMessages: jest.fn(async () => []) };
+    const c = makeController(chat);
+    await c.sessionMessages('sess-9');
+    expect(chat.getSessionMessages).toHaveBeenCalledWith('sess-9', undefined);
   });
 });
 

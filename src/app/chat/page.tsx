@@ -14,6 +14,8 @@ import { logger } from "@/lib/logger";
 import type {
   ChatScene,
   ChatMessage,
+  ChatSessionSummary,
+  ChatHistoryMessage,
   SpeechFeedback,
 } from "@/lib/types";
 import type { RecordingResult } from "@/lib/speech-recorder";
@@ -181,6 +183,9 @@ function ChatInner() {
   // AI-408：当前会话累计星星数 + 刚得星时的庆祝态（存星星总数，null=不庆祝）。
   const [sessionStars, setSessionStars] = useState(0);
   const [celebration, setCelebration] = useState<number | null>(null);
+  // AI-409：我的会话列表 + 续聊。sesions 为摘要列表；active 会话 = sessionId（复用既有 state）。
+  const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const threadRef = useRef<HTMLDivElement>(null);
 
   // 庆祝态自动消失（4 秒后），避免遮挡后续对话。
@@ -217,6 +222,24 @@ function ChatInner() {
     };
   }, []);
 
+  // AI-409：加载「我的会话」列表（续聊入口）。失败不阻断聊天，保留空列表。
+  const loadSessions = useCallback(async () => {
+    setLoadingSessions(true);
+    try {
+      const list = await api.getChatSessions(user?.id);
+      setSessions(list);
+    } catch (err) {
+      logger.error("Failed to load chat sessions", err);
+      // 不阻断对话：保留空列表，用户仍可正常发起新对话
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
   // 新消息 → 滚动到底部。
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
@@ -242,6 +265,50 @@ function ChatInner() {
     },
     [],
   );
+
+  // AI-409：恢复历史会话 → 拉取历史消息回显到 thread，并定位到该会话（sessionId/
+  // sceneId/stars 同步），续聊时 handleSend 携带 sessionId，后端自动续上上下文。
+  const handleResumeSession = useCallback(
+    async (session: ChatSessionSummary) => {
+      setSelectedSceneId(session.sceneId);
+      setSessionStars(session.stars);
+      setSendError(null);
+      setInput("");
+      try {
+        const history: ChatHistoryMessage[] = await api.getChatSessionMessages(
+          session.id,
+          user?.id,
+        );
+        const mapped: ChatMessage[] = history.map((m) => ({
+          id: m.id,
+          role: m.role,
+          text: m.text,
+          ttsUrl: m.ttsUrl ?? null,
+        }));
+        setSessionId(session.id);
+        setMessages(mapped);
+      } catch (err) {
+        logger.error("Failed to resume chat session", err);
+        setSendError(
+          err instanceof ApiError
+            ? err.message || "Could not open that chat. Try again?"
+            : "Network hiccup — could not open that chat.",
+        );
+      }
+    },
+    [user],
+  );
+
+  // AI-409：开新对话 → 清掉当前会话（sessionId/消息/场景/星星），回到初始态。
+  const handleNewChat = useCallback(() => {
+    setSessionId(null);
+    setSelectedSceneId(null);
+    setSessionStars(0);
+    setMessages([]);
+    setCelebration(null);
+    setSendError(null);
+    setInput("");
+  }, []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -303,6 +370,15 @@ function ChatInner() {
 
   const selectedScene = scenes.find((s) => s.id === selectedSceneId) ?? null;
 
+  // AI-409：把场景 id 映射成展示标题（用于会话列表项）；未知/自由对话回落。
+  const sceneTitle = useCallback(
+    (id: string | null): string => {
+      if (!id) return "Free chat";
+      return scenes.find((s) => s.id === id)?.title ?? id;
+    },
+    [scenes],
+  );
+
   return (
     <div className="space-y-5" data-component="ChatPage">
       {/* Header */}
@@ -354,6 +430,72 @@ function ChatInner() {
           </button>
         </div>
       )}
+
+      {/* AI-409：我的会话列表 + 续聊入口 */}
+      <section className="space-y-2" data-component="ChatSessionList">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-kids-title">
+            My conversations
+          </h2>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="rounded-full bg-kids-secondary px-3 py-1 text-xs font-bold text-kids-title hover:bg-kids-sun/30"
+            data-action="new-chat"
+          >
+            + New chat
+          </button>
+        </div>
+        {loadingSessions ? (
+          <p className="text-xs text-kids-muted">Loading conversations…</p>
+        ) : sessions.length === 0 ? (
+          <p
+            className="text-xs text-kids-muted"
+            data-component="ChatSessionEmpty"
+          >
+            No past chats yet 🐾
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {sessions.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  data-component="ChatSessionItem"
+                  data-session-id={s.id}
+                  data-active={sessionId === s.id ? "true" : "false"}
+                  onClick={() => handleResumeSession(s)}
+                  className={`w-full rounded-control border-2 px-3 py-2 text-left transition-colors ${
+                    sessionId === s.id
+                      ? "border-[var(--seed-primary)] bg-[var(--color-primary-wash)]"
+                      : "border-transparent bg-kids-card hover:bg-kids-secondary"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-bold text-kids-title">
+                      {sceneTitle(s.sceneId)}
+                    </span>
+                    {s.stars > 0 && (
+                      <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-kids-sun">
+                        <Star size={14} className="fill-kids-sun" />
+                        {s.stars}
+                      </span>
+                    )}
+                  </div>
+                  {s.lastMessagePreview && (
+                    <p className="mt-0.5 truncate text-xs text-kids-muted">
+                      {s.lastMessagePreview}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-[10px] text-kids-muted">
+                    {s.messageCount} message{s.messageCount === 1 ? "" : "s"}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Scene selection cards (AI-405) */}
       {loadingScenes ? (

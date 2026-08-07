@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Param, HttpException, HttpStatus } from '@nestjs/common';
 import { ChatService, ChatSendResponse, ChatStarsResponse } from './chat.service';
 import { ChatMessageDto } from './chat-message.dto';
 import { ChatError } from './chat.errors';
@@ -56,5 +56,29 @@ export class ChatController {
   @Get('stars')
   async stars(@Query('userId') userId?: string): Promise<ChatStarsResponse> {
     return this.chat.getStars(userId);
+  }
+
+  /**
+   * 列出某用户全部对话会话摘要（AI-409，「我的会话」列表）。
+   * @param userId 用户 id（缺省 `anonymous` 占位，与 messages 接口口径一致）
+   * @returns `ChatSessionSummary[]`（按最近活动倒序）
+   */
+  @Get('sessions')
+  async sessions(@Query('userId') userId?: string) {
+    return this.chat.listSessions(userId);
+  }
+
+  /**
+   * 取回某会话的全部历史消息（AI-409，续聊前回显）。
+   * @param id 会话 id（对应 `ai_chat_sessions.id`）
+   * @param userId 预留鉴权字段（当前 deferred，与全仓库 AI 接口口径一致）
+   * @returns `ChatHistoryMessage[]`（按时间升序，仅 user/assistant）
+   */
+  @Get('sessions/:id/messages')
+  async sessionMessages(
+    @Param('id') id: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.chat.getSessionMessages(id, userId);
   }
 }

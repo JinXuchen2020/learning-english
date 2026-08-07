@@ -268,3 +268,91 @@ Then(
     }
   },
 );
+
+// ---- AI-409：会话历史与续聊 ----
+
+Given(
+  "the chat sessions endpoint returns a session {string} in scene {string} with {int} star(s)",
+  async function (this: E2EWorld, id: string, sceneId: string, stars: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.mockChatSessions([
+      {
+        id,
+        sceneId,
+        stars,
+        messageCount: 0,
+        lastMessagePreview: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      },
+    ]);
+  },
+);
+
+Given(
+  "the chat session {string} has history: the user said {string} and the fox said {string}",
+  async function (this: E2EWorld, id: string, userText: string, foxText: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.mockChatSessionMessages(id, [
+      { id: `${id}-m1`, role: "user", text: userText },
+      { id: `${id}-m2`, role: "assistant", text: foxText },
+    ]);
+  },
+);
+
+When(
+  "I resume the chat session {string}",
+  async function (this: E2EWorld, id: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.clickSession(id);
+  },
+);
+
+Then(
+  "I should see {int} chat session item(s)",
+  async function (this: E2EWorld, expected: number) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    // 等待第 expected 个会话项出现（证明列表已加载且至少这么多），再精确计数。
+    await this.page
+      .locator('[data-component="ChatSessionItem"]')
+      .nth(expected - 1)
+      .waitFor({ timeout: 10000 });
+    const count = await page.sessionItemCount();
+    if (count !== expected) {
+      throw new Error(`Expected ${expected} chat session item(s) but found ${count}`);
+    }
+  },
+);
+
+Then(
+  "I should see a chat bubble containing {string}",
+  async function (this: E2EWorld, text: string) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    try {
+      await this.page
+        .locator('[data-component="ChatBubble"]', { hasText: text })
+        .first()
+        .waitFor({ timeout: 10000 });
+    } catch {
+      const found = await page.chatMessageContains(text);
+      if (!found) {
+        throw new Error(`Expected a chat bubble containing "${text}"`);
+      }
+    }
+  },
+);
+
+When("I start a new chat", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  await page.clickNewChat();
+});
+
+Then("I should see an empty chat thread", async function (this: E2EWorld) {
+  try {
+    await this.page
+      .locator('[data-component="ChatEmpty"]')
+      .waitFor({ timeout: 10000 });
+  } catch {
+    throw new Error("Expected an empty chat thread (ChatEmpty)");
+  }
+});
