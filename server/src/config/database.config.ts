@@ -20,6 +20,7 @@ import { AiChatSession } from '../chat/ai-chat-session.entity';
 import { AiChatMessage } from '../chat/ai-chat-message.entity';
 import { AiWordCard } from '../word-card/ai-word-card.entity';
 import { MascotStory } from '../ai/mascot-story.entity';
+import { PictureBook } from '../ai/picture-book.entity';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -46,6 +47,7 @@ export const appEntities = [
   AiChatMessage,
   AiWordCard,
   MascotStory,
+  PictureBook,
 ];
 
 export type DbType = 'sqlite' | 'postgres';

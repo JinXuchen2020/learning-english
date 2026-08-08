@@ -23,6 +23,9 @@ import { AiReportController } from './ai-report.controller';
 import { MascotStory } from './mascot-story.entity';
 import { MascotStoryService } from './mascot-story.service';
 import { MascotStoryController } from './mascot-story.controller';
+import { PictureBook } from './picture-book.entity';
+import { PictureBookService } from './picture-book.service';
+import { PictureBookController } from './picture-book.controller';
 import { AiReport } from './ai-report.entity';
 import { AiParentEmailLog } from './ai-parent-email-log.entity';
 import { ReportSchedulerService } from './report-scheduler.service';
@@ -35,6 +38,8 @@ import { TaskCompletion } from '../entities/task-completion.entity';
 import { WordProgress } from '../entities/word-progress.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { User } from '../entities/user.entity';
+import { Course } from '../entities/course.entity';
+import { Lesson } from '../entities/lesson.entity';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { AiController } from './ai.controller';
@@ -137,8 +142,8 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
-  controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, PictureBook, Course, Lesson, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
+  controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController, PictureBookController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
     { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
@@ -147,6 +152,7 @@ export function createAuditedProvider(
     AiSpeechAttemptService,
     AiReportService,
     MascotStoryService,
+    PictureBookService,
     ReportSchedulerService,
     EmailService,
     LogEmailSender,
@@ -175,6 +181,7 @@ export function createAuditedProvider(
     AiSpeechAttemptService,
     AiReportService,
     MascotStoryService,
+    PictureBookService,
     ReportSchedulerService,
     AiSpeechEvaluatorService,
     AiTranscribeService,

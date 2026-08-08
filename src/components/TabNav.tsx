@@ -12,6 +12,7 @@ const tabs = [
   { href: "/practice", label: "Practice", icon: Gamepad2 },
   { href: "/speech", label: "Speak", icon: Mic },
   { href: "/chat", label: "Chat", icon: MessageCircle },
+  { href: "/picture-book", label: "绘本", icon: BookOpen },
   { href: "/parent-report", label: "报告", icon: BarChart3 },
 ];
 

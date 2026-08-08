@@ -29,6 +29,7 @@ import type {
   WordDifficultyInfo,
   MascotLevelInfo,
   MascotStory,
+  PictureBook,
 } from "./types";
 
 /**
@@ -254,6 +255,28 @@ export function getMascotStory(userId: string, level: number): Promise<MascotSto
   return request<MascotStory>(
     `/ai/mascot/story/${level}?userId=${encodeURIComponent(userId)}`
   );
+}
+
+/* AI Picture Book (AI-604) */
+
+/**
+ * 获取（或按需生成）某课程的绘本。courseId 可空 → 返回示例/默认绘本。
+ */
+export function getPictureBook(userId: string, courseId?: string): Promise<PictureBook> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (courseId) params.set("courseId", encodeURIComponent(courseId));
+  return request<PictureBook>(`/ai/picture-book/story?${params.toString()}`);
+}
+
+/**
+ * 合成绘本页朗读音频，返回可播放 URL（mock 下为 null，前端静默降级）。
+ */
+export function requestPictureBookTts(text: string): Promise<{ ttsUrl: string | null }> {
+  return request<{ ttsUrl: string | null }>("/ai/picture-book/tts", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }
 
 /* ----------------------------- Plan ----------------------------- */

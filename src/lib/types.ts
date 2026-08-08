@@ -506,3 +506,31 @@ export interface MascotStory {
   /** 生成时间（ISO 字符串，读回时存在）。 */
   createdAt?: string;
 }
+
+/* ----------------------- AI Picture Book (AI-604) ----------------------- */
+
+/** 单页绘本（与后端 `PictureBookPage` 对齐）。 */
+export interface PictureBookPage {
+  /** 页码，从 1 开始。 */
+  pageNumber: number;
+  /** 该页叙事文本。 */
+  text: string;
+  /** 该页配图提示（项目当前无文生图，前端展示为配图提示卡）。 */
+  illustrationPrompt: string;
+}
+
+/** AI 绘本（与后端 `PictureBookResponse` 对齐）。 */
+export interface PictureBook {
+  /** 绘本主键（读回时存在）。 */
+  id?: string;
+  /** 关联课程 id（空串表示示例/默认绘本）。 */
+  courseId: string;
+  /** 绘本标题。 */
+  title: string;
+  /** 多页绘本。 */
+  pages: PictureBookPage[];
+  /** true = 模板降级（AI 失败/解析失败）。 */
+  isDefault: boolean;
+  /** 生成时间（ISO 字符串，读回时存在）。 */
+  createdAt?: string;
+}
