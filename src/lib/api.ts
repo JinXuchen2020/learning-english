@@ -21,6 +21,10 @@ import type {
   ChatHistoryMessage,
   DailyReportResponse,
   WeeklyReportData,
+  WordCard,
+  WordCardStatus,
+  GenerateWordCardDto,
+  GenerateWordCardResult,
 } from "./types";
 
 /**
@@ -456,4 +460,54 @@ export function getWeeklyReport(
   params.set("userId", userId);
   if (weekStart) params.set("weekStart", weekStart);
   return request<WeeklyReportData>(`/ai/report/weekly/preview?${params.toString()}`);
+}
+
+/* ----------------------- AI Word Cards (AI-601) ----------------------- */
+
+/**
+ * 生成单词卡片（AI-601）：`POST /api/ai/word-card/generate`。
+ * 无 LLM key 时后端经 MockProvider 自动降级为内置模板卡片，仍返回 200，
+ * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ * 内容安全命中 → 422 `{ code:'CONTENT_UNSAFE', ... }`，由调用方提示「内容不安全」。
+ *
+ * @param dto { interest, count?, courseId? }
+ */
+export function generateWordCards(dto: GenerateWordCardDto): Promise<GenerateWordCardResult> {
+  return request<GenerateWordCardResult>("/ai/word-card/generate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 列出单词卡片（AI-601）：`GET /api/ai/word-card?status=`。
+ * @param status 可选过滤值（pending/approved/rejected）；缺省返回全部
+ */
+export function listWordCards(status?: WordCardStatus): Promise<WordCard[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request<WordCard[]>(`/ai/word-card${qs}`);
+}
+
+/**
+ * 批准一张 pending 卡片（AI-601）：`POST /api/ai/word-card/:id/approve`。
+ * @param id 卡片 id
+ * @param reviewerNote 可选审核备注
+ */
+export function approveWordCard(id: string, reviewerNote?: string): Promise<WordCard> {
+  return request<WordCard>(`/ai/word-card/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
+  });
+}
+
+/**
+ * 驳回一张 pending 卡片（AI-601）：`POST /api/ai/word-card/:id/reject`。
+ * @param id 卡片 id
+ * @param reviewerNote 可选审核备注
+ */
+export function rejectWordCard(id: string, reviewerNote?: string): Promise<WordCard> {
+  return request<WordCard>(`/ai/word-card/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
+  });
 }

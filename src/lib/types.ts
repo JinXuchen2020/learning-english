@@ -408,3 +408,56 @@ export interface WeeklyReportData {
   /** 自包含 HTML 邮件正文（Dashboard 不渲染）。 */
   html: string;
 }
+
+/* ----------------------- AI Word Cards (AI-601) ----------------------- */
+
+/** 单词卡片审核状态（与后端 `WordCardStatus` 对齐）。 */
+export type WordCardStatus = "pending" | "approved" | "rejected";
+
+/** 单词卡片视图（与后端 `WordCardView` 对齐，AI-601 响应体）。 */
+export interface WordCard {
+  /** 卡片 id（uuid）。 */
+  id: string;
+  /** 英文单词。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 英文例句。 */
+  example: string;
+  /** 例句中文翻译（可空）。 */
+  exampleTrans: string | null;
+  /** 配图生成 prompt（英文）。 */
+  imagePrompt: string;
+  /** 生成所用兴趣 / 主题。 */
+  interest: string;
+  /** 关联课程 id（可空）。 */
+  courseId: string | null;
+  /** 审核状态。 */
+  status: WordCardStatus;
+  /** 审核备注（可空）。 */
+  reviewerNote: string | null;
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+  /** 批准时间（驳回 / 未批准为 null）。 */
+  approvedAt: string | null;
+}
+
+/** `POST /api/ai/word-card/generate` 请求体（字段名/类型与后端 `GenerateWordCardDto` 对齐）。 */
+export interface GenerateWordCardDto {
+  /** 兴趣 / 主题，驱动 LLM 选题（1..80）。 */
+  interest: string;
+  /** 生成数量，1~10，缺省 5。 */
+  count?: number;
+  /** 关联课程 id（可选）。 */
+  courseId?: string;
+}
+
+/** `POST /api/ai/word-card/generate` 响应（与后端 `GenerateWordCardResult` 对齐）。 */
+export interface GenerateWordCardResult {
+  /** 生成的卡片列表（此时均为 pending）。 */
+  cards: WordCard[];
+  /** true 表示 LLM 输出经重试后仍不符合 Schema，已降级为内置模板卡片。 */
+  degraded: boolean;
+  /** 实际使用的模型标识；降级时为 'template'。 */
+  model: string;
+}
