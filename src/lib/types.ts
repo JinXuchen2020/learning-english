@@ -33,6 +33,21 @@ export interface Word {
   correctIndex: number;
 }
 
+/* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
+
+/** 单词自适应难度档位（与后端 `WordDifficulty` 对齐）。 */
+export type WordDifficulty = "easy" | "medium" | "hard";
+
+/** 单个单词的自适应画像（来自 `GET /progress/word-difficulty`）。 */
+export interface WordDifficultyInfo {
+  wordId: string;
+  difficulty: WordDifficulty;
+  /** 掌握度 0-100。 */
+  mastery: number;
+  /** 复习优先级，越大越需要先复习。 */
+  reviewPriority: number;
+}
+
 export interface DailyTask {
   id: string;
   title: string;

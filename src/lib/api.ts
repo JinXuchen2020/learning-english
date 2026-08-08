@@ -25,6 +25,8 @@ import type {
   WordCardStatus,
   GenerateWordCardDto,
   GenerateWordCardResult,
+  WordDifficulty,
+  WordDifficultyInfo,
 } from "./types";
 
 /**
@@ -223,10 +225,17 @@ export function completeLesson(lessonId: string) {
 }
 
 export function recordWordAttempt(wordId: string, correct: boolean) {
-  return request<{ success: boolean; attempts: number; correctCount: number }>(
+  return request<{ success: boolean; attempts: number; correctCount: number; mastery: number; difficulty: WordDifficulty }>(
     "/progress/word",
     { method: "POST", body: JSON.stringify({ wordId, correct }) }
   );
+}
+
+/* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
+
+/** 获取当前用户所有已练单词的自适应画像（按复习优先级降序）。 */
+export function getWordDifficulties() {
+  return request<{ items: WordDifficultyInfo[] }>("/progress/word-difficulty");
 }
 
 /* ----------------------------- Plan ----------------------------- */

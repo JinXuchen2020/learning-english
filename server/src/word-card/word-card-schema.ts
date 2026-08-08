@@ -80,5 +80,5 @@ export function validateWordCards(input: unknown): WordCardValidation {
   if (errors.length > 0) {
     return { ok: false, errors };
   }
-  return { ok: true, value };
+  return { ok: true, value, errors: [] };
 }

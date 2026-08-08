@@ -81,3 +81,41 @@ export async function seedWeakWord(
   }
   return target.text;
 }
+
+/**
+ * Seed `count` practiced words (AI-602) so the free-practice page renders
+ * difficulty badges for a returning user. Records a few attempts per word with
+ * mixed correctness so the words gain a difficulty profile (easy/medium/hard).
+ * Returns the seeded word texts.
+ */
+export async function seedPracticedWords(
+  user: TestUser,
+  count = 3,
+): Promise<string[]> {
+  const auth = await apiFetch("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username: user.username, password: user.password }),
+  });
+  const token: string = auth.accessToken;
+
+  const words: ApiWord[] = await apiFetch("/words", {}, token);
+  const picked = words.slice(0, count);
+  if (picked.length === 0) {
+    throw new Error("No words in catalog to seed practiced progress");
+  }
+
+  const texts: string[] = [];
+  for (const w of picked) {
+    // 3 attempts, 2 correct → mastery 67 → medium (exercises the adaptive tier).
+    const pattern = [true, true, false];
+    for (const correct of pattern) {
+      await apiFetch(
+        "/progress/word",
+        { method: "POST", body: JSON.stringify({ wordId: w.id, correct }) },
+        token,
+      );
+    }
+    texts.push(w.text);
+  }
+  return texts;
+}
