@@ -97,6 +97,25 @@ const MOCK_PICTURE_BOOK_TEXT = JSON.stringify({
 /** 示例转写句（演示用，含可读英文）。 */
 const MOCK_TRANSCRIPT = '[Mock] I see a red apple on the table.';
 
+/** 拍照识词 (OCR) 意图关键词（小写匹配，命中其一即归为 OCR 夹具）。 */
+const OCR_KEYWORDS = ['识别', '拍照', '物体', 'ocr', '单词', 'scan', '看图', '认一'];
+
+/** 固定示例 OCR 单词卡（合法 JSON 数组，供 AI-606 演示解析）。 */
+const MOCK_OCR_CARDS_JSON = JSON.stringify([
+  {
+    word: 'apple',
+    meaning: '苹果',
+    example: 'I eat a red apple.',
+    imagePrompt: 'a red apple on a white table',
+  },
+  {
+    word: 'cat',
+    meaning: '猫',
+    example: 'The cute cat is sleeping.',
+    imagePrompt: 'a cute sleeping cat',
+  },
+]);
+
 export class MockAiProvider implements AiProvider {
   readonly name: ProviderName = 'mock';
 
@@ -114,6 +133,14 @@ export class MockAiProvider implements AiProvider {
     image: ImageInput,
     _options?: ChatOptions,
   ): Promise<ChatResult> {
+    const lowered = prompt.toLowerCase();
+    // OCR 意图（识别/拍照/物体…）→ 返回确定性 JSON 卡片，供 AI-606 演示/单测/E2E。
+    if (OCR_KEYWORDS.some((k) => lowered.includes(k.toLowerCase()))) {
+      return {
+        text: MOCK_OCR_CARDS_JSON,
+        model: 'mock-vision',
+      };
+    }
     return {
       text: `[Mock] 已识别图片(${image.mimeType}, ${image.data.length} bytes)，这是模拟理解结果。指令：${prompt}`,
       model: 'mock-vision-model',

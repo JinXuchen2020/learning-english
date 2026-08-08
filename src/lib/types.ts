@@ -503,6 +503,44 @@ export interface GenerateWordCardResult {
   model: string;
 }
 
+/* ----------------------------- Scan / OCR (AI-606) ---------------------------- */
+
+/** 拍照识词卡片视图（与后端 `ScanCardView` 对齐）。 */
+export interface ScanCard {
+  /** 条目 id（uuid）。 */
+  id: string;
+  /** 英文单词。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 英文例句（可空）。 */
+  example: string | null;
+  /** 配图 prompt（可空）。 */
+  imagePrompt: string | null;
+  /** 状态：pending(识别后) / saved(已加入生词本)。 */
+  status: "pending" | "saved";
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+}
+
+/** `POST /api/scan/recognize` 响应（与后端 `ScanResult` 对齐）。 */
+export interface ScanResult {
+  /** 识别出的卡片（pending）。未识别时为空数组。 */
+  cards: ScanCard[];
+  /** true=识别成功；false=未识别（前端展示友好兜底）。 */
+  recognized: boolean;
+  /** 友好提示（仅 `recognized=false` 时存在）。 */
+  message?: string;
+  /** 实际使用的模型标识。 */
+  model?: string;
+}
+
+/** `POST /api/scan/confirm` 请求体（字段名/类型与后端 `ConfirmScanDto` 对齐）。 */
+export interface ConfirmScanDto {
+  /** 待加入生词本的卡片 id 列表（非空字符串数组）。 */
+  ids: string[];
+}
+
 /* ----------------------- AI Mascot Growth Story (AI-603) ----------------------- */
 
 /** 吉祥物等级进度信息（与后端 `MascotLevelInfo` 对齐）。 */

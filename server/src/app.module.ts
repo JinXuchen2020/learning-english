@@ -16,6 +16,7 @@ import { AiModule } from './ai/ai.module';
 import { PlanModule } from './plan/plan.module';
 import { ChatModule } from './chat/chat.module';
 import { WordCardModule } from './word-card/word-card.module';
+import { ScanModule } from './scan/scan.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { WordCardModule } from './word-card/word-card.module';
     PlanModule,
     ChatModule,
     WordCardModule,
+    ScanModule,
   ],
 })
 export class AppModule {}

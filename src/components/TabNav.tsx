@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle, BarChart3, Layers } from "lucide-react";
+import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle, BarChart3, Layers, Camera } from "lucide-react";
 
 const tabs = [
   { href: "/", label: "Home", icon: Home },
@@ -13,6 +13,7 @@ const tabs = [
   { href: "/speech", label: "Speak", icon: Mic },
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/picture-book", label: "绘本", icon: BookOpen },
+  { href: "/scan", label: "拍照", icon: Camera },
   { href: "/parent-report", label: "报告", icon: BarChart3 },
 ];
 

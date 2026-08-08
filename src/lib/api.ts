@@ -32,6 +32,9 @@ import type {
   PictureBook,
   DueReview,
   ReviewSettings,
+  ScanCard,
+  ScanResult,
+  ConfirmScanDto,
 } from "./types";
 
 /**
@@ -555,6 +558,45 @@ export function generateWordCards(dto: GenerateWordCardDto): Promise<GenerateWor
 export function listWordCards(status?: WordCardStatus): Promise<WordCard[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   return request<WordCard[]>(`/ai/word-card${qs}`);
+}
+
+/* ----------------------------- Scan / OCR (AI-606) ---------------------------- */
+
+/**
+ * 拍照识词：上传图片（multipart）做 OCR 识别（AI-606）。
+ * `POST /api/scan/recognize`，字段 `image` + 可选 `prompt`。
+ * 复用 `postFormData`（与 `evaluateSpeech` 同思路，避免 JSON Content-Type 破坏 boundary）。
+ *
+ * @param file 图片 Blob（来自 `<input type="file" accept="image/*" capture>`）
+ * @param prompt 可选用户提示（如「水果」）
+ */
+export function recognizeImage(file: Blob, prompt?: string): Promise<ScanResult> {
+  const form = new FormData();
+  form.append("image", file, "scan.png");
+  if (prompt && prompt.trim()) form.append("prompt", prompt.trim());
+
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  return postFormData<ScanResult>("/scan/recognize", form, headers);
+}
+
+/**
+ * 将识别出的 pending 卡片加入生词本（AI-606）：`POST /api/scan/confirm`。
+ * @param ids 卡片 id 列表
+ */
+export function confirmScanWords(ids: string[]): Promise<ScanCard[]> {
+  return request<ScanCard[]>("/scan/confirm", {
+    method: "POST",
+    body: JSON.stringify({ ids } as ConfirmScanDto),
+  });
+}
+
+/**
+ * 获取当前用户的生词本（AI-606）：`GET /api/scan`（仅 saved 状态）。
+ */
+export function listScannedWords(): Promise<ScanCard[]> {
+  return request<ScanCard[]>("/scan");
 }
 
 /**

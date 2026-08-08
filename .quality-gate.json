@@ -1,14 +1,14 @@
 {
-  "phase": "ai-605",
-  "stack": "node-ts (NestJS 10 + TypeORM + better-sqlite3 / Next.js 14)",
+  "phase": "ai-606",
+  "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (后端 tsc -p tsconfig.json --incremental false 全量类型检查 EXIT 0/0 错误; 前端 next build 类型检查 0 错误[13 路由编译成功, 含 /practice]; 全栈契约对齐: DueReview/ReviewSettings 两端一致[server/src/progress/progress.service.ts 与 src/lib/types.ts 同口径]; GET /progress/review/due 与前端 getDueReviews(userId,date?) 路径/参数一致; GET /progress/review/settings 与 getReviewSettings(userId) 对齐; POST /progress/review/schedule 与前端(DailyTaskView.reviewWordText → /practice?focusWord= 深链)对齐; WordProgress 实体加 intervalDays/easeFactor/reviewCount/dueDate 四列并加入 synchronize 自动建列)",
-    "tests": "PASSED (unit: 后端 review-schedule.util.spec[loadReviewIntervals env 解析/回退; computeNextReview 正确阶梯/clamp 越界/ease 上下限/错误重置/默认 now+intervals] + progress.service.spec[getDueReviews queryBuilder where+leftJoin+排序/空数组; scheduleReview 更新/404] + progress.controller.spec[review 三路由用例] + tasks.service.spec[注入到期复习项为 review 链接项/注入失败时主任务列表仍返回] 共 54 PASS; 前端 vitest 全量 100 PASS; e2e/bdd: review-reminder.feature 1 scenario/6 steps 全绿[登录新用户→seed 到期词 Cat→看到复习卡≥1词→当日任务含复习项→点第一条复习词链接→落到练习页 for Cat], 数据钩子 data-component=ReviewReminderCard/ReviewWordLink/ReviewTaskLink/DailyTasks/WordPractice 可断言, step 文本唯一无 ambiguous, review 词链接用 Next.js <Link> force:true 规避卸载竞态)",
-    "review": "PASSED (0 open; getDailyTasks 注入到期复习项现场附加不落库、失败 try/catch 容错绝不阻断主任务列表; computeNextReview 纯函数单一真相[easeFactor 钳制 1.3-3.0, 间隔阶梯 DEFAULT_REVIEW_INTERVALS=[1,2,4,7,15,30,60] 可经 REVIEW_INTERVALS 环境变量配置]; scheduleReview 仅操作自己 userId 下词、不存在转 404 不 5xx; review 项渲染为深链非完成按钮[避免污染完成态]; 无裸 console)",
-    "optimization": "PASSED (0 open; 间隔重复算法纯函数化[review-schedule.util]可单测; 复习项服务端现场附加避免每日任务表重复行/完成态耦合; 节奏可配置[REVIEW_INTERVALS]满足「提醒时机可配置」验收; 无 stub; 到期词用 leftJoin Word 取文本/释义一次查询)"
+    "consistency": "PASSED (后端 tsc 0 错; 后端 jest 33 PASS(scan-agent/scan.service/scan.controller/mock-ai); 前端 vitest 100 PASS; next build 0 错 14 路由含 /scan; 全栈 ScanCard/ScanResult/ConfirmScanDto 字段对齐)",
+    "tests": "PASSED (unit: 3 files — scan-agent.spec / scan.service.spec / scan.controller.spec (纯逻辑解析+service+controller全分支覆盖); mock-ai.provider.spec OCR 扩展; e2e/bdd: 1 scenario / 7 steps 全绿 (登录→上传→识别→加入生词本))",
+    "review": "PASSED (0 open; userId 取自 JWT 防越权, confirm 按 userId 过滤; 图片 5MB+MIME 白名单校验 413/415; OCR 解析失败→recognized:false 友好兜底不抛 500; 无敏感日志)",
+    "optimization": "PASSED (0 open; 常量提取 MAX_IMAGE_BYTES/ALLOWED_IMAGE_MIME/HARD_UPLOAD_LIMIT_BYTES; 无 stub/临时调试; 复用 postFormData 多部件上传与 AI-106 退避层)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-605-gate.md",
-  "notes": "AI-605 = AI 复习提醒(间隔重复/Spaced Repetition, SM-2 简化版). 后端: word-progress.entity 加 intervalDays/easeFactor/reviewCount/dueDate 四列; review-schedule.util[DEFAULT_REVIEW_INTERVALS/loadReviewIntervals/computeNextReview, ease 钳制 1.3-3.0]; progress.service[recordWordAttempt 写四列; getDueReviews(userId,date?) leftJoin Word where dueDate<=date 升序; getReviewSettings; scheduleReview 更新/404]; progress.controller[GET review/due / GET review/settings / POST review/schedule]; progress.module exports ProgressService; tasks.service 注入 ProgressService 把到期词现场附加为 review 链接任务(容错); tasks.module import ProgressModule. 前端: types 加 DueReview/ReviewSettings + DailyTask.icon 增 review + reviewWordText?; api 加 getDueReviews/getReviewSettings; app/page.tsx load() 并行拉 getDueReviews, 渲染 ReviewReminderCard + 注入 DailyTasks review 链接(→/practice?focusWord=). E2E: review-reminder.feature 1 scenario/6 steps + support/pages/review.ts + step-definitions/review-reminder.steps.ts + cucumber.review-reminder.js(仅本 feature); seed.ts 加 seedDueReview(login→recordWord correct→POST review/schedule 设昨天到期). 关键修复/坑: 1)TasksService 注入 review 项时本地 task 类型缺 reviewWordText→加 DailyTaskView 接口(可选 reviewWordText); 2)jest/tsc 用 JS 入口[node ./node_modules/jest/bin/jest.js / typescript/lib/tsc.js]; 3)E2E 前杀遗留 server 释放端口+DB锁[netstat + taskkill /F]; 4)E2E 用 next build+start 生产模式(:3000); 5)E2E 后端 AI_PROVIDER=mock 启动; 6)token 仅模块内存→seed 后经 TabNav 客户端导航 bounceToHome 重挂 Home 拉新数据(不整页刷新); 7)跨模块 TasksModule import ProgressModule 单向无环. 验证: tsc --incremental false 0错; jest 54 PASS; vitest 100 PASS; next build 0错; 起服跑 E2E 1 scenario/6 steps 绿. 四质量门 + 提交(不 push)."
+  "reportRef": "docs/quality/ai-606-gate.md",
+  "notes": "AI-606 拍照学单词(OCR): 新 ScannedWord 实体(个人生词本) + ScanModule(recognize/confirm/list) + 前端 /scan 页 + TabNav「拍照」入口; chatWithImage 复用 AI-106 RetryableProvider 退避; MockProvider 扩展 OCR 夹具使 E2E 免 key 可跑。四质量门全绿, 未 push。"
 }
