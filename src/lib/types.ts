@@ -476,3 +476,33 @@ export interface GenerateWordCardResult {
   /** 实际使用的模型标识；降级时为 'template'。 */
   model: string;
 }
+
+/* ----------------------- AI Mascot Growth Story (AI-603) ----------------------- */
+
+/** 吉祥物等级进度信息（与后端 `MascotLevelInfo` 对齐）。 */
+export interface MascotLevelInfo {
+  /** 当前等级 1..6。 */
+  level: number;
+  /** 累计星星。 */
+  totalStars: number;
+  /** 当前级已得星（totalStars - 本级下限）。 */
+  levelStars: number;
+  /** 升下一级所需累计星星（满级时等于 totalStars）。 */
+  nextLevelStars: number;
+  /** 是否已满级。 */
+  isMaxLevel: boolean;
+}
+
+/** 吉祥物成长剧情（与后端 `MascotStoryResponse` 对齐）。 */
+export interface MascotStory {
+  /** 触发的等级。 */
+  level: number;
+  /** 剧情标题。 */
+  title: string;
+  /** 剧情正文。 */
+  storyText: string;
+  /** true = 模板降级（AI 失败/解析失败）。 */
+  isDefault: boolean;
+  /** 生成时间（ISO 字符串，读回时存在）。 */
+  createdAt?: string;
+}

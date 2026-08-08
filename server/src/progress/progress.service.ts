@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { WordProgress, WordDifficulty } from '../entities/word-progress.entity';
 import { User } from '../entities/user.entity';
+import { computeLevel } from '../ai/mascot-level.util';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -93,6 +94,15 @@ export class ProgressService {
 
     // Award star
     await this.usersRepo.increment({ id: userId }, 'totalStars', 1);
+
+    // AI-603: 重算等级（等级由累计星星推导，唯一写入点更新，保证与 totalStars 一致）
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (user) {
+      const newLevel = computeLevel(user.totalStars);
+      if (newLevel !== (user.level ?? 1)) {
+        await this.usersRepo.update({ id: userId }, { level: newLevel });
+      }
+    }
 
     return { success: true };
   }

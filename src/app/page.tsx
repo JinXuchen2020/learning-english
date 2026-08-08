@@ -9,7 +9,7 @@ import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
-import type { DailyReportResponse, DailyTask, PlanStatusResponse } from "@/lib/types";
+import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory } from "@/lib/types";
 import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle } from "lucide-react";
 
 const taskIcons = {
@@ -159,6 +159,10 @@ function HomeContent() {
   const [progress, setProgress] = useState<api.ProgressOverview | null>(null);
   const [planStatus, setPlanStatus] = useState<PlanStatusResponse | null>(null);
   const [chatStars, setChatStars] = useState(0);
+  const [mascotLevel, setMascotLevel] = useState<MascotLevelInfo | null>(null);
+  const [mascotStory, setMascotStory] = useState<MascotStory | null>(null);
+  const [showStory, setShowStory] = useState(false);
+  const [storyLoading, setStoryLoading] = useState(false);
   const [report, setReport] = useState<DailyReportResponse | null>(null);
   const [reportLoading, setReportLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -182,16 +186,18 @@ function HomeContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [courseData, taskData, progressData, planData] = await Promise.all([
+      const [courseData, taskData, progressData, planData, levelData] = await Promise.all([
         api.getCourses(),
         api.getDailyTasks(),
         api.getProgress(),
         user ? api.getPlanStatus(user.id) : Promise.resolve(null),
+        user ? api.getMascotLevel(user.id) : Promise.resolve(null),
       ]);
       setCourses(courseData);
       setTasks(taskData);
       setProgress(progressData);
       setPlanStatus(planData);
+      setMascotLevel(levelData);
     } catch (err) {
       logger.error("Failed to load home data", err);
     } finally {
@@ -241,6 +247,20 @@ function HomeContent() {
     [completingId]
   );
 
+  const handleViewStory = useCallback(async () => {
+    if (!user || !mascotLevel) return;
+    setStoryLoading(true);
+    try {
+      const s = await api.getMascotStory(user.id, mascotLevel.level);
+      setMascotStory(s);
+      setShowStory(true);
+    } catch (err) {
+      logger.error("Failed to load mascot story", err);
+    } finally {
+      setStoryLoading(false);
+    }
+  }, [user, mascotLevel]);
+
   const doneCount = tasks.filter((t) => t.completed).length;
   const nickname = user?.nickname || "friend";
 
@@ -251,7 +271,7 @@ function HomeContent() {
         className="card-kids flex items-center gap-5 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="GreetingBanner"
       >
-        <Mascot expression="happy" size="large" />
+        <Mascot expression="happy" size="large" level={mascotLevel?.level} />
         <div className="relative">
           <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
             <p className="text-lg font-bold text-kids-title">
@@ -297,6 +317,84 @@ function HomeContent() {
         <>
           {/* AI-504：今日 AI 小结卡片（吉祥物气泡 + 弱项 + 明日建议，可展开详情） */}
           <AiReportCard report={report} reportLoading={reportLoading} onRetry={loadReport} />
+
+          {/* AI-603：吉祥物成长 — 等级环 + 看成长故事 */}
+          {mascotLevel && (
+            <section data-component="MascotGrowthCard" className="card-kids flex items-center gap-5">
+              <Mascot expression="happy" size="large" level={mascotLevel.level} />
+              <div className="flex-1">
+                <h2 className="font-bold text-kids-title">小狐狸 Lv.{mascotLevel.level}</h2>
+                <p className="text-kids-muted">
+                  {mascotLevel.isMaxLevel
+                    ? `已收集 ${mascotLevel.totalStars} 星，满级啦！`
+                    : `还差 ${mascotLevel.nextLevelStars - mascotLevel.totalStars} 星升到 Lv.${mascotLevel.level + 1}`}
+                </p>
+                {!mascotLevel.isMaxLevel && (
+                  <div className="mt-2 h-2 w-full rounded-full bg-kids-secondary">
+                    <div
+                      className="h-2 rounded-full bg-kids-sun"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(
+                            100,
+                            Math.round(
+                              (mascotLevel.levelStars /
+                                (mascotLevel.nextLevelStars -
+                                  (mascotLevel.totalStars - mascotLevel.levelStars))) *
+                                100
+                            )
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <button
+                data-component="ViewGrowthStoryBtn"
+                onClick={handleViewStory}
+                disabled={storyLoading}
+                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {storyLoading ? "加载中…" : "看成长故事"}
+              </button>
+            </section>
+          )}
+
+          {/* AI-603：成长剧情弹层（fixed overlay） */}
+          {showStory && (
+            <div
+              data-component="MascotStoryModal"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+              onClick={() => setShowStory(false)}
+            >
+              <div
+                className="card-kids max-w-md w-full space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3">
+                  <Mascot expression="celebrating" size="medium" level={mascotLevel?.level} />
+                  <h3 data-component="MascotStoryTitle" className="font-bold text-kids-title text-lg">
+                    {mascotStory?.title}
+                  </h3>
+                </div>
+                <p data-component="MascotStoryText" className="text-kids-text leading-relaxed">
+                  {mascotStory?.storyText}
+                </p>
+                {mascotStory?.isDefault && (
+                  <p className="text-xs text-kids-muted">（小狐的鼓励小贴士）</p>
+                )}
+                <button
+                  data-component="MascotStoryClose"
+                  className="w-full rounded-control bg-kids-secondary px-4 py-2 font-bold text-kids-title hover:opacity-90"
+                  onClick={() => setShowStory(false)}
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}
           {planStatus?.hasPlan && (

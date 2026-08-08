@@ -27,6 +27,8 @@ import type {
   GenerateWordCardResult,
   WordDifficulty,
   WordDifficultyInfo,
+  MascotLevelInfo,
+  MascotStory,
 } from "./types";
 
 /**
@@ -236,6 +238,22 @@ export function recordWordAttempt(wordId: string, correct: boolean) {
 /** 获取当前用户所有已练单词的自适应画像（按复习优先级降序）。 */
 export function getWordDifficulties() {
   return request<{ items: WordDifficultyInfo[] }>("/progress/word-difficulty");
+}
+
+/* ----------------------- AI Mascot Growth Story (AI-603) ----------------------- */
+
+/** 获取当前用户等级与进度（驱动前端等级环）。 */
+export function getMascotLevel(userId: string): Promise<MascotLevelInfo> {
+  return request<MascotLevelInfo>(
+    `/ai/mascot/level?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/** 获取（或按需生成）某等级的吉祥物成长剧情（AI 生成或 Mock 兜底）。 */
+export function getMascotStory(userId: string, level: number): Promise<MascotStory> {
+  return request<MascotStory>(
+    `/ai/mascot/story/${level}?userId=${encodeURIComponent(userId)}`
+  );
 }
 
 /* ----------------------------- Plan ----------------------------- */

@@ -20,6 +20,9 @@ import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiReportService } from './ai-report.service';
 import { AiReportController } from './ai-report.controller';
+import { MascotStory } from './mascot-story.entity';
+import { MascotStoryService } from './mascot-story.service';
+import { MascotStoryController } from './mascot-story.controller';
 import { AiReport } from './ai-report.entity';
 import { AiParentEmailLog } from './ai-parent-email-log.entity';
 import { ReportSchedulerService } from './report-scheduler.service';
@@ -134,8 +137,8 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
-  controllers: [AiController, AiReportController, AiWeeklyReportController],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
+  controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
     { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
@@ -143,6 +146,7 @@ export function createAuditedProvider(
     AiCallLogService,
     AiSpeechAttemptService,
     AiReportService,
+    MascotStoryService,
     ReportSchedulerService,
     EmailService,
     LogEmailSender,
@@ -170,6 +174,7 @@ export function createAuditedProvider(
     AiCallLogService,
     AiSpeechAttemptService,
     AiReportService,
+    MascotStoryService,
     ReportSchedulerService,
     AiSpeechEvaluatorService,
     AiTranscribeService,

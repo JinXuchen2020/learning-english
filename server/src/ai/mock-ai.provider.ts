@@ -58,6 +58,16 @@ const MOCK_REPORT_TEXT = [
 /** 通用演示回复（非计划/报告意图时的兜底）。 */
 const MOCK_GENERIC_TEXT = '[Mock] 收到！这是模拟回复（演示模式，未连接真实 AI）。';
 
+/** 吉祥物成长剧情意图关键词（小写匹配）。 */
+const STORY_KEYWORDS = ['剧情', 'story', '吉祥物', '成长', '小狐狸', 'mascot', 'growth'];
+
+/** 固定示例成长剧情（合法 JSON，供 MascotStoryAgent.parseMascotStoryOutput 演示解析）。 */
+const MOCK_STORY_TEXT = JSON.stringify({
+  title: '[Mock] 小狐狸的勇气披风',
+  storyText:
+    '[Mock] 当你收集到更多星星，小狐狸披上了闪亮的披风！它说：宝贝，你的坚持让我变得更强啦，我们一起继续冒险吧～',
+});
+
 /** 示例转写句（演示用，含可读英文）。 */
 const MOCK_TRANSCRIPT = '[Mock] I see a red apple on the table.';
 
@@ -127,6 +137,9 @@ export class MockAiProvider implements AiProvider {
     }
     if (REPORT_KEYWORDS.some((k) => lowered.includes(k.toLowerCase()))) {
       return MOCK_REPORT_TEXT;
+    }
+    if (STORY_KEYWORDS.some((k) => lowered.includes(k.toLowerCase()))) {
+      return MOCK_STORY_TEXT;
     }
     return MOCK_GENERIC_TEXT;
   }
