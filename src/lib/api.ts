@@ -30,6 +30,8 @@ import type {
   MascotLevelInfo,
   MascotStory,
   PictureBook,
+  DueReview,
+  ReviewSettings,
 } from "./types";
 
 /**
@@ -247,6 +249,23 @@ export function getWordDifficulties() {
 export function getMascotLevel(userId: string): Promise<MascotLevelInfo> {
   return request<MascotLevelInfo>(
     `/ai/mascot/level?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/* ----------------------- AI Review Reminder (AI-605) ----------------------- */
+
+/** 获取当前用户「到期/今日待复习」单词列表（间隔重复，遗忘曲线）。 */
+export function getDueReviews(userId: string, date?: string): Promise<DueReview[]> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (date) params.set("date", date);
+  return request<DueReview[]>(`/progress/review/due?${params.toString()}`);
+}
+
+/** 获取当前复习节奏配置（间隔阶梯可经环境变量配置）。 */
+export function getReviewSettings(userId: string): Promise<ReviewSettings> {
+  return request<ReviewSettings>(
+    `/progress/review/settings?userId=${encodeURIComponent(userId)}`
   );
 }
 

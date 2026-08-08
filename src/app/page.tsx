@@ -9,13 +9,14 @@ import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
-import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory } from "@/lib/types";
-import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle } from "lucide-react";
+import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory, DueReview } from "@/lib/types";
+import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw } from "lucide-react";
 
 const taskIcons = {
   headphones: Headphones,
   mic: Mic,
   pencil: Pencil,
+  review: RefreshCw,
 };
 
 function ProgressRing({ progress, color }: { progress: number; color: string }) {
@@ -161,6 +162,8 @@ function HomeContent() {
   const [chatStars, setChatStars] = useState(0);
   const [mascotLevel, setMascotLevel] = useState<MascotLevelInfo | null>(null);
   const [mascotStory, setMascotStory] = useState<MascotStory | null>(null);
+  // AI-605：到期/今日待复习单词（间隔重复）。
+  const [reviews, setReviews] = useState<DueReview[]>([]);
   const [showStory, setShowStory] = useState(false);
   const [storyLoading, setStoryLoading] = useState(false);
   const [report, setReport] = useState<DailyReportResponse | null>(null);
@@ -186,18 +189,20 @@ function HomeContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [courseData, taskData, progressData, planData, levelData] = await Promise.all([
+      const [courseData, taskData, progressData, planData, levelData, reviewsData] = await Promise.all([
         api.getCourses(),
         api.getDailyTasks(),
         api.getProgress(),
         user ? api.getPlanStatus(user.id) : Promise.resolve(null),
         user ? api.getMascotLevel(user.id) : Promise.resolve(null),
+        user ? api.getDueReviews(user.id) : Promise.resolve([] as DueReview[]),
       ]);
       setCourses(courseData);
       setTasks(taskData);
       setProgress(progressData);
       setPlanStatus(planData);
       setMascotLevel(levelData);
+      setReviews(reviewsData);
     } catch (err) {
       logger.error("Failed to load home data", err);
     } finally {
@@ -415,6 +420,48 @@ function HomeContent() {
             </section>
           )}
 
+          {/* AI-605 复习提醒：到期/今日待复习单词（间隔重复） */}
+          {reviews.length > 0 && (
+            <section
+              data-component="ReviewReminderCard"
+              className="card-kids flex flex-col gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-secondary text-kids-text">
+                  <RefreshCw size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-kids-title">今日复习</h2>
+                  <p className="text-kids-muted">
+                    有 {reviews.length} 个单词该复习啦，别让它们被忘记～
+                  </p>
+                </div>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {reviews.map((r) => (
+                  <li key={r.wordId}>
+                    <Link
+                      href={`/practice?focusWord=${encodeURIComponent(r.wordText)}`}
+                      data-review-word-id={r.wordId}
+                      data-component="ReviewWordLink"
+                      className="flex items-center justify-between rounded-control bg-kids-secondary/60 px-4 py-3 hover:shadow-card-hover"
+                    >
+                      <span className="font-bold text-kids-title">{r.wordText}</span>
+                      <span className="text-sm text-kids-muted">{r.meaning}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/practice"
+                data-component="ReviewGoBtn"
+                className="self-start rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold"
+              >
+                去复习
+              </Link>
+            </section>
+          )}
+
           {/* Daily Tasks */}
           <section data-component="DailyTasks">
             <h2 className="mb-4 flex items-center gap-2">
@@ -429,6 +476,8 @@ function HomeContent() {
                 const isCompleted = task.completed;
                 // 未完成的口语(mic)任务 → 深链到 /speech（AI-308）；其余维持一键完成。
                 const isSpeechLink = isSpeakingTask(task) && !isCompleted;
+                // AI-605：注入的复习任务 → 深链到 /practice?focusWord= 复习原词（非完成按钮）。
+                const isReviewLink = !!task.reviewWordText && !isCompleted;
                 const cardClass = `card-kids flex items-center gap-4 text-left touch-target transition-all ${
                   isCompleted
                     ? "opacity-80 bg-[var(--color-primary-wash)] cursor-default"
@@ -470,6 +519,21 @@ function HomeContent() {
                       data-task-id={task.id}
                       data-speech-link="true"
                       aria-label={`Open speaking practice: ${task.title}`}
+                    >
+                      {body}
+                    </Link>
+                  );
+                }
+                if (isReviewLink) {
+                  return (
+                    <Link
+                      key={task.id}
+                      href={`/practice?focusWord=${encodeURIComponent(task.reviewWordText!)}`}
+                      className={cardClass}
+                      data-task-id={task.id}
+                      data-review-word-id={task.reviewWordText}
+                      data-component="ReviewTaskLink"
+                      aria-label={`Review word: ${task.title}`}
                     >
                       {body}
                     </Link>

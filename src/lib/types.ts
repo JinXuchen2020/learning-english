@@ -48,12 +48,38 @@ export interface WordDifficultyInfo {
   reviewPriority: number;
 }
 
+/** 单个到期复习单词（来自 `GET /progress/review/due`，AI-605）。 */
+export interface DueReview {
+  wordId: string;
+  /** 单词英文文本。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 下次复习到期日 ISO 字符串。 */
+  dueDate: string;
+  /** 复习优先级，越大越该先复习。 */
+  reviewPriority: number;
+  difficulty: WordDifficulty;
+  /** 当前间隔天数。 */
+  intervalDays: number;
+}
+
+/** 复习节奏配置（来自 `GET /progress/review/settings`，AI-605）。 */
+export interface ReviewSettings {
+  /** 是否启用复习提醒。 */
+  enabled: boolean;
+  /** 间隔阶梯（天），可经环境变量配置。 */
+  intervals: number[];
+}
+
 export interface DailyTask {
   id: string;
   title: string;
   description: string;
-  icon: "headphones" | "mic" | "pencil";
+  icon: "headphones" | "mic" | "pencil" | "review";
   completed: boolean;
+  /** AI-605：注入的复习任务携带原词文本，用于深链 `/practice?focusWord=`。 */
+  reviewWordText?: string;
 }
 
 /** 句子跟读库条目（AI-309，后端 `sentences` 表）。 */

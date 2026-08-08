@@ -6,6 +6,7 @@ import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { AiReportService } from '../ai/ai-report.service';
+import { ProgressService } from '../progress/progress.service';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -33,6 +34,7 @@ describe('TasksService', () => {
   let completionsRepo: any;
   let dayRepo: any;
   let aiReportService: any;
+  let progressService: any;
 
   beforeEach(async () => {
     tasksRepo = {
@@ -52,6 +54,9 @@ describe('TasksService', () => {
     aiReportService = {
       generateDailyReport: jest.fn(async () => ({ userId: 'u1', date: '2026-08-07' })),
     };
+    progressService = {
+      getDueReviews: jest.fn(async () => []),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -59,6 +64,7 @@ describe('TasksService', () => {
         { provide: getRepositoryToken(TaskCompletion), useValue: completionsRepo },
         { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
         { provide: AiReportService, useValue: aiReportService },
+        { provide: ProgressService, useValue: progressService },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
@@ -115,6 +121,47 @@ describe('TasksService', () => {
     });
     // 仅返回全局种子 + 该用户当日计划任务（p2/p3 被 where 排除）
     expect(res.map((r) => r.id)).toEqual(['g1', 'p1']);
+  });
+
+  it('getDailyTasks 注入到期复习任务为 review 链接项（AI-605）', async () => {
+    const t = todayStr();
+    tasksRepo.find.mockImplementation(
+      mockFindByWhere([{ id: 'g1', title: 'Seed', description: '', icon: 'i', sortOrder: 0, userId: null, date: null }]),
+    );
+    completionsRepo.find.mockResolvedValue([]);
+    progressService.getDueReviews.mockResolvedValue([
+      {
+        wordId: 'w-cat',
+        wordText: 'Cat',
+        meaning: '猫',
+        dueDate: new Date().toISOString(),
+        reviewPriority: 80,
+        difficulty: 'easy',
+        intervalDays: 1,
+      },
+    ]);
+
+    const res = await service.getDailyTasks('u1');
+
+    const reviewItem = res.find((r: any) => r.id === 'review:w-cat') as any;
+    expect(reviewItem).toBeDefined();
+    expect(reviewItem.icon).toBe('review');
+    expect(reviewItem.reviewWordText).toBe('Cat');
+    expect(reviewItem.completed).toBe(false);
+    // 基础任务 + 1 条注入复习项
+    expect(res.filter((r: any) => r.id === 'g1')).toHaveLength(1);
+  });
+
+  it('getDailyReviews 失败时主任务列表仍返回（AI-605 容错）', async () => {
+    const t = todayStr();
+    tasksRepo.find.mockImplementation(
+      mockFindByWhere([{ id: 'g1', title: 'Seed', description: '', icon: 'i', sortOrder: 0, userId: null, date: null }]),
+    );
+    completionsRepo.find.mockResolvedValue([]);
+    progressService.getDueReviews.mockRejectedValue(new Error('db down'));
+
+    const res = await service.getDailyTasks('u1');
+    expect(res.map((r: any) => r.id)).toEqual(['g1']); // 仅基础任务，注入被跳过
   });
 
   it('replacePlanTasks 先删后插（AI-206 重应用无重复）', async () => {

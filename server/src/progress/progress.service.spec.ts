@@ -153,6 +153,71 @@ describe('ProgressService', () => {
       expect(items).toEqual([]);
     });
   });
+
+  describe('review scheduling (AI-605)', () => {
+    function mockBuilder(rows: any[]): any {
+      const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      wordProgressRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      return qb;
+    }
+
+    it('getDueReviews returns due words joined with Word text/meaning, sorted by dueDate', async () => {
+      const past = new Date(Date.now() - 2 * 86400000);
+      const qb = mockBuilder([
+        {
+          userId: 'u1', wordId: 'w-cat', mastery: 60, difficulty: 'easy',
+          lastPracticedAt: new Date(Date.now() - 5 * 86400000), intervalDays: 1,
+          dueDate: past, word: { text: 'Cat', meaning: '猫' },
+        },
+      ]);
+
+      const res = await service.getDueReviews('u1');
+
+      // 查询条件：userId + dueDate 非空 + dueDate <= now
+      expect(wordProgressRepo.createQueryBuilder).toHaveBeenCalledWith('wp');
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('wp.word', 'word');
+      expect(qb.andWhere).toHaveBeenCalledWith('wp.dueDate <= :date', expect.any(Object));
+      expect(res).toHaveLength(1);
+      expect(res[0].wordId).toBe('w-cat');
+      expect(res[0].wordText).toBe('Cat');
+      expect(res[0].meaning).toBe('猫');
+      expect(res[0].dueDate).toBe(past.toISOString());
+      expect(res[0].intervalDays).toBe(1);
+    });
+
+    it('getDueReviews returns [] when builder yields nothing', async () => {
+      mockBuilder([]);
+      const res = await service.getDueReviews('u1');
+      expect(res).toEqual([]);
+    });
+
+    it('scheduleReview updates dueDate for an existing word', async () => {
+      wordProgressRepo.findOne.mockResolvedValue({
+        userId: 'u1', wordId: 'w-cat', dueDate: new Date(), intervalDays: 1, easeFactor: 2.5, reviewCount: 1,
+      });
+      wordProgressRepo.save.mockImplementation(async (e: any) => e);
+      const target = new Date('2026-08-20T00:00:00.000Z');
+
+      const updated = await service.scheduleReview('u1', 'w-cat', target);
+
+      expect(wordProgressRepo.findOne).toHaveBeenCalledWith({ where: { userId: 'u1', wordId: 'w-cat' } });
+      expect(updated?.dueDate).toBe(target);
+      expect(wordProgressRepo.save).toHaveBeenCalled();
+    });
+
+    it('scheduleReview returns null for a word never practiced (→ 404)', async () => {
+      wordProgressRepo.findOne.mockResolvedValue(null);
+      const updated = await service.scheduleReview('u1', 'w-missing', new Date());
+      expect(updated).toBeNull();
+      expect(wordProgressRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('difficulty pure helpers (AI-602)', () => {

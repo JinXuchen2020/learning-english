@@ -40,6 +40,23 @@ export class WordProgress {
   @Column({ type: 'int', default: 0 })
   mastery: number;
 
+  // ===== AI-605 间隔重复（遗忘曲线）状态 =====
+  /** 当前复习间隔天数（SM-2 简化）。 */
+  @Column({ type: 'int', default: 0 })
+  intervalDays: number;
+
+  /** SM-2 易化因子，正确 +0.1 / 错误 -0.2，钳制 [1.3, 3.0]。 */
+  @Column({ type: 'float', default: 2.5 })
+  easeFactor: number;
+
+  /** 连续正确次数，作为间隔阶梯档位（答错重置为 0）。 */
+  @Column({ type: 'int', default: 0 })
+  reviewCount: number;
+
+  /** 下一次复习到期日；null = 尚未纳入复习计划（AI-605）。 */
+  @Column({ type: 'datetime', nullable: true })
+  dueDate: Date | null;
+
   @UpdateDateColumn({ nullable: true })
   lastPracticedAt: Date;
 }

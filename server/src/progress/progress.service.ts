@@ -5,6 +5,7 @@ import { LessonProgress } from '../entities/lesson-progress.entity';
 import { WordProgress, WordDifficulty } from '../entities/word-progress.entity';
 import { User } from '../entities/user.entity';
 import { computeLevel } from '../ai/mascot-level.util';
+import { computeNextReview, loadReviewIntervals } from './review-schedule.util';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -50,6 +51,20 @@ export interface WordDifficultyInfo {
   difficulty: WordDifficulty;
   mastery: number;
   reviewPriority: number;
+}
+
+/** 单个到期复习单词（AI-605，`GET /progress/review/due` 响应项）。 */
+export interface DueReview {
+  wordId: string;
+  wordText: string;
+  meaning: string;
+  /** 下次复习到期日 ISO 字符串。 */
+  dueDate: string;
+  /** 复习优先级（越大越该先复习），复用 AI-602 公式。 */
+  reviewPriority: number;
+  difficulty: WordDifficulty;
+  /** 当前间隔天数。 */
+  intervalDays: number;
 }
 
 @Injectable()
@@ -131,6 +146,21 @@ export class ProgressService {
     progress.mastery = computeMastery(progress.attempts, progress.correctCount);
     progress.difficulty = computeDifficulty(progress.mastery, progress.attempts);
 
+    // AI-605: 间隔重复——根据本次正确与否推导下次复习到期日/间隔/易化因子。
+    const intervals = loadReviewIntervals();
+    const review = computeNextReview({
+      correct,
+      prevIntervalDays: progress.intervalDays,
+      prevEaseFactor: progress.easeFactor,
+      prevReviewCount: progress.reviewCount,
+      now: new Date(),
+      intervals,
+    });
+    progress.intervalDays = review.intervalDays;
+    progress.easeFactor = review.easeFactor;
+    progress.reviewCount = review.reviewCount;
+    progress.dueDate = review.dueDate;
+
     await this.wordProgressRepo.save(progress);
 
     return {
@@ -140,6 +170,47 @@ export class ProgressService {
       mastery: progress.mastery,
       difficulty: progress.difficulty,
     };
+  }
+
+  /**
+   * AI-605: 返回某用户「到期/今日待复习」单词（dueDate <= date 且非空），
+   * leftJoin Word 取文本/释义，按 dueDate 升序（最紧急在前）。date 缺省为当前时刻。
+   */
+  async getDueReviews(userId: string, date: Date = new Date()): Promise<DueReview[]> {
+    const rows = await this.wordProgressRepo
+      .createQueryBuilder('wp')
+      .leftJoinAndSelect('wp.word', 'word')
+      .where('wp.userId = :userId', { userId })
+      .andWhere('wp.dueDate IS NOT NULL')
+      .andWhere('wp.dueDate <= :date', { date })
+      .orderBy('wp.dueDate', 'ASC')
+      .getMany();
+
+    return rows.map((r) => ({
+      wordId: r.wordId,
+      wordText: r.word?.text ?? '',
+      meaning: r.word?.meaning ?? '',
+      dueDate: r.dueDate ? r.dueDate.toISOString() : '',
+      reviewPriority: computeReviewPriority(r.mastery, r.lastPracticedAt),
+      difficulty: r.difficulty,
+      intervalDays: r.intervalDays,
+    }));
+  }
+
+  /** AI-605: 当前生效的复习节奏配置（间隔阶梯可经 `REVIEW_INTERVALS` 环境变量配置）。 */
+  getReviewSettings() {
+    return { enabled: true, intervals: loadReviewIntervals() };
+  }
+
+  /**
+   * AI-605: 手动调整某词的下一个复习时间（家长/老师可把词推到明天或提前）。
+   * 仅允许操作自己 userId 下的词；不存在返回 null（由 controller 转 404）。
+   */
+  async scheduleReview(userId: string, wordId: string, dueDate: Date): Promise<WordProgress | null> {
+    const progress = await this.wordProgressRepo.findOne({ where: { userId, wordId } });
+    if (!progress) return null;
+    progress.dueDate = dueDate;
+    return this.wordProgressRepo.save(progress);
   }
 
   /** 返回当前用户所有已练单词的自适应画像，按复习优先级降序（弱词在前）。 */
