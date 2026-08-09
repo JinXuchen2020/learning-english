@@ -11,6 +11,8 @@ import { AiSpeechAttempt } from './ai-speech-attempt.entity';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
 import { AiReport } from './ai-report.entity';
 import { AiParentEmailLog } from './ai-parent-email-log.entity';
+import { MascotStory } from './mascot-story.entity';
+import { PictureBook } from './picture-book.entity';
 import { EMAIL_SENDER_TOKEN, EmailSender } from './email-sender.interface';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { WordProgress } from '../entities/word-progress.entity';
@@ -20,6 +22,8 @@ import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
 import { User } from '../entities/user.entity';
+import { Course } from '../entities/course.entity';
+import { Lesson } from '../entities/lesson.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -93,6 +97,38 @@ const fakeAiParentEmailLogRepo = {
   find: jest.fn(async () => []),
 };
 
+/** 假 MascotStory 仓库：让 `MascotStoryService`(AI-503) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeMascotStoryRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+};
+
+/** 假 PictureBook 仓库：让 `PictureBookService`(AI-604) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakePictureBookRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+};
+
+/** 假 Course 仓库：让 `PictureBookService`(AI-604 课程路径) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeCourseRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+};
+
+/** 假 Lesson 仓库：让 `PictureBookService`(AI-604 课程路径) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeLessonRepo = {
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+};
+
 /** 假邮件发送器：让 `EmailService`(AI-506) 在无需真实发送通道的情况下完成 DI 装配。 */
 const fakeEmailSender: EmailSender = {
   send: jest.fn(async (o) => ({ messageId: 'fake-log', accepted: true, htmlPath: '/tmp/fake.html' })),
@@ -137,6 +173,14 @@ async function compileAiModule() {
     .useValue(fakeUserRepo)
     .overrideProvider(getRepositoryToken(AiParentEmailLog))
     .useValue(fakeAiParentEmailLogRepo)
+    .overrideProvider(getRepositoryToken(MascotStory))
+    .useValue(fakeMascotStoryRepo)
+    .overrideProvider(getRepositoryToken(PictureBook))
+    .useValue(fakePictureBookRepo)
+    .overrideProvider(getRepositoryToken(Course))
+    .useValue(fakeCourseRepo)
+    .overrideProvider(getRepositoryToken(Lesson))
+    .useValue(fakeLessonRepo)
     .overrideProvider(EMAIL_SENDER_TOKEN)
     .useValue(fakeEmailSender)
     .overrideProvider(AiPronunciationScorerService)
