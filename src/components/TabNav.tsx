@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle, BarChart3 } from "lucide-react";
+import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle, BarChart3, Layers, Camera } from "lucide-react";
 
 const tabs = [
   { href: "/", label: "Home", icon: Home },
   { href: "/course", label: "Courses", icon: BookOpen },
   { href: "/plan", label: "Plan", icon: Sparkles },
+  { href: "/word-cards", label: "卡片", icon: Layers },
   { href: "/practice", label: "Practice", icon: Gamepad2 },
   { href: "/speech", label: "Speak", icon: Mic },
   { href: "/chat", label: "Chat", icon: MessageCircle },
+  { href: "/picture-book", label: "绘本", icon: BookOpen },
+  { href: "/scan", label: "拍照", icon: Camera },
   { href: "/parent-report", label: "报告", icon: BarChart3 },
 ];
 

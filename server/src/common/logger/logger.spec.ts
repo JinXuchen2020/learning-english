@@ -110,7 +110,7 @@ describe('createLogger', () => {
 
   it('mirrors to console at the matching level', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const log = createLogger({ logDir: dir });
+    const log = createLogger({ logDir: dir, mirror: true });
     log.error('mirrored');
     await new Promise((r) => setTimeout(r, 10));
     expect(spy).toHaveBeenCalled();

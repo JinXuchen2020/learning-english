@@ -48,6 +48,24 @@ export default class ParentReportPage {
   }
 
   /**
+   * Wait until at least `min` weak-word chips have rendered.
+   *
+   * The weekly report is fetched asynchronously in a `useEffect` after the page
+   * mounts, so a naive `weakWordCount()` (locator.count is non-blocking) run
+   * right after navigation sees 0 chips and fails the assertion in cold CI.
+   * This wait closes that race (same pattern as the other E2E assertions that
+   * wait for async API-backed UI to settle before asserting on it).
+   */
+  async waitForWeakWords(min: number, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (m: number) =>
+        document.querySelectorAll('[data-component="WeakWordItem"]').length >= m,
+      min,
+      { timeout },
+    );
+  }
+
+  /**
    * Click the practice link for a weak word. The click triggers client-side
    * navigation, which unmounts this node, so we force the click (skip the
    * stability re-check that otherwise races the unmount) and re-resolve the

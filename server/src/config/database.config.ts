@@ -18,6 +18,10 @@ import { StudyPlan } from '../plan/study-plan.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { AiChatSession } from '../chat/ai-chat-session.entity';
 import { AiChatMessage } from '../chat/ai-chat-message.entity';
+import { AiWordCard } from '../word-card/ai-word-card.entity';
+import { MascotStory } from '../ai/mascot-story.entity';
+import { PictureBook } from '../ai/picture-book.entity';
+import { ScannedWord } from '../entities/scanned-word.entity';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -42,6 +46,10 @@ export const appEntities = [
   StudyPlanDay,
   AiChatSession,
   AiChatMessage,
+  AiWordCard,
+  MascotStory,
+  PictureBook,
+  ScannedWord,
 ];
 
 export type DbType = 'sqlite' | 'postgres';

@@ -19,6 +19,8 @@ export default class E2EWorld extends World {
   // AI-308: id of the speaking (mic) daily task clicked on Home, shared across
   // steps so the completion-write-back assertion can find the right card.
   speakingTaskId: string | null = null;
+  // AI-606: 最近一次拍照识别出、待加入生词本的单词，跨 step 共享。
+  scanWords: string[] = [];
 
   constructor(options: IWorldOptions) {
     super(options);

@@ -23,6 +23,14 @@ export class User {
   @Column({ default: 0 })
   totalStars: number;
 
+  /**
+   * 用户等级（AI-603 吉祥物成长剧情驱动）。
+   * 由累计星星 totalStars 推导，在 ProgressService.completeLesson 星星 +1 后重算并更新；
+   * 持久化避免每次重算，单一真相来自 `computeLevel(totalStars)`。
+   */
+  @Column({ type: 'int', default: 1 })
+  level: number;
+
   @Column({ default: 0 })
   streakDays: number;
 

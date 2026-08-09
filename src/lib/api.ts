@@ -21,6 +21,20 @@ import type {
   ChatHistoryMessage,
   DailyReportResponse,
   WeeklyReportData,
+  WordCard,
+  WordCardStatus,
+  GenerateWordCardDto,
+  GenerateWordCardResult,
+  WordDifficulty,
+  WordDifficultyInfo,
+  MascotLevelInfo,
+  MascotStory,
+  PictureBook,
+  DueReview,
+  ReviewSettings,
+  ScanCard,
+  ScanResult,
+  ConfirmScanDto,
 } from "./types";
 
 /**
@@ -219,10 +233,72 @@ export function completeLesson(lessonId: string) {
 }
 
 export function recordWordAttempt(wordId: string, correct: boolean) {
-  return request<{ success: boolean; attempts: number; correctCount: number }>(
+  return request<{ success: boolean; attempts: number; correctCount: number; mastery: number; difficulty: WordDifficulty }>(
     "/progress/word",
     { method: "POST", body: JSON.stringify({ wordId, correct }) }
   );
+}
+
+/* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
+
+/** 获取当前用户所有已练单词的自适应画像（按复习优先级降序）。 */
+export function getWordDifficulties() {
+  return request<{ items: WordDifficultyInfo[] }>("/progress/word-difficulty");
+}
+
+/* ----------------------- AI Mascot Growth Story (AI-603) ----------------------- */
+
+/** 获取当前用户等级与进度（驱动前端等级环）。 */
+export function getMascotLevel(userId: string): Promise<MascotLevelInfo> {
+  return request<MascotLevelInfo>(
+    `/ai/mascot/level?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/* ----------------------- AI Review Reminder (AI-605) ----------------------- */
+
+/** 获取当前用户「到期/今日待复习」单词列表（间隔重复，遗忘曲线）。 */
+export function getDueReviews(userId: string, date?: string): Promise<DueReview[]> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (date) params.set("date", date);
+  return request<DueReview[]>(`/progress/review/due?${params.toString()}`);
+}
+
+/** 获取当前复习节奏配置（间隔阶梯可经环境变量配置）。 */
+export function getReviewSettings(userId: string): Promise<ReviewSettings> {
+  return request<ReviewSettings>(
+    `/progress/review/settings?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/** 获取（或按需生成）某等级的吉祥物成长剧情（AI 生成或 Mock 兜底）。 */
+export function getMascotStory(userId: string, level: number): Promise<MascotStory> {
+  return request<MascotStory>(
+    `/ai/mascot/story/${level}?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/* AI Picture Book (AI-604) */
+
+/**
+ * 获取（或按需生成）某课程的绘本。courseId 可空 → 返回示例/默认绘本。
+ */
+export function getPictureBook(userId: string, courseId?: string): Promise<PictureBook> {
+  const params = new URLSearchParams();
+  params.set("userId", userId);
+  if (courseId) params.set("courseId", encodeURIComponent(courseId));
+  return request<PictureBook>(`/ai/picture-book/story?${params.toString()}`);
+}
+
+/**
+ * 合成绘本页朗读音频，返回可播放 URL（mock 下为 null，前端静默降级）。
+ */
+export function requestPictureBookTts(text: string): Promise<{ ttsUrl: string | null }> {
+  return request<{ ttsUrl: string | null }>("/ai/picture-book/tts", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }
 
 /* ----------------------------- Plan ----------------------------- */
@@ -456,4 +532,93 @@ export function getWeeklyReport(
   params.set("userId", userId);
   if (weekStart) params.set("weekStart", weekStart);
   return request<WeeklyReportData>(`/ai/report/weekly/preview?${params.toString()}`);
+}
+
+/* ----------------------- AI Word Cards (AI-601) ----------------------- */
+
+/**
+ * 生成单词卡片（AI-601）：`POST /api/ai/word-card/generate`。
+ * 无 LLM key 时后端经 MockProvider 自动降级为内置模板卡片，仍返回 200，
+ * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ * 内容安全命中 → 422 `{ code:'CONTENT_UNSAFE', ... }`，由调用方提示「内容不安全」。
+ *
+ * @param dto { interest, count?, courseId? }
+ */
+export function generateWordCards(dto: GenerateWordCardDto): Promise<GenerateWordCardResult> {
+  return request<GenerateWordCardResult>("/ai/word-card/generate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 列出单词卡片（AI-601）：`GET /api/ai/word-card?status=`。
+ * @param status 可选过滤值（pending/approved/rejected）；缺省返回全部
+ */
+export function listWordCards(status?: WordCardStatus): Promise<WordCard[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request<WordCard[]>(`/ai/word-card${qs}`);
+}
+
+/* ----------------------------- Scan / OCR (AI-606) ---------------------------- */
+
+/**
+ * 拍照识词：上传图片（multipart）做 OCR 识别（AI-606）。
+ * `POST /api/scan/recognize`，字段 `image` + 可选 `prompt`。
+ * 复用 `postFormData`（与 `evaluateSpeech` 同思路，避免 JSON Content-Type 破坏 boundary）。
+ *
+ * @param file 图片 Blob（来自 `<input type="file" accept="image/*" capture>`）
+ * @param prompt 可选用户提示（如「水果」）
+ */
+export function recognizeImage(file: Blob, prompt?: string): Promise<ScanResult> {
+  const form = new FormData();
+  form.append("image", file, "scan.png");
+  if (prompt && prompt.trim()) form.append("prompt", prompt.trim());
+
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  return postFormData<ScanResult>("/scan/recognize", form, headers);
+}
+
+/**
+ * 将识别出的 pending 卡片加入生词本（AI-606）：`POST /api/scan/confirm`。
+ * @param ids 卡片 id 列表
+ */
+export function confirmScanWords(ids: string[]): Promise<ScanCard[]> {
+  return request<ScanCard[]>("/scan/confirm", {
+    method: "POST",
+    body: JSON.stringify({ ids } as ConfirmScanDto),
+  });
+}
+
+/**
+ * 获取当前用户的生词本（AI-606）：`GET /api/scan`（仅 saved 状态）。
+ */
+export function listScannedWords(): Promise<ScanCard[]> {
+  return request<ScanCard[]>("/scan");
+}
+
+/**
+ * 批准一张 pending 卡片（AI-601）：`POST /api/ai/word-card/:id/approve`。
+ * @param id 卡片 id
+ * @param reviewerNote 可选审核备注
+ */
+export function approveWordCard(id: string, reviewerNote?: string): Promise<WordCard> {
+  return request<WordCard>(`/ai/word-card/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
+  });
+}
+
+/**
+ * 驳回一张 pending 卡片（AI-601）：`POST /api/ai/word-card/:id/reject`。
+ * @param id 卡片 id
+ * @param reviewerNote 可选审核备注
+ */
+export function rejectWordCard(id: string, reviewerNote?: string): Promise<WordCard> {
+  return request<WordCard>(`/ai/word-card/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
+  });
 }

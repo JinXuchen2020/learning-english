@@ -88,6 +88,25 @@ export default class HomePage {
     await this.waitLoaded();
   }
 
+  /** AI-605：客户端导航「弹跳」回 Home（先走其它 TabNav 路由再回 "/"），
+   *  强制 Home 重新挂载并重新拉取数据（播种到期复习词后刷新复习卡用）。
+   *  注意：token 仅存在于模块内存，绝不能整页刷新（page.reload 会清空登录态）。 */
+  async bounceToHome(): Promise<void> {
+    const away = this.page.locator('nav a[href="/practice"]');
+    if (await away.count()) {
+      await away.first().click({ force: true });
+      await this.page.waitForSelector(
+        '[data-component="WordPractice"], [data-component="PracticeEmpty"]',
+        { timeout: 15000 },
+      );
+    }
+    const home = this.page.locator('nav a[href="/"]');
+    if (await home.count()) {
+      await home.first().click({ force: true });
+    }
+    await this.waitLoaded();
+  }
+
   /** Click the speaking (mic) task card, which deep-links to /speech?taskId=... (AI-308).
    *  Returns the captured taskId (also storable on the shared World for the
    *  cross-step completion assertion). */

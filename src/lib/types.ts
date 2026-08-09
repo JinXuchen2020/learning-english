@@ -33,12 +33,53 @@ export interface Word {
   correctIndex: number;
 }
 
+/* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
+
+/** 单词自适应难度档位（与后端 `WordDifficulty` 对齐）。 */
+export type WordDifficulty = "easy" | "medium" | "hard";
+
+/** 单个单词的自适应画像（来自 `GET /progress/word-difficulty`）。 */
+export interface WordDifficultyInfo {
+  wordId: string;
+  difficulty: WordDifficulty;
+  /** 掌握度 0-100。 */
+  mastery: number;
+  /** 复习优先级，越大越需要先复习。 */
+  reviewPriority: number;
+}
+
+/** 单个到期复习单词（来自 `GET /progress/review/due`，AI-605）。 */
+export interface DueReview {
+  wordId: string;
+  /** 单词英文文本。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 下次复习到期日 ISO 字符串。 */
+  dueDate: string;
+  /** 复习优先级，越大越该先复习。 */
+  reviewPriority: number;
+  difficulty: WordDifficulty;
+  /** 当前间隔天数。 */
+  intervalDays: number;
+}
+
+/** 复习节奏配置（来自 `GET /progress/review/settings`，AI-605）。 */
+export interface ReviewSettings {
+  /** 是否启用复习提醒。 */
+  enabled: boolean;
+  /** 间隔阶梯（天），可经环境变量配置。 */
+  intervals: number[];
+}
+
 export interface DailyTask {
   id: string;
   title: string;
   description: string;
-  icon: "headphones" | "mic" | "pencil";
+  icon: "headphones" | "mic" | "pencil" | "review";
   completed: boolean;
+  /** AI-605：注入的复习任务携带原词文本，用于深链 `/practice?focusWord=`。 */
+  reviewWordText?: string;
 }
 
 /** 句子跟读库条目（AI-309，后端 `sentences` 表）。 */
@@ -407,4 +448,153 @@ export interface WeeklyReportData {
   suggestions: string[];
   /** 自包含 HTML 邮件正文（Dashboard 不渲染）。 */
   html: string;
+}
+
+/* ----------------------- AI Word Cards (AI-601) ----------------------- */
+
+/** 单词卡片审核状态（与后端 `WordCardStatus` 对齐）。 */
+export type WordCardStatus = "pending" | "approved" | "rejected";
+
+/** 单词卡片视图（与后端 `WordCardView` 对齐，AI-601 响应体）。 */
+export interface WordCard {
+  /** 卡片 id（uuid）。 */
+  id: string;
+  /** 英文单词。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 英文例句。 */
+  example: string;
+  /** 例句中文翻译（可空）。 */
+  exampleTrans: string | null;
+  /** 配图生成 prompt（英文）。 */
+  imagePrompt: string;
+  /** 生成所用兴趣 / 主题。 */
+  interest: string;
+  /** 关联课程 id（可空）。 */
+  courseId: string | null;
+  /** 审核状态。 */
+  status: WordCardStatus;
+  /** 审核备注（可空）。 */
+  reviewerNote: string | null;
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+  /** 批准时间（驳回 / 未批准为 null）。 */
+  approvedAt: string | null;
+}
+
+/** `POST /api/ai/word-card/generate` 请求体（字段名/类型与后端 `GenerateWordCardDto` 对齐）。 */
+export interface GenerateWordCardDto {
+  /** 兴趣 / 主题，驱动 LLM 选题（1..80）。 */
+  interest: string;
+  /** 生成数量，1~10，缺省 5。 */
+  count?: number;
+  /** 关联课程 id（可选）。 */
+  courseId?: string;
+}
+
+/** `POST /api/ai/word-card/generate` 响应（与后端 `GenerateWordCardResult` 对齐）。 */
+export interface GenerateWordCardResult {
+  /** 生成的卡片列表（此时均为 pending）。 */
+  cards: WordCard[];
+  /** true 表示 LLM 输出经重试后仍不符合 Schema，已降级为内置模板卡片。 */
+  degraded: boolean;
+  /** 实际使用的模型标识；降级时为 'template'。 */
+  model: string;
+}
+
+/* ----------------------------- Scan / OCR (AI-606) ---------------------------- */
+
+/** 拍照识词卡片视图（与后端 `ScanCardView` 对齐）。 */
+export interface ScanCard {
+  /** 条目 id（uuid）。 */
+  id: string;
+  /** 英文单词。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 英文例句（可空）。 */
+  example: string | null;
+  /** 配图 prompt（可空）。 */
+  imagePrompt: string | null;
+  /** 状态：pending(识别后) / saved(已加入生词本)。 */
+  status: "pending" | "saved";
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+}
+
+/** `POST /api/scan/recognize` 响应（与后端 `ScanResult` 对齐）。 */
+export interface ScanResult {
+  /** 识别出的卡片（pending）。未识别时为空数组。 */
+  cards: ScanCard[];
+  /** true=识别成功；false=未识别（前端展示友好兜底）。 */
+  recognized: boolean;
+  /** 友好提示（仅 `recognized=false` 时存在）。 */
+  message?: string;
+  /** 实际使用的模型标识。 */
+  model?: string;
+}
+
+/** `POST /api/scan/confirm` 请求体（字段名/类型与后端 `ConfirmScanDto` 对齐）。 */
+export interface ConfirmScanDto {
+  /** 待加入生词本的卡片 id 列表（非空字符串数组）。 */
+  ids: string[];
+}
+
+/* ----------------------- AI Mascot Growth Story (AI-603) ----------------------- */
+
+/** 吉祥物等级进度信息（与后端 `MascotLevelInfo` 对齐）。 */
+export interface MascotLevelInfo {
+  /** 当前等级 1..6。 */
+  level: number;
+  /** 累计星星。 */
+  totalStars: number;
+  /** 当前级已得星（totalStars - 本级下限）。 */
+  levelStars: number;
+  /** 升下一级所需累计星星（满级时等于 totalStars）。 */
+  nextLevelStars: number;
+  /** 是否已满级。 */
+  isMaxLevel: boolean;
+}
+
+/** 吉祥物成长剧情（与后端 `MascotStoryResponse` 对齐）。 */
+export interface MascotStory {
+  /** 触发的等级。 */
+  level: number;
+  /** 剧情标题。 */
+  title: string;
+  /** 剧情正文。 */
+  storyText: string;
+  /** true = 模板降级（AI 失败/解析失败）。 */
+  isDefault: boolean;
+  /** 生成时间（ISO 字符串，读回时存在）。 */
+  createdAt?: string;
+}
+
+/* ----------------------- AI Picture Book (AI-604) ----------------------- */
+
+/** 单页绘本（与后端 `PictureBookPage` 对齐）。 */
+export interface PictureBookPage {
+  /** 页码，从 1 开始。 */
+  pageNumber: number;
+  /** 该页叙事文本。 */
+  text: string;
+  /** 该页配图提示（项目当前无文生图，前端展示为配图提示卡）。 */
+  illustrationPrompt: string;
+}
+
+/** AI 绘本（与后端 `PictureBookResponse` 对齐）。 */
+export interface PictureBook {
+  /** 绘本主键（读回时存在）。 */
+  id?: string;
+  /** 关联课程 id（空串表示示例/默认绘本）。 */
+  courseId: string;
+  /** 绘本标题。 */
+  title: string;
+  /** 多页绘本。 */
+  pages: PictureBookPage[];
+  /** true = 模板降级（AI 失败/解析失败）。 */
+  isDefault: boolean;
+  /** 生成时间（ISO 字符串，读回时存在）。 */
+  createdAt?: string;
 }

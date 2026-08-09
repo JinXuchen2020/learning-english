@@ -3,6 +3,8 @@ import type { MascotExpression, MascotSize } from "@/lib/types";
 interface MascotProps {
   expression?: MascotExpression;
   size?: MascotSize;
+  /** 用户等级（AI-603），驱动吉祥物随等级渲染配饰。 */
+  level?: number;
   className?: string;
 }
 
@@ -15,6 +17,7 @@ const sizeMap: Record<MascotSize, number> = {
 export default function Mascot({
   expression = "happy",
   size = "medium",
+  level,
   className = "",
 }: MascotProps) {
   const px = sizeMap[size];
@@ -30,6 +33,7 @@ export default function Mascot({
       role="img"
       aria-label={`Fox mascot feeling ${expression}`}
       data-component="Mascot"
+      data-level={level ?? 1}
     >
       {/* Body */}
       <ellipse cx="60" cy="82" rx="28" ry="26" fill="#F5A25D" />
@@ -107,6 +111,23 @@ export default function Mascot({
       {/* Leaf hat accessory */}
       <path d="M52 22 Q60 14 68 22 Q60 20 52 22 Z" fill="#6FBA2C" />
       <path d="M60 22 L60 16" stroke="#5A9E1E" strokeWidth="1.5" strokeLinecap="round" />
+
+      {/* AI-603: 随等级叠加的配饰（L3 围巾 / L4 披风 / L5 光环 / L6 皇冠） */}
+      {level != null && level >= 3 && (
+        <path d="M40 76 Q60 84 80 76" stroke="#E8554E" strokeWidth="6" fill="none" strokeLinecap="round" />
+      )}
+      {level != null && level >= 4 && (
+        <>
+          <path d="M34 78 Q20 90 26 104 L40 100 Q34 92 40 86 Z" fill="#7C5CE0" />
+          <path d="M86 78 Q100 90 94 104 L80 100 Q86 92 80 86 Z" fill="#7C5CE0" />
+        </>
+      )}
+      {level != null && level >= 5 && (
+        <ellipse cx="60" cy="19" rx="22" ry="6" fill="none" stroke="#FFD24A" strokeWidth="3" />
+      )}
+      {level != null && level >= 6 && (
+        <path d="M48 18 L52 9 L60 15 L68 9 L72 18 Z" fill="#FFD24A" stroke="#E6A800" strokeWidth="1.2" />
+      )}
 
       {/* Arms */}
       {expression === "celebrating" ? (

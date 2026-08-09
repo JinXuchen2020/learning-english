@@ -5,6 +5,7 @@ import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { AiReportService } from '../ai/ai-report.service';
+import { ProgressService } from '../progress/progress.service';
 import { logger } from '../common/logger/logger';
 
 /** 计划任务写入条目（AI-206 apply 时由 PlanService 组装）。 */
@@ -18,6 +19,17 @@ export interface PlanTaskEntry {
   date: string;
 }
 
+/** 当日任务返回给前端的视图模型（含 AI-605 注入的复习项）。 */
+export interface DailyTaskView {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  completed: boolean;
+  /** AI-605：注入的到期复习项携带原词文本，前端据此渲染为 /practice?focusWord= 深链。 */
+  reviewWordText?: string;
+}
+
 @Injectable()
 export class TasksService {
   constructor(
@@ -28,6 +40,7 @@ export class TasksService {
     @InjectRepository(StudyPlanDay)
     private dayRepo: Repository<StudyPlanDay>,
     private aiReportService: AiReportService,
+    private progressService: ProgressService,
   ) {}
 
   /**
@@ -51,13 +64,33 @@ export class TasksService {
     });
     const completedIds = new Set(completions.map((c) => c.taskId));
 
-    return tasks.map((task) => ({
+    const base: DailyTaskView[] = tasks.map((task) => ({
       id: task.id,
       title: task.title,
       description: task.description,
       icon: task.icon,
       completed: completedIds.has(task.id),
     }));
+
+    // AI-605：把「到期/今日待复习」单词作为复习任务注入当日任务列表（不落库，现场附加）。
+    // 失败仅告警、绝不阻断主任务列表返回。复习项以 Link 形式进入 /practice?focusWord=X。
+    try {
+      const due = await this.progressService.getDueReviews(userId);
+      for (const r of due) {
+        base.push({
+          id: `review:${r.wordId}`,
+          title: r.wordText,
+          description: `复习：${r.meaning}`,
+          icon: 'review',
+          completed: false,
+          reviewWordText: r.wordText,
+        });
+      }
+    } catch (err) {
+      logger.warn('[AI-605] 注入到期复习任务失败（不影响主任务列表）', err as Error);
+    }
+
+    return base;
   }
 
   /**

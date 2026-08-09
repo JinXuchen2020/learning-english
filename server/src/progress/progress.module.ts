@@ -10,5 +10,8 @@ import { User } from '../entities/user.entity';
   imports: [TypeOrmModule.forFeature([LessonProgress, WordProgress, User])],
   controllers: [ProgressController],
   providers: [ProgressService],
+  // AI-605：TasksModule 的 getDailyTasks 需调用 ProgressService.getDueReviews 注入到期复习任务，
+  // 故导出 ProgressService（Tasks → Progress 单向依赖，无环）。
+  exports: [ProgressService],
 })
 export class ProgressModule {}

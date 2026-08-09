@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
-import type { Word, QuizPhase } from "@/lib/types";
+import type { Word, QuizPhase, WordDifficultyInfo } from "@/lib/types";
+import { buildDifficultyMap, sortWordsByReviewPriority } from "@/lib/wordDifficulty";
 import { Volume2, Star, ArrowLeft, RotateCcw } from "lucide-react";
 
 const answerColors = [
@@ -214,12 +215,15 @@ function Quiz({
   lessonId,
   courseId,
   focusWord,
+  difficultyMap,
 }: {
   words: Word[];
   lessonId: string | null;
   courseId: string | null;
   /** AI-507：家长报告弱项下钻 —— 命中后跳到该词（不区分大小写）。 */
   focusWord?: string | null;
+  /** AI-602：单词自适应难度画像（自由练习时传入）。 */
+  difficultyMap?: Map<string, WordDifficultyInfo>;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<QuizPhase>("answering");
@@ -355,6 +359,16 @@ function Quiz({
         <div className="space-y-2">
           <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{word.text}</h1>
           <p className="text-kids-muted">{word.meaning}</p>
+          {/* AI-602: 自适应难度徽章（自由练习时有画像数据才显示） */}
+          {difficultyMap && difficultyMap.get(word.id) && (
+            <span
+              data-component="DifficultyBadge"
+              data-difficulty={difficultyMap.get(word.id)!.difficulty}
+              className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-kids-secondary text-kids-title"
+            >
+              {difficultyMap.get(word.id)!.difficulty}
+            </span>
+          )}
         </div>
 
         {/* Pronunciation Button */}
@@ -437,18 +451,34 @@ function PracticeInner() {
   const focusWord = searchParams.get("focusWord");
 
   const [words, setWords] = useState<Word[]>([]);
+  const [difficultyMap, setDifficultyMap] = useState<Map<string, WordDifficultyInfo>>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const fetcher = lessonId
+
+    // 自由练习（无 lessonId）走自适应排序：并行拉全量词 + 用户难度画像。
+    // 跟课练习（lessonId）保持课程原顺序，不做自适应重排。
+    const wordFetcher = lessonId
       ? api.getLessonWords(lessonId)
       : api.getAllWords();
 
-    fetcher
-      .then((data) => {
-        if (active) setWords(data);
+    const difficultyFetcher = lessonId
+      ? Promise.resolve({ items: [] })
+      : api.getWordDifficulties().catch(() => ({ items: [] as WordDifficultyInfo[] }));
+
+    Promise.all([wordFetcher, difficultyFetcher])
+      .then(([data, diff]) => {
+        if (!active) return;
+        const map = buildDifficultyMap(diff.items);
+        const ordered = lessonId
+          ? data
+          : sortWordsByReviewPriority(data, map);
+        setWords(ordered);
+        setDifficultyMap(map);
       })
       .catch((err) => logger.error("Failed to load words", err))
       .finally(() => {
@@ -490,7 +520,15 @@ function PracticeInner() {
     );
   }
 
-  return <Quiz words={words} lessonId={lessonId} courseId={courseId} focusWord={focusWord} />;
+  return (
+    <Quiz
+      words={words}
+      lessonId={lessonId}
+      courseId={courseId}
+      focusWord={focusWord}
+      difficultyMap={difficultyMap}
+    />
+  );
 }
 
 export default function WordPracticePage() {
