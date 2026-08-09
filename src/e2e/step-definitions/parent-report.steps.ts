@@ -24,8 +24,11 @@ Given(
 Then(
   "I should see at least {int} weak word",
   async function (this: E2EWorld, expected: number) {
-    const count = await new ParentReportPage(this.page, this.baseUrl).weakWordCount();
-    if (count < expected) {
+    const page = new ParentReportPage(this.page, this.baseUrl);
+    try {
+      await page.waitForWeakWords(expected);
+    } catch {
+      const count = await page.weakWordCount();
       throw new Error(`Expected at least ${expected} weak word(s) but found ${count}`);
     }
   }
