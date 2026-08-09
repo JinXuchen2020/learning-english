@@ -1,9 +1,9 @@
-Feature: Rewards store and parent approval (AI-701)
+Feature: Rewards store (AI-701)
   As a signed-in child
-  I want to earn points from learning and redeem them for rewards with parent approval
-  So that learning feels rewarding and parents stay in control
+  I want to earn points from learning and redeem them for rewards
+  So that learning feels rewarding (parent approval lives on the /parent panel, AI-702)
 
-  Scenario: A child earns points and redeems a reward for parent approval
+  Scenario: A child earns points and redeems a reward (pending approval)
     Given I am logged in as a new user
     When I complete the first daily task
     And I open the rewards store
@@ -11,8 +11,6 @@ Feature: Rewards store and parent approval (AI-701)
     And I should see my points balance at least 1
     When I redeem the reward "集贴纸一枚"
     Then I should see my redemption status "pending"
-    When the parent approves my redemption
-    Then I should see my redemption status "approved"
 
   Scenario: A child accumulates points by completing a daily task (AI-701)
     Given I am logged in as a new user

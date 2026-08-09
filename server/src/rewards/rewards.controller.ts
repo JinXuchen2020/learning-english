@@ -13,7 +13,7 @@ import {
 import { RewardsService } from './rewards.service';
 import { CreateRewardDto } from './dto/create-reward.dto';
 import { UpdateRewardDto } from './dto/update-reward.dto';
-import { ParentGuard } from './parent.guard';
+import { ParentGuard } from '../parent/parent.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RedemptionStatus } from './reward-redemption.entity';
 

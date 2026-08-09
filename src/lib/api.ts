@@ -75,14 +75,19 @@ export class ApiError extends Error {
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  auth = true
+  auth = true,
+  token?: string | null
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (auth && accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
+  if (auth) {
+    // 允许调用方显式覆盖鉴权令牌（如家长会话令牌），缺省沿用内存 child token。
+    const tok = token !== undefined ? token : accessToken;
+    if (tok) {
+      headers.Authorization = `Bearer ${tok}`;
+    }
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
@@ -634,18 +639,6 @@ export function rejectWordCard(id: string, reviewerNote?: string): Promise<WordC
 /* ----------------------- AI Growth Incentives (AI-701) ----------------------- */
 
 /**
- * 家长审批临时门禁头值。AI-702（PIN 锁）上线后由 PIN 会话令牌替换。
- * 取自 `NEXT_PUBLIC_PARENT_APPROVAL_TOKEN`，缺省回退明文 dev token。
- */
-const PARENT_APPROVAL_TOKEN =
-  process.env.NEXT_PUBLIC_PARENT_APPROVAL_TOKEN || "parent-dev-token";
-
-/** 家长审批请求头（与后端 `ParentGuard` 校验的 `x-parent-approval` 对齐）。 */
-function parentApprovalHeaders(): Record<string, string> {
-  return { "x-parent-approval": PARENT_APPROVAL_TOKEN };
-}
-
-/**
  * 列出上架奖励（商城展示）。`GET /api/rewards`，无 guard。
  * 返回按 cost 升序的 `Reward[]`（active=true）。
  */
@@ -679,37 +672,100 @@ export function redeemReward(rewardId: string): Promise<RewardRedemption> {
   });
 }
 
+/* ----------------------- Parent Mode (AI-702) ----------------------- */
+
 /**
- * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需 ParentGuard。
+ * 家长会话令牌持有于模块内存（与 child token「accessToken」同口径，仅内存，刷新即清）。
+ * 家长模式每次刷新需重新输 PIN —— 对儿童产品是正向安全摩擦。
+ */
+let parentToken: string | null = null;
+
+export function setParentToken(token: string | null) {
+  parentToken = token;
+}
+
+export function getParentToken(): string | null {
+  return parentToken;
+}
+
+export function clearParentToken() {
+  parentToken = null;
+}
+
+/** 当前孩子是否已设置家长 PIN。`GET /api/parent/status`（child JWT）。 */
+export function getParentStatus(): Promise<{ hasPin: boolean }> {
+  return request<{ hasPin: boolean }>("/parent/status");
+}
+
+/** 验证家长 PIN → 返回家长会话令牌。`POST /api/parent/verify-pin`（child JWT）。 */
+export function verifyParentPin(pin: string): Promise<{ parentToken: string }> {
+  return request<{ parentToken: string }>("/parent/verify-pin", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** 首次设置家长 PIN → 返回家长会话令牌。`POST /api/parent/setup-pin`（child JWT）。 */
+export function setupParentPin(pin: string): Promise<{ parentToken: string }> {
+  return request<{ parentToken: string }>("/parent/setup-pin", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** 修改家长 PIN（需先持家长会话令牌）。`POST /api/parent/change-pin`。 */
+export function changeParentPin(
+  oldPin: string,
+  newPin: string,
+): Promise<{ success: boolean; parentToken?: string }> {
+  return request<{ success: boolean; parentToken?: string }>(
+    "/parent/change-pin",
+    {
+      method: "POST",
+      body: JSON.stringify({ oldPin, newPin }),
+    },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需家长会话令牌。
  * @param status 可选过滤（pending/approved/rejected）
  */
 export function getPendingApprovals(status?: RedemptionStatus): Promise<RewardRedemption[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  return request<RewardRedemption[]>(`/rewards/redemptions${qs}`, {
-    headers: parentApprovalHeaders(),
-  });
+  return request<RewardRedemption[]>(
+    `/rewards/redemptions${qs}`,
+    {},
+    true,
+    getParentToken(),
+  );
 }
 
 /**
- * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需 ParentGuard。
+ * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需家长会话令牌。
  * @param id 兑换单 id
  */
 export function approveRedemption(id: string): Promise<RewardRedemption> {
-  return request<RewardRedemption>(`/rewards/redemptions/${encodeURIComponent(id)}/approve`, {
-    method: "POST",
-    headers: parentApprovalHeaders(),
-  });
+  return request<RewardRedemption>(
+    `/rewards/redemptions/${encodeURIComponent(id)}/approve`,
+    { method: "POST" },
+    true,
+    getParentToken(),
+  );
 }
 
 /**
- * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需 ParentGuard。
+ * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需家长会话令牌。
  * @param id 兑换单 id
  * @param reason 可选驳回原因
  */
 export function rejectRedemption(id: string, reason?: string): Promise<RewardRedemption> {
-  return request<RewardRedemption>(`/rewards/redemptions/${encodeURIComponent(id)}/reject`, {
-    method: "POST",
-    body: JSON.stringify(reason != null ? { reason } : {}),
-    headers: parentApprovalHeaders(),
-  });
+  return request<RewardRedemption>(
+    `/rewards/redemptions/${encodeURIComponent(id)}/reject`,
+    { method: "POST", body: JSON.stringify(reason != null ? { reason } : {}) },
+    true,
+    getParentToken(),
+  );
 }

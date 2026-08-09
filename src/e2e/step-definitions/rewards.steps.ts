@@ -1,4 +1,4 @@
-// Rewards store + parent approval steps (AI-701).
+// Rewards store steps (AI-701). Parent approval steps moved to parent.steps.ts (AI-702).
 import { Given, When, Then } from "@cucumber/cucumber";
 import RewardsPage from "../support/pages/rewards";
 import type E2EWorld from "../support/world";
@@ -69,15 +69,5 @@ Then(
         `Expected a redemption with status "${status}" but saw [${statuses.join(", ")}]`
       );
     }
-  }
-);
-
-When(
-  "the parent approves my redemption",
-  async function (this: E2EWorld) {
-    const page = new RewardsPage(this.page, this.baseUrl);
-    // 此时恰好有一条 pending 兑换单，取其 id 进行家长审批。
-    const id = await page.getRedemptionIdByStatus("pending");
-    await page.approveRedemption(id);
   }
 );

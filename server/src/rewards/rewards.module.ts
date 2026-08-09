@@ -6,6 +6,7 @@ import { RewardRedemption } from './reward-redemption.entity';
 import { User } from '../entities/user.entity';
 import { RewardsService } from './rewards.service';
 import { RewardsController } from './rewards.controller';
+import { ParentModule } from '../parent/parent.module';
 
 /**
  * 奖励商城模块（AI-701）。
@@ -14,7 +15,10 @@ import { RewardsController } from './rewards.controller';
  * 供 Progress / Tasks / AI 模块注入以累加积分。不反向依赖其它业务模块，避免循环依赖。
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([UserPoints, Reward, RewardRedemption, User])],
+  imports: [
+    TypeOrmModule.forFeature([UserPoints, Reward, RewardRedemption, User]),
+    ParentModule,
+  ],
   controllers: [RewardsController],
   providers: [RewardsService],
   exports: [RewardsService],

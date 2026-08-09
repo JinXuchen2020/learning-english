@@ -74,6 +74,10 @@ export class RewardsService implements OnModuleInit {
    */
   async awardStars(userId: string, n: number): Promise<void> {
     if (!Number.isFinite(n) || n <= 0) return;
+    // 先确保 user_points 行存在：首次获得积分前该行可能尚未建立（Home 的
+    // getProgress 与本次任务完成是并发竞争——若 increment 先于建行执行，会命中
+    // 0 行而静默无效，积分永远无法入账）。awardStars 自身兜底建行，彻底消除竞态。
+    await this.getOrCreatePoints(userId);
     await this.usersRepo.increment({ id: userId }, 'totalStars', n);
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (user) {

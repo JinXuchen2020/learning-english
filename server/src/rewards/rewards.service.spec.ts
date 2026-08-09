@@ -68,6 +68,17 @@ describe('RewardsService (AI-701)', () => {
       expect(usersRepo.increment).not.toHaveBeenCalled();
       expect(pointsRepo.increment).not.toHaveBeenCalled();
     });
+
+    it('首次获得积分前未建行时兜底建行，积分仍可入账（AI-701 真实缺陷回归）', async () => {
+      // 模拟「getProgress 尚未建立 user_points 行」：findOne 返回 null →
+      // getOrCreatePoints 应 create+save 一行，随后 balance 才被 increment。
+      pointsRepo.findOne.mockResolvedValue(null);
+      usersRepo.findOne.mockResolvedValue({ totalStars: 0, level: 1 });
+      await service.awardStars('u1', POINT_RULES.TASK_COMPLETE);
+      expect(pointsRepo.create).toHaveBeenCalledWith({ userId: 'u1', balance: 0 });
+      expect(pointsRepo.save).toHaveBeenCalled();
+      expect(pointsRepo.increment).toHaveBeenCalledWith({ userId: 'u1' }, 'balance', 1);
+    });
   });
 
   describe('spendPoints', () => {
