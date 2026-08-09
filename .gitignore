@@ -10,6 +10,8 @@ node_modules/
 
 # --- Build outputs ---
 .next/
+.next-e2e/
+.next-e2e2/
 out/
 dist/
 build/
