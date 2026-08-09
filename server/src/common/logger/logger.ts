@@ -76,7 +76,16 @@ export interface Logger {
 export function createLogger(opts: LoggerOptions = {}): Logger {
   const logDir = opts.logDir ?? process.env.LOG_DIR ?? path.join(process.cwd(), 'logs');
   const minLevel: LogLevel = opts.minLevel ?? 'debug';
-  const mirror = opts.mirror ?? true;
+  // In test environments (jest / CI unit runs) we default `mirror` to false so the
+  // logger does not spray error/warning lines onto stderr during unit tests. This
+  // keeps CI output clean and stops deliberate test-stub errors (e.g. a mocked
+  // provider throwing `boom` in chat.service.spec.ts) from leaking into the
+  // pass/fail log and looking like real failures. Production keeps the default
+  // `true` for operational visibility. Tests that specifically assert the mirror
+  // behaviour pass `mirror: true` explicitly (see logger.spec.ts).
+  const isTestEnv =
+    process.env.JEST_WORKER_ID !== undefined || process.env.NODE_ENV === 'test';
+  const mirror = opts.mirror ?? !isTestEnv;
 
   // Ensure the log directory exists exactly once (cached). If creation fails we
   // log a single warning and retry on the next write; per-line appends never throw.

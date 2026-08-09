@@ -10,5 +10,5 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-606-gate.md",
-  "notes": "AI-606 拍照学单词(OCR): 新 ScannedWord 实体(个人生词本) + ScanModule(recognize/confirm/list) + 前端 /scan 页 + TabNav「拍照」入口; chatWithImage 复用 AI-106 RetryableProvider 退避; MockProvider 扩展 OCR 夹具使 E2E 免 key 可跑。四质量门全绿, 未 push。"
+  "notes": "AI-606 拍照学单词(OCR): 新 ScannedWord 实体(个人生词本) + ScanModule(recognize/confirm/list) + 前端 /scan 页 + TabNav「拍照」入口; chatWithImage 复用 AI-106 RetryableProvider 退避; MockProvider 扩展 OCR 夹具使 E2E 免 key 可跑。四质量门全绿, 未 push。 | 后续 hygiene 修复: logger 在 jest/NODE_ENV=test 下默认 mirror=false, 消除 CI 单测日志泄露(chat.service.spec 502 路径故意抛 'boom' 测试桩经 Logger 裸 console.error 污染输出); logger.spec 的 mirror 断言改为显式 mirror:true。全量 jest 724 PASS; ai.module.spec 6 失败为预存 DI 问题(MascotStoryRepository 缺 DataSource, 与日志修复无关)。"
 }
