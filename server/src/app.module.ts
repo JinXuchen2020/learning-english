@@ -17,6 +17,7 @@ import { PlanModule } from './plan/plan.module';
 import { ChatModule } from './chat/chat.module';
 import { WordCardModule } from './word-card/word-card.module';
 import { ScanModule } from './scan/scan.module';
+import { RewardsModule } from './rewards/rewards.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ScanModule } from './scan/scan.module';
     ChatModule,
     WordCardModule,
     ScanModule,
+    RewardsModule,
   ],
 })
 export class AppModule {}

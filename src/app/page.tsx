@@ -4,13 +4,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
+import LevelRing from "@/components/LevelRing";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
 import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory, DueReview } from "@/lib/types";
-import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw } from "lucide-react";
+import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw, Gift } from "lucide-react";
 
 const taskIcons = {
   headphones: Headphones,
@@ -399,6 +400,34 @@ function HomeContent() {
                 </button>
               </div>
             </div>
+          )}
+
+          {/* AI-701：我的奖励 — 余额 + 等级环 + 去兑换深链 */}
+          {progress && (
+            <section
+              data-component="RewardsHomeCard"
+              className="card-kids flex flex-col gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-sun/20 text-kids-sun">
+                  <Gift size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-kids-title">我的奖励</h2>
+                  <p className="text-sm text-kids-muted">
+                    已有 <span className="font-extrabold text-kids-title">{progress.pointsBalance}</span> 积分可兑换
+                  </p>
+                </div>
+              </div>
+              <LevelRing totalStars={progress.totalStars} size={80} />
+              <Link
+                href="/rewards"
+                data-component="GoRewardsBtn"
+                className="self-start rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold hover:opacity-90"
+              >
+                去兑换
+              </Link>
+            </section>
           )}
 
           {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}

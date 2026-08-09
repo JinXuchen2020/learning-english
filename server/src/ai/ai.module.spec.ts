@@ -24,6 +24,9 @@ import { Sentence } from '../entities/sentence.entity';
 import { User } from '../entities/user.entity';
 import { Course } from '../entities/course.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { UserPoints } from '../rewards/user-points.entity';
+import { Reward } from '../rewards/reward.entity';
+import { RewardRedemption } from '../rewards/reward-redemption.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -129,6 +132,33 @@ const fakeLessonRepo = {
   findOne: jest.fn(),
 };
 
+/** 假 UserPoints 仓库：让 `RewardsModule`(AI-701) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeUserPointsRepo = {
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  increment: jest.fn(async () => undefined),
+  decrement: jest.fn(async () => undefined),
+};
+
+/** 假 Reward 仓库：让 `RewardsModule`(AI-701) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeRewardRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+  count: jest.fn(async () => 0),
+  delete: jest.fn(async () => ({ affected: 1 })),
+};
+
+/** 假 RewardRedemption 仓库：让 `RewardsModule`(AI-701) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeRewardRedemptionRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
 /** 假邮件发送器：让 `EmailService`(AI-506) 在无需真实发送通道的情况下完成 DI 装配。 */
 const fakeEmailSender: EmailSender = {
   send: jest.fn(async (o) => ({ messageId: 'fake-log', accepted: true, htmlPath: '/tmp/fake.html' })),
@@ -171,6 +201,12 @@ async function compileAiModule() {
     .useValue(fakeSentenceRepo)
     .overrideProvider(getRepositoryToken(User))
     .useValue(fakeUserRepo)
+    .overrideProvider(getRepositoryToken(UserPoints))
+    .useValue(fakeUserPointsRepo)
+    .overrideProvider(getRepositoryToken(Reward))
+    .useValue(fakeRewardRepo)
+    .overrideProvider(getRepositoryToken(RewardRedemption))
+    .useValue(fakeRewardRedemptionRepo)
     .overrideProvider(getRepositoryToken(AiParentEmailLog))
     .useValue(fakeAiParentEmailLogRepo)
     .overrideProvider(getRepositoryToken(MascotStory))

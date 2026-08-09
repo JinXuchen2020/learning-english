@@ -6,12 +6,15 @@ import { DailyTask } from '../entities/daily-task.entity';
 import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { ProgressModule } from '../progress/progress.module';
+import { RewardsModule } from '../rewards/rewards.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([DailyTask, TaskCompletion, StudyPlanDay]),
     // AI-605：getDailyTasks 注入到期复习任务需 ProgressService（Tasks → Progress 单向，无环）。
     ProgressModule,
+    // AI-701：完成任务累加积分（Tasks → Rewards 单向，无环）。
+    RewardsModule,
   ],
   controllers: [TasksController],
   providers: [TasksService],

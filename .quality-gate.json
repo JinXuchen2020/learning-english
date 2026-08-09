@@ -1,14 +1,14 @@
 {
-  "phase": "ai-606",
+  "phase": "ai-701",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 后端 jest 33 PASS(scan-agent/scan.service/scan.controller/mock-ai); 前端 vitest 100 PASS; next build 0 错 14 路由含 /scan; 全栈 ScanCard/ScanResult/ConfirmScanDto 字段对齐)",
-    "tests": "PASSED (unit: 3 files — scan-agent.spec / scan.service.spec / scan.controller.spec (纯逻辑解析+service+controller全分支覆盖); mock-ai.provider.spec OCR 扩展; e2e/bdd: 1 scenario / 7 steps 全绿 (登录→上传→识别→加入生词本))",
-    "review": "PASSED (0 open; userId 取自 JWT 防越权, confirm 按 userId 过滤; 图片 5MB+MIME 白名单校验 413/415; OCR 解析失败→recognized:false 友好兜底不抛 500; 无敏感日志)",
-    "optimization": "PASSED (0 open; 常量提取 MAX_IMAGE_BYTES/ALLOWED_IMAGE_MIME/HARD_UPLOAD_LIMIT_BYTES; 无 stub/临时调试; 复用 postFormData 多部件上传与 AI-106 退避层)"
+    "consistency": "PASSED (后端 tsc 0 错; 后端 jest 59 PASS(rewards.service 19 + progress/tasks/ai.module 共 40, 4 suites 全绿); 前端 vitest 沿用既有套件全绿; next build 0 错 15 路由含 /rewards(3.45kB/96.2kB); 全栈 Reward/RewardRedemption/RewardsSummary 字段对齐(Reward.id/title/cost/emoji/active, RewardRedemption.status 机 pending→approved/rejected, RewardsSummary.balance/totalStars/level/levelInfo))",
+    "tests": "PASSED (unit: rewards.service.spec 19 项覆盖 awardStars(跨阈值回写 level)/spendPoints(不足抛 InsufficientPoints)/listRewards/CRUD/redeem/listRedemptions/approve-reject/getSummary/seedDefaults 跳过 + progress/tasks/ai.module 同步 awardStars 接线断言; e2e/bdd: 2 scenarios / 14 steps 全绿(登录→完成任务赚积分→兑换→家长审批批准; 及 余额≥1+等级环可见), 复用 loginAsNewUser/I complete the first daily task/waitForFunction 异步断言约定)",
+    "review": "PASSED (0 open; userId 取自 JWT 防越权, redeem 按 userId 过滤自己的积分; 家长审批端点 ParentGuard 校验 x-parent-approval 头(缺省 parent-dev-token) 防越权, 代码与文档明确标注 AI-702 PIN 锁上线后替换; approve/reject 仅操作本人发起的 redemption; 积分不足返回 400 INSUFFICIENT_POINTS 友好降级不抛 500; 无敏感日志)",
+    "optimization": "PASSED (0 open; 积分/星星双轨模型(balance 可消费 vs totalStars 驱动等级)常量提取 POINT_RULES; 无 stub/临时调试; 叶子模块 RewardsModule 最小 DI(AiModule 仅 import 它, Progress/Tasks 注入 awardStars); 新建实体显式 type 避免 better-sqlite3 DataTypeNotSupportedError)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-606-gate.md",
-  "notes": "AI-606 拍照学单词(OCR): 新 ScannedWord 实体(个人生词本) + ScanModule(recognize/confirm/list) + 前端 /scan 页 + TabNav「拍照」入口; chatWithImage 复用 AI-106 RetryableProvider 退避; MockProvider 扩展 OCR 夹具使 E2E 免 key 可跑。四质量门全绿, 未 push。 | 后续 hygiene 修复(history): (1) logger 在 jest/NODE_ENV=test 下默认 mirror=false, 消除 CI 单测日志泄露(chat.service.spec 502 路径 'boom' 测试桩经 Logger 裸 console.error 污染输出), logger.spec 改显式 mirror:true; (2) ai.module.spec 6 失败修复——TestingModule 缺 MascotStory/PictureBook/Course/Lesson 仓库覆盖(无 forRoot→无 DataSource→自动仓库装配失败), 补 4 个 fake repo override 后 6 测试全绿; (3) parent-report E2E 'I should see at least 1 weak word' 异步竞态修复——原断言用 locator.count() 在周报 fetch 解析前立即计数→冷 CI 必现 'found 0'; 改为 waitForWeakWords 等 WeakWordItem 渲染(贴合本仓异步 UI 须 waitForFunction 的约定)。本地 curl 复现 seed→GET /ai/report/weekly/preview 返回 weakWordsTop=['Cat'] 证明后端+播种逻辑正确, 根因纯属浏览器层竞态。全量 jest 730 PASS / 84 suites 全绿; 本地单跑 parent-report 1 scenario/6 steps 全绿。"
+  "reportRef": "docs/quality/ai-701-gate.md",
+  "notes": "AI-701 成长激励系统: 积分/星星双轨(UserPoints.balance 可消费 + User.totalStars 驱动等级, 等级不回落) + 奖励商城(目录/兑换/家长审批状态机) + 家长临时门禁(ParentGuard, AI-702 PIN 锁上线后替换)。接线层: Progress/Tasks/AiModule 注入 RewardsService.awardStars; 前端 TabNav 加「奖励」入口、Home 加 RewardsHomeCard(余额+等级环+去兑换)、新增 /rewards 页(余额/等级环/商城/我的兑换/家长审批区)。验证修复: (1) 启动时发现 GET /api/rewards 500 —— 根因 appEntities 显式数组未含 UserPoints/Reward/RewardRedemption(仅 forFeature 不挂到连接元数据), 已补注册; (2) 首跑 E2E 在共享 loginAsNewUser 步超时 —— 根因起服前 rm -f dev.sqlite 清空了课程种子, 而该步等待 [data-component=CourseProgress] a(依赖 GET /courses 有数据), 补 npm run seed 后 2 scenarios/14 steps 全绿。Node 20 编译与起服, AI_PROVIDER=mock 跑 E2E。四质量门全绿, 未 push 未建 PR(仅 commit, 符合 Phase 6 硬约束)。"
 }

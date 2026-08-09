@@ -7,6 +7,8 @@ import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { AiReportService } from '../ai/ai-report.service';
 import { ProgressService } from '../progress/progress.service';
+import { RewardsService } from '../rewards/rewards.service';
+import { POINT_RULES } from '../rewards/points.const';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -35,6 +37,7 @@ describe('TasksService', () => {
   let dayRepo: any;
   let aiReportService: any;
   let progressService: any;
+  let rewardsService: any;
 
   beforeEach(async () => {
     tasksRepo = {
@@ -57,6 +60,9 @@ describe('TasksService', () => {
     progressService = {
       getDueReviews: jest.fn(async () => []),
     };
+    rewardsService = {
+      awardStars: jest.fn(async () => undefined),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -65,6 +71,7 @@ describe('TasksService', () => {
         { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
         { provide: AiReportService, useValue: aiReportService },
         { provide: ProgressService, useValue: progressService },
+        { provide: RewardsService, useValue: rewardsService },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
@@ -86,18 +93,20 @@ describe('TasksService', () => {
     expect(res[0].completed).toBe(false);
   });
 
-  it('completeTask returns alreadyCompleted when exists today', async () => {
+  it('completeTask returns alreadyCompleted when exists today (不累加积分)', async () => {
     completionsRepo.findOne.mockResolvedValue({ id: 'c1' });
     const res = await service.completeTask('u1', 't1');
     expect(res).toEqual({ success: true, alreadyCompleted: true });
     expect(completionsRepo.save).not.toHaveBeenCalled();
+    expect(rewardsService.awardStars).not.toHaveBeenCalled();
   });
 
-  it('completeTask creates completion when none today', async () => {
+  it('completeTask creates completion when none today (AI-701 新完成累加积分)', async () => {
     const t = todayStr();
     completionsRepo.findOne.mockResolvedValue(null);
     const res = await service.completeTask('u1', 't1');
     expect(completionsRepo.create).toHaveBeenCalledWith({ userId: 'u1', taskId: 't1', date: t });
+    expect(rewardsService.awardStars).toHaveBeenCalledWith('u1', POINT_RULES.TASK_COMPLETE);
     expect(res).toEqual({ success: true, alreadyCompleted: false });
   });
 

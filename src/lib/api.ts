@@ -35,6 +35,10 @@ import type {
   ScanCard,
   ScanResult,
   ConfirmScanDto,
+  Reward,
+  RewardRedemption,
+  RewardsSummary,
+  RedemptionStatus,
 } from "./types";
 
 /**
@@ -220,6 +224,10 @@ export interface ProgressOverview {
   practicedWords: number;
   totalStars: number;
   streakDays: number;
+  /** 由 totalStars 推导的当前等级（AI-701）。 */
+  level: number;
+  /** 可消费积分余额（AI-701：user_points.balance）。 */
+  pointsBalance: number;
 }
 
 export function getProgress() {
@@ -620,5 +628,88 @@ export function rejectWordCard(id: string, reviewerNote?: string): Promise<WordC
   return request<WordCard>(`/ai/word-card/${id}/reject`, {
     method: "POST",
     body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
+  });
+}
+
+/* ----------------------- AI Growth Incentives (AI-701) ----------------------- */
+
+/**
+ * 家长审批临时门禁头值。AI-702（PIN 锁）上线后由 PIN 会话令牌替换。
+ * 取自 `NEXT_PUBLIC_PARENT_APPROVAL_TOKEN`，缺省回退明文 dev token。
+ */
+const PARENT_APPROVAL_TOKEN =
+  process.env.NEXT_PUBLIC_PARENT_APPROVAL_TOKEN || "parent-dev-token";
+
+/** 家长审批请求头（与后端 `ParentGuard` 校验的 `x-parent-approval` 对齐）。 */
+function parentApprovalHeaders(): Record<string, string> {
+  return { "x-parent-approval": PARENT_APPROVAL_TOKEN };
+}
+
+/**
+ * 列出上架奖励（商城展示）。`GET /api/rewards`，无 guard。
+ * 返回按 cost 升序的 `Reward[]`（active=true）。
+ */
+export function listRewards(): Promise<Reward[]> {
+  return request<Reward[]>("/rewards");
+}
+
+/**
+ * 当前用户的积分/等级概览（驱动 Home/奖励页余额与等级环）。
+ * `GET /api/rewards/summary`，需 Jwt（模块内存 token）。
+ */
+export function getRewardsSummary(): Promise<RewardsSummary> {
+  return request<RewardsSummary>("/rewards/summary");
+}
+
+/**
+ * 当前孩子的兑换记录（仅本人）。`GET /api/rewards/my-redemptions`，需 Jwt。
+ */
+export function getMyRedemptions(): Promise<RewardRedemption[]> {
+  return request<RewardRedemption[]>("/rewards/my-redemptions");
+}
+
+/**
+ * 申请兑换某奖励：扣余额 + 建 pending 兑换单。`POST /api/rewards/redeem/:rewardId`。
+ * 余额不足后端返回 400 `{ code:'INSUFFICIENT_POINTS' }`，由调用方提示「再去攒积分」。
+ * @param rewardId 奖励 id
+ */
+export function redeemReward(rewardId: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(`/rewards/redeem/${encodeURIComponent(rewardId)}`, {
+    method: "POST",
+  });
+}
+
+/**
+ * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需 ParentGuard。
+ * @param status 可选过滤（pending/approved/rejected）
+ */
+export function getPendingApprovals(status?: RedemptionStatus): Promise<RewardRedemption[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request<RewardRedemption[]>(`/rewards/redemptions${qs}`, {
+    headers: parentApprovalHeaders(),
+  });
+}
+
+/**
+ * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需 ParentGuard。
+ * @param id 兑换单 id
+ */
+export function approveRedemption(id: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(`/rewards/redemptions/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: parentApprovalHeaders(),
+  });
+}
+
+/**
+ * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需 ParentGuard。
+ * @param id 兑换单 id
+ * @param reason 可选驳回原因
+ */
+export function rejectRedemption(id: string, reason?: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(`/rewards/redemptions/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    body: JSON.stringify(reason != null ? { reason } : {}),
+    headers: parentApprovalHeaders(),
   });
 }

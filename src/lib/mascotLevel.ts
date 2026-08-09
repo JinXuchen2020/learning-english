@@ -11,6 +11,22 @@ export const LEVEL_THRESHOLDS = [0, 50, 120, 200, 300, 500];
 /** 最高等级（等于阈值数组长度）。 */
 export const MAX_LEVEL = LEVEL_THRESHOLDS.length;
 
+/** 各等级档名（AI-701，与后端/设计文档对齐）。索引 i → 等级 i+1 档名。 */
+export const LEVEL_NAMES = [
+  "英语宝宝",
+  "英语新星",
+  "英语之星",
+  "英语达人",
+  "英语小将",
+  "英语大师",
+];
+
+/** 由等级取档名（越界回退最低/最高档名）。 */
+export function levelName(level: number): string {
+  const idx = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level || 1))) - 1;
+  return LEVEL_NAMES[idx] ?? LEVEL_NAMES[0];
+}
+
 /** 由累计星星推导等级（1..MAX_LEVEL）。 */
 export function computeLevel(totalStars: number): number {
   if (!Number.isFinite(totalStars) || totalStars < 0) return 1;

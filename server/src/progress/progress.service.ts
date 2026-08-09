@@ -6,6 +6,9 @@ import { WordProgress, WordDifficulty } from '../entities/word-progress.entity';
 import { User } from '../entities/user.entity';
 import { computeLevel } from '../ai/mascot-level.util';
 import { computeNextReview, loadReviewIntervals } from './review-schedule.util';
+import { RewardsService } from '../rewards/rewards.service';
+import { POINT_RULES } from '../rewards/points.const';
+import { logger } from '../common/logger/logger';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -76,6 +79,7 @@ export class ProgressService {
     private wordProgressRepo: Repository<WordProgress>,
     @InjectRepository(User)
     private usersRepo: Repository<User>,
+    private readonly rewardsService: RewardsService,
   ) {}
 
   async getOverview(userId: string) {
@@ -87,11 +91,20 @@ export class ProgressService {
     });
     const user = await this.usersRepo.findOne({ where: { id: userId } });
 
+    let pointsBalance = 0;
+    try {
+      pointsBalance = await this.rewardsService.getBalance(userId);
+    } catch (err) {
+      logger.warn('[PROGRESS] 获取积分余额失败（降级 0）', err as Error);
+    }
+
     return {
       completedLessons,
       practicedWords,
       totalStars: user?.totalStars || 0,
       streakDays: user?.streakDays || 0,
+      level: user ? computeLevel(user.totalStars || 0) : 1,
+      pointsBalance,
     };
   }
 
@@ -107,16 +120,11 @@ export class ProgressService {
     progress.completedAt = new Date();
     await this.lessonProgressRepo.save(progress);
 
-    // Award star
-    await this.usersRepo.increment({ id: userId }, 'totalStars', 1);
-
-    // AI-603: 重算等级（等级由累计星星推导，唯一写入点更新，保证与 totalStars 一致）
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (user) {
-      const newLevel = computeLevel(user.totalStars);
-      if (newLevel !== (user.level ?? 1)) {
-        await this.usersRepo.update({ id: userId }, { level: newLevel });
-      }
+    // AI-603/AI-701: 统一累加星星 + 等级 + 积分（经 RewardsService 单一入口，best-effort）。
+    try {
+      await this.rewardsService.awardStars(userId, POINT_RULES.LESSON_COMPLETE);
+    } catch (err) {
+      logger.warn('[PROGRESS] 完成课程累加积分失败（不影响主流程）', err as Error);
     }
 
     return { success: true };
@@ -162,6 +170,15 @@ export class ProgressService {
     progress.dueDate = review.dueDate;
 
     await this.wordProgressRepo.save(progress);
+
+    // AI-701: 答对单词累加积分（best-effort，不影响掌握度写入）。
+    if (correct) {
+      try {
+        await this.rewardsService.awardStars(userId, POINT_RULES.WORD_CORRECT);
+      } catch (err) {
+        logger.warn('[PROGRESS] 答对单词累加积分失败（不影响主流程）', err as Error);
+      }
+    }
 
     return {
       success: true,

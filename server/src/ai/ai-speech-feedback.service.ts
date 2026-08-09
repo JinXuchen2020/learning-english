@@ -24,7 +24,10 @@ import {
   buildAttemptEntry,
   buildSpeechFeedback,
   SpeechFeedback,
+  ANONYMOUS_USER_PLACEHOLDER,
 } from './speech-feedback.util';
+import { RewardsService } from '../rewards/rewards.service';
+import { POINT_RULES } from '../rewards/points.const';
 import { logger } from '../common/logger/logger';
 
 /** 反馈装配入参。 */
@@ -46,7 +49,10 @@ export interface FeedbackInput {
  */
 @Injectable()
 export class AiSpeechFeedbackService {
-  constructor(private readonly attempts: AiSpeechAttemptService) {}
+  constructor(
+    private readonly attempts: AiSpeechAttemptService,
+    private readonly rewardsService: RewardsService,
+  ) {}
 
   /**
    * 装配反馈并 best-effort 落库。
@@ -63,6 +69,20 @@ export class AiSpeechFeedbackService {
         error: (err as Error)?.message,
       });
     }
-    return buildSpeechFeedback(input.result);
+    const feedback = buildSpeechFeedback(input.result);
+    // AI-701: 口语通过累加积分（best-effort，绝不阻断反馈返回）。
+    if (
+      feedback.passed &&
+      input.userId &&
+      input.userId.trim().length > 0 &&
+      input.userId !== ANONYMOUS_USER_PLACEHOLDER
+    ) {
+      try {
+        await this.rewardsService.awardStars(input.userId, POINT_RULES.SPEECH_PASS);
+      } catch (err) {
+        logger.warn('[AI-SPEECH] 口语通过累加积分失败（不影响反馈）', err as Error);
+      }
+    }
+    return feedback;
   }
 }
