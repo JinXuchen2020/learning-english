@@ -76,6 +76,38 @@ export interface ReviewSettings {
   intervals: number[];
 }
 
+/* ----------------------- AI Makeup Queue (AI-704) ----------------------- */
+
+/** 补学弱词项（昨日未掌握单词，来自 `GET /progress/makeup`）。 */
+export interface MakeupWordItem {
+  /** 单词 id（word_progress.wordId）。 */
+  wordId: string;
+  /** 单词英文文本。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 当前掌握度 0-100。 */
+  mastery: number;
+  /** 上次练习时间 ISO 字符串。 */
+  lastPracticedAt: string;
+}
+
+/** 补学未完成计划日项（昨日未完成任务，来自 `GET /progress/makeup`）。 */
+export interface MakeupTaskItem {
+  /** 计划日 id（study_plan_days.id）。 */
+  planDayId: string;
+  /** 计划日标题。 */
+  title: string;
+  /** 计划日日期 YYYY-MM-DD（UTC）。 */
+  date: string;
+}
+
+/** 补学队列聚合（昨日弱词 + 昨日未完成计划日，与 AI-605 到期复习去重）。 */
+export interface MakeupQueue {
+  weakWords: MakeupWordItem[];
+  missedTasks: MakeupTaskItem[];
+}
+
 export interface DailyTask {
   id: string;
   title: string;

@@ -39,6 +39,7 @@ import type {
   RewardRedemption,
   RewardsSummary,
   RedemptionStatus,
+  MakeupQueue,
 } from "./types";
 
 /**
@@ -282,6 +283,31 @@ export function getDueReviews(userId: string, date?: string): Promise<DueReview[
 export function getReviewSettings(userId: string): Promise<ReviewSettings> {
   return request<ReviewSettings>(
     `/progress/review/settings?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/* ----------------------- AI Makeup Queue (AI-704) ----------------------- */
+
+/**
+ * 获取补学队列：昨日未掌握弱词 + 昨日未完成计划日（与 AI-605 到期复习去重）。
+ * `GET /api/progress/makeup`，需 Jwt（模块内存 child token）。
+ */
+export function getMakeupQueue(): Promise<MakeupQueue> {
+  return request<MakeupQueue>("/progress/makeup");
+}
+
+/**
+ * 标记昨日未完成计划日为完成（补学回写完成态，幂等，仅限本人）。
+ * `POST /api/progress/makeup/task/:planDayId/complete`。
+ * 成功（含已完成的幂等）返回 `{ success:true }`；不存在/越权返回 `{ success:false, reason }`。
+ * @param planDayId 计划日 id（study_plan_days.id）
+ */
+export function completeMakeupTask(
+  planDayId: string
+): Promise<{ success: boolean; reason?: string; alreadyDone?: boolean }> {
+  return request<{ success: boolean; reason?: string; alreadyDone?: boolean }>(
+    `/progress/makeup/task/${encodeURIComponent(planDayId)}/complete`,
+    { method: "POST" }
   );
 }
 

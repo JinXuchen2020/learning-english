@@ -4,11 +4,21 @@ import { Repository } from 'typeorm';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { WordProgress, WordDifficulty } from '../entities/word-progress.entity';
 import { User } from '../entities/user.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { computeLevel } from '../ai/mascot-level.util';
 import { computeNextReview, loadReviewIntervals } from './review-schedule.util';
 import { RewardsService } from '../rewards/rewards.service';
 import { POINT_RULES } from '../rewards/points.const';
 import { logger } from '../common/logger/logger';
+import {
+  filterWeakWords,
+  mapMissedTasks,
+  yesterdayBounds,
+  toUtcDate,
+  MakeupQueue,
+  WeakWordRow,
+  MissedTaskRow,
+} from './makeup.util';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -79,6 +89,8 @@ export class ProgressService {
     private wordProgressRepo: Repository<WordProgress>,
     @InjectRepository(User)
     private usersRepo: Repository<User>,
+    @InjectRepository(StudyPlanDay)
+    private studyPlanDayRepo: Repository<StudyPlanDay>,
     private readonly rewardsService: RewardsService,
   ) {}
 
@@ -241,5 +253,93 @@ export class ProgressService {
         reviewPriority: computeReviewPriority(r.mastery, r.lastPracticedAt),
       }))
       .sort((a, b) => b.reviewPriority - a.reviewPriority);
+  }
+
+  /**
+   * AI-704: 补学队列 = 「昨日」学习状态的实时视图（不入新表）。
+   * - 昨日未掌握弱词：`word_progress.lastPracticedAt` 落于昨日 UTC 整天 且 mastery < 阈值
+   * - 昨日未完成计划日：`study_plan_days.date = 昨日` 且 `isDone=false`
+   * 与 AI-605 到期复习去重：弱词若已出现在今日到期复习则不重复展示（避免双入口）。
+   */
+  async getMakeupQueue(userId: string): Promise<MakeupQueue> {
+    const today = new Date();
+    const [yStart, yEnd] = yesterdayBounds(today);
+    const yesterdayStr = toUtcDate(new Date(today.getTime() - DAY_MS));
+
+    // 1) 昨日弱词候选：DB 层先按昨日时间窗收窄，纯函数再做阈值/去重/排序。
+    const wpRows = await this.wordProgressRepo
+      .createQueryBuilder('wp')
+      .leftJoinAndSelect('wp.word', 'word')
+      .where('wp.userId = :userId', { userId })
+      .andWhere('wp.lastPracticedAt >= :yStart', { yStart })
+      .andWhere('wp.lastPracticedAt < :yEnd', { yEnd })
+      .getMany();
+
+    const weakRows: WeakWordRow[] = wpRows.map((r) => ({
+      wordId: r.wordId,
+      wordText: r.word?.text ?? null,
+      meaning: r.word?.meaning ?? null,
+      mastery: r.mastery,
+      lastPracticedAt: r.lastPracticedAt,
+    }));
+
+    // 2) 与 AI-605 到期复习去重（同一词只在一处出现）。
+    let dueWordIds = new Set<string>();
+    try {
+      const due = await this.getDueReviews(userId);
+      dueWordIds = new Set(due.map((d) => d.wordId));
+    } catch (err) {
+      logger.warn('[PROGRESS] 补学队列获取到期复习失败（不去重）', err as Error);
+    }
+    const weakWords = filterWeakWords(weakRows, dueWordIds, { today });
+
+    // 3) 昨日未完成计划日（经 planId → StudyPlan.userId 归属过滤）。
+    const missedRows = await this.studyPlanDayRepo
+      .createQueryBuilder('spd')
+      .leftJoinAndSelect('spd.plan', 'plan')
+      .where('plan.userId = :userId', { userId })
+      .andWhere('spd.date = :yesterday', { yesterday: yesterdayStr })
+      .andWhere('spd.isDone = :isDone', { isDone: false })
+      .getMany();
+
+    const missedTaskRows: MissedTaskRow[] = missedRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      date: r.date,
+    }));
+    const missedTasks = mapMissedTasks(missedTaskRows);
+
+    return { weakWords, missedTasks };
+  }
+
+  /**
+   * AI-704: 标记昨日未完成计划日为已完成（补学回写完成态）。
+   * 仅允许操作本人计划；已完成的幂等返回 success（不再重复计分）；
+   * 不存在 / 越权返回 `success:false`。计分经 RewardsService 单一入口（best-effort）。
+   */
+  async completeMakeupTask(
+    userId: string,
+    planDayId: string,
+  ): Promise<{ success: boolean; reason?: string; alreadyDone?: boolean }> {
+    const day = await this.studyPlanDayRepo
+      .createQueryBuilder('spd')
+      .leftJoinAndSelect('spd.plan', 'plan')
+      .where('spd.id = :id', { id: planDayId })
+      .getOne();
+
+    if (!day) return { success: false, reason: 'not_found' };
+    if (day.plan?.userId !== userId) return { success: false, reason: 'forbidden' };
+    if (day.isDone) return { success: true, alreadyDone: true };
+
+    day.isDone = true;
+    await this.studyPlanDayRepo.save(day);
+
+    try {
+      await this.rewardsService.awardStars(userId, POINT_RULES.TASK_COMPLETE);
+    } catch (err) {
+      logger.warn('[PROGRESS] 补学标记完成累加积分失败（不影响主流程）', err as Error);
+    }
+
+    return { success: true };
   }
 }

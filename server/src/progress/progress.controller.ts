@@ -84,4 +84,18 @@ export class ProgressController {
       reviewCount: updated.reviewCount,
     };
   }
+
+  // ===== AI-704 补学队列 =====
+
+  /** 补学队列：昨日未掌握弱词 + 昨日未完成计划日（与 AI-605 到期复习去重）。 */
+  @Get('makeup')
+  getMakeupQueue(@Request() req: any) {
+    return this.progressService.getMakeupQueue(req.user.userId);
+  }
+
+  /** 标记昨日未完成计划日为完成（补学回写，幂等，仅限本人）。 */
+  @Post('makeup/task/:planDayId/complete')
+  completeMakeupTask(@Param('planDayId') planDayId: string, @Request() req: any) {
+    return this.progressService.completeMakeupTask(req.user.userId, planDayId);
+  }
 }
