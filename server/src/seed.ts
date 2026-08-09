@@ -57,12 +57,14 @@ async function seed() {
   }
 
   // Words for first lesson (Farm Animals)
+  // AI-703: category/color 用于「组词」模式，每个词分配唯一 (color, category) 组合，
+  // 保证组词题答案唯一、无歧义。
   const words = [
-    { text: 'Cat', phonics: '/kæt/', meaning: '小猫', illustration: 'A fluffy orange cat', options: ['Cat','Dog','Rabbit','Fish'], correctIndex: 0, sortOrder: 1 },
-    { text: 'Dog', phonics: '/dɒɡ/', meaning: '小狗', illustration: 'A happy golden puppy', options: ['Bird','Dog','Horse','Duck'], correctIndex: 1, sortOrder: 2 },
-    { text: 'Fish', phonics: '/fɪʃ/', meaning: '小鱼', illustration: 'A colorful fish in a bowl', options: ['Frog','Crab','Fish','Whale'], correctIndex: 2, sortOrder: 3 },
-    { text: 'Bird', phonics: '/bɜːrd/', meaning: '小鸟', illustration: 'A blue bird on a branch', options: ['Bird','Bee','Bat','Ant'], correctIndex: 0, sortOrder: 4 },
-    { text: 'Rabbit', phonics: '/ˈræbɪt/', meaning: '兔子', illustration: 'A white rabbit with a carrot', options: ['Mouse','Hamster','Squirrel','Rabbit'], correctIndex: 3, sortOrder: 5 },
+    { text: 'Cat', phonics: '/kæt/', meaning: '小猫', illustration: 'A fluffy orange cat', options: ['Cat','Dog','Rabbit','Fish'], correctIndex: 0, sortOrder: 1, category: 'pet', color: 'orange' },
+    { text: 'Dog', phonics: '/dɒɡ/', meaning: '小狗', illustration: 'A happy golden puppy', options: ['Bird','Dog','Horse','Duck'], correctIndex: 1, sortOrder: 2, category: 'pet', color: 'brown' },
+    { text: 'Fish', phonics: '/fɪʃ/', meaning: '小鱼', illustration: 'A colorful fish in a bowl', options: ['Frog','Crab','Fish','Whale'], correctIndex: 2, sortOrder: 3, category: 'ocean', color: 'blue' },
+    { text: 'Bird', phonics: '/bɜːrd/', meaning: '小鸟', illustration: 'A blue bird on a branch', options: ['Bird','Bee','Bat','Ant'], correctIndex: 0, sortOrder: 4, category: 'sky', color: 'blue' },
+    { text: 'Rabbit', phonics: '/ˈræbɪt/', meaning: '兔子', illustration: 'A white rabbit with a carrot', options: ['Mouse','Hamster','Squirrel','Rabbit'], correctIndex: 3, sortOrder: 5, category: 'pet', color: 'white' },
   ];
 
   for (const w of words) {
@@ -70,12 +72,13 @@ async function seed() {
   }
 
   // Words for second lesson (Pet Animals)
+  // AI-703: category/color 唯一组合（继续补充，避免与第一课重复）。
   const words2 = [
-    { text: 'Frog', phonics: '/frɒɡ/', meaning: '青蛙', illustration: 'A green frog on a lily pad', options: ['Frog', 'Toad', 'Snake', 'Turtle'], correctIndex: 0, sortOrder: 1 },
-    { text: 'Horse', phonics: '/hɔːrs/', meaning: '马', illustration: 'A brown horse in a field', options: ['Cow', 'Sheep', 'Horse', 'Goat'], correctIndex: 2, sortOrder: 2 },
-    { text: 'Duck', phonics: '/dʌk/', meaning: '鸭子', illustration: 'A yellow duck in a pond', options: ['Duck', 'Swan', 'Goose', 'Hen'], correctIndex: 0, sortOrder: 3 },
-    { text: 'Bear', phonics: '/ber/', meaning: '熊', illustration: 'A friendly bear with honey', options: ['Wolf', 'Fox', 'Deer', 'Bear'], correctIndex: 3, sortOrder: 4 },
-    { text: 'Turtle', phonics: '/ˈtɜːrtl/', meaning: '乌龟', illustration: 'A small turtle on sand', options: ['Turtle', 'Snail', 'Lizard', 'Crab'], correctIndex: 0, sortOrder: 5 },
+    { text: 'Frog', phonics: '/frɒɡ/', meaning: '青蛙', illustration: 'A green frog on a lily pad', options: ['Frog', 'Toad', 'Snake', 'Turtle'], correctIndex: 0, sortOrder: 1, category: 'pond', color: 'green' },
+    { text: 'Horse', phonics: '/hɔːrs/', meaning: '马', illustration: 'A brown horse in a field', options: ['Cow', 'Sheep', 'Horse', 'Goat'], correctIndex: 2, sortOrder: 2, category: 'farm', color: 'brown' },
+    { text: 'Duck', phonics: '/dʌk/', meaning: '鸭子', illustration: 'A yellow duck in a pond', options: ['Duck', 'Swan', 'Goose', 'Hen'], correctIndex: 0, sortOrder: 3, category: 'pond', color: 'yellow' },
+    { text: 'Bear', phonics: '/ber/', meaning: '熊', illustration: 'A friendly bear with honey', options: ['Wolf', 'Fox', 'Deer', 'Bear'], correctIndex: 3, sortOrder: 4, category: 'forest', color: 'brown' },
+    { text: 'Turtle', phonics: '/ˈtɜːrtl/', meaning: '乌龟', illustration: 'A small turtle on sand', options: ['Turtle', 'Snail', 'Lizard', 'Crab'], correctIndex: 0, sortOrder: 5, category: 'beach', color: 'green' },
   ];
 
   for (const w of words2) {

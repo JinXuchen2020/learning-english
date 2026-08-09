@@ -1,14 +1,14 @@
 {
-  "phase": "ai-702",
+  "phase": "ai-703",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 后端 jest 87 suites / 764 PASS(含 parent.service.spec 15 + parent.guard.spec + ai.module 6 项因 JwtModule 导出修复复绿); 前端 tsc --noEmit 0 错 + vitest 11 files / 100 PASS; next build 0 错含 /parent 路由(构建尾段 safe-delete 沙箱超时非代码问题, 已 rm -rf .next 规避后重跑成功); 前后端契约对齐: 审批接口由 x-parent-approval 明文头切到 Authorization: Bearer 家长JWT, api.ts 与 ParentGuard 同步, 无残留明文 token)",
-    "tests": "PASSED (unit: parent.service.spec 15 项(verifyPin 命中/未命中/无PIN→false、setPin 哈希非明文且 bcrypt.compare 通过、changePin 旧PIN错误抛 Unauthorized/正确更新、hasPin、signParentToken role==='parent') + parent.guard.spec 5 场景(无头/非Bearer/child token/过期篡改→拒, 父token→放行并设 req.user) + rewards.service.spec 新增回归项(awardStars 首次建行兜底); 相关模块单测合计 53 PASS(parent 22+rewards 20+tasks 11); e2e/bdd: parent.feature 2 scenarios/25 steps 全绿 + rewards.feature 2 scenarios/12 steps 全绿(含本次修复的 awardStars 积分入账缺陷与 completeFirstTask 竞态修复); 全部经 TabNav 客户端导航保内存 token, 异步断言用 waitForFunction 禁 locator.count() 即时计数)",
-    "review": "PASSED (0 open; 审批/奖励目录 CRUD 端点须家长 JWT(role:'parent'), child JWT 无法调用, ParentGuard 显式校验 role; /parent 面板未持家长 token 仅显示 PIN 门禁, 儿童默认无审批权限; PIN 仅存 bcrypt 哈希不落明文, verifyPin 不泄露状态, changePin 强制旧PIN校验; 已知限制(demo级): 4位PIN仅10^4组合未引入限流锁定, 已注明; 无敏感日志, 错误文案友好)",
-    "optimization": "PASSED (0 open; 复用既有 bcrypt + JwtService 零新依赖; ParentModule 聚焦叶子(User仓库+JwtModule)最小 DI; exports:[ParentGuard,JwtModule] 让导入方透传 JwtService; 家长 token 模块内存管理(与 child token 同口径, 刷新即清, 无 localStorage 泄露); AI-701 临时门禁彻底移除(删 rewards/parent.guard.ts + 前端 PARENT_APPROVAL_TOKEN))"
+    "consistency": "PASSED (tsc frontend+backend 0 errors; next build 成功; vitest 19/19 绿; E2E 2 scenarios 绿; 前后端 Word.category/color 字段对齐)",
+    "tests": "PASSED (unit: 1 file quizVariants.spec.ts 19 tests; e2e/bdd: 1 feature / 2 scenarios practice-variants)",
+    "review": "PASSED (0 open; 空安全 option.word!/null 过滤; rng 可注入; 组词组合唯一性过滤防歧义; 无裸 console; 模式切换重置进度钳制越界索引)",
+    "optimization": "PASSED (0 open; 无 stub/占位; 错误处理统一 recordWordAttempt catch; 无调试残留)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-702-gate.md",
-  "notes": "AI-702 家长模式骨架: 4位PIN(bcrypt 哈希存 User.parentPinHash, 非明文) + 家长会话JWT(role:'parent',15m) + /parent 控制面板(PIN门禁→奖励审批+PIN管理+退出家长模式+M5报告预留) + TabNav「家长」入口; /rewards 改为纯儿童商城(审批UI移出)。关键修复: (1) ai.module.spec DI 失败——RewardsModule 导入 ParentModule 后其控制器用的 ParentGuard(依赖 JwtService)在 RewardsModule 上下文解析失败, 修复 ParentModule exports 加 JwtModule; (2) appEntities 无需改(User 已注册); (3) 前端 request 误把 auth/token 写进 options 对象(TS错), 改为独立位置参数; (4)【本次收尾】rewards.service.ts awardStars 积分永不入账(AI-701 真实缺陷): increment 命中 0 行静默无效, 修复为 awardStars 开头 getOrCreatePoints 兜底建行, 加单测回归项, curl 复现 balance 0→1; (5) rewards E2E 竞态: completeFirstTask 仅等乐观 UI 翻牌, /rewards 挂载 getProgress 抢跑读到 0, 修复为再等 RewardsHomeCard pointsBalance≥1 确认入账, rewards E2E 稳定 12/12。验证脚本: server tsc/jest; src tsc/vitest/next build; E2E 起服 Node20 AI_PROVIDER=mock + npm run seed 后 cucumber.rewards.js + cucumber.parent.js。四质量门全绿, 未 push 未建 PR(仅 commit, 符合 Phase 6 硬约束)。"
+  "reportRef": "docs/quality/ai-703-gate.md",
+  "notes": "AI-703 测验变体扩展：Word 实体新增 category/color 两列（varchar nullable，synchronize 自动落库）+ seed 分配唯一 (color,category)；纯前端 quizVariants.ts 提供听音选图/组词出题与判定（rng 可注入、组合唯一性校验）；/practice 增加模式切换器（看字选词/听音选图/颜色组词），答案按钮带 data-answer-correct；E2E 覆盖两种新模式用户旅程全对作答至完成页。"
 }

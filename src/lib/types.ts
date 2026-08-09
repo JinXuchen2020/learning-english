@@ -31,6 +31,10 @@ export interface Word {
   illustration: string;
   options: string[];
   correctIndex: number;
+  /** AI-703：组词模式所需——物品类别（如 pet/ocean/sky）。可空以兼容旧词。 */
+  category?: string | null;
+  /** AI-703：组词模式所需——颜色名（如 orange/blue）。可空以兼容旧词。 */
+  color?: string | null;
 }
 
 /* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
