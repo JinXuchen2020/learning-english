@@ -35,6 +35,11 @@ import type {
   ScanCard,
   ScanResult,
   ConfirmScanDto,
+  Reward,
+  RewardRedemption,
+  RewardsSummary,
+  RedemptionStatus,
+  MakeupQueue,
 } from "./types";
 
 /**
@@ -71,14 +76,19 @@ export class ApiError extends Error {
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  auth = true
+  auth = true,
+  token?: string | null
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (auth && accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
+  if (auth) {
+    // 允许调用方显式覆盖鉴权令牌（如家长会话令牌），缺省沿用内存 child token。
+    const tok = token !== undefined ? token : accessToken;
+    if (tok) {
+      headers.Authorization = `Bearer ${tok}`;
+    }
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
@@ -220,6 +230,10 @@ export interface ProgressOverview {
   practicedWords: number;
   totalStars: number;
   streakDays: number;
+  /** 由 totalStars 推导的当前等级（AI-701）。 */
+  level: number;
+  /** 可消费积分余额（AI-701：user_points.balance）。 */
+  pointsBalance: number;
 }
 
 export function getProgress() {
@@ -269,6 +283,31 @@ export function getDueReviews(userId: string, date?: string): Promise<DueReview[
 export function getReviewSettings(userId: string): Promise<ReviewSettings> {
   return request<ReviewSettings>(
     `/progress/review/settings?userId=${encodeURIComponent(userId)}`
+  );
+}
+
+/* ----------------------- AI Makeup Queue (AI-704) ----------------------- */
+
+/**
+ * 获取补学队列：昨日未掌握弱词 + 昨日未完成计划日（与 AI-605 到期复习去重）。
+ * `GET /api/progress/makeup`，需 Jwt（模块内存 child token）。
+ */
+export function getMakeupQueue(): Promise<MakeupQueue> {
+  return request<MakeupQueue>("/progress/makeup");
+}
+
+/**
+ * 标记昨日未完成计划日为完成（补学回写完成态，幂等，仅限本人）。
+ * `POST /api/progress/makeup/task/:planDayId/complete`。
+ * 成功（含已完成的幂等）返回 `{ success:true }`；不存在/越权返回 `{ success:false, reason }`。
+ * @param planDayId 计划日 id（study_plan_days.id）
+ */
+export function completeMakeupTask(
+  planDayId: string
+): Promise<{ success: boolean; reason?: string; alreadyDone?: boolean }> {
+  return request<{ success: boolean; reason?: string; alreadyDone?: boolean }>(
+    `/progress/makeup/task/${encodeURIComponent(planDayId)}/complete`,
+    { method: "POST" }
   );
 }
 
@@ -621,4 +660,138 @@ export function rejectWordCard(id: string, reviewerNote?: string): Promise<WordC
     method: "POST",
     body: JSON.stringify(reviewerNote != null ? { reviewerNote } : {}),
   });
+}
+
+/* ----------------------- AI Growth Incentives (AI-701) ----------------------- */
+
+/**
+ * 列出上架奖励（商城展示）。`GET /api/rewards`，无 guard。
+ * 返回按 cost 升序的 `Reward[]`（active=true）。
+ */
+export function listRewards(): Promise<Reward[]> {
+  return request<Reward[]>("/rewards");
+}
+
+/**
+ * 当前用户的积分/等级概览（驱动 Home/奖励页余额与等级环）。
+ * `GET /api/rewards/summary`，需 Jwt（模块内存 token）。
+ */
+export function getRewardsSummary(): Promise<RewardsSummary> {
+  return request<RewardsSummary>("/rewards/summary");
+}
+
+/**
+ * 当前孩子的兑换记录（仅本人）。`GET /api/rewards/my-redemptions`，需 Jwt。
+ */
+export function getMyRedemptions(): Promise<RewardRedemption[]> {
+  return request<RewardRedemption[]>("/rewards/my-redemptions");
+}
+
+/**
+ * 申请兑换某奖励：扣余额 + 建 pending 兑换单。`POST /api/rewards/redeem/:rewardId`。
+ * 余额不足后端返回 400 `{ code:'INSUFFICIENT_POINTS' }`，由调用方提示「再去攒积分」。
+ * @param rewardId 奖励 id
+ */
+export function redeemReward(rewardId: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(`/rewards/redeem/${encodeURIComponent(rewardId)}`, {
+    method: "POST",
+  });
+}
+
+/* ----------------------- Parent Mode (AI-702) ----------------------- */
+
+/**
+ * 家长会话令牌持有于模块内存（与 child token「accessToken」同口径，仅内存，刷新即清）。
+ * 家长模式每次刷新需重新输 PIN —— 对儿童产品是正向安全摩擦。
+ */
+let parentToken: string | null = null;
+
+export function setParentToken(token: string | null) {
+  parentToken = token;
+}
+
+export function getParentToken(): string | null {
+  return parentToken;
+}
+
+export function clearParentToken() {
+  parentToken = null;
+}
+
+/** 当前孩子是否已设置家长 PIN。`GET /api/parent/status`（child JWT）。 */
+export function getParentStatus(): Promise<{ hasPin: boolean }> {
+  return request<{ hasPin: boolean }>("/parent/status");
+}
+
+/** 验证家长 PIN → 返回家长会话令牌。`POST /api/parent/verify-pin`（child JWT）。 */
+export function verifyParentPin(pin: string): Promise<{ parentToken: string }> {
+  return request<{ parentToken: string }>("/parent/verify-pin", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** 首次设置家长 PIN → 返回家长会话令牌。`POST /api/parent/setup-pin`（child JWT）。 */
+export function setupParentPin(pin: string): Promise<{ parentToken: string }> {
+  return request<{ parentToken: string }>("/parent/setup-pin", {
+    method: "POST",
+    body: JSON.stringify({ pin }),
+  });
+}
+
+/** 修改家长 PIN（需先持家长会话令牌）。`POST /api/parent/change-pin`。 */
+export function changeParentPin(
+  oldPin: string,
+  newPin: string,
+): Promise<{ success: boolean; parentToken?: string }> {
+  return request<{ success: boolean; parentToken?: string }>(
+    "/parent/change-pin",
+    {
+      method: "POST",
+      body: JSON.stringify({ oldPin, newPin }),
+    },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需家长会话令牌。
+ * @param status 可选过滤（pending/approved/rejected）
+ */
+export function getPendingApprovals(status?: RedemptionStatus): Promise<RewardRedemption[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return request<RewardRedemption[]>(
+    `/rewards/redemptions${qs}`,
+    {},
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需家长会话令牌。
+ * @param id 兑换单 id
+ */
+export function approveRedemption(id: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(
+    `/rewards/redemptions/${encodeURIComponent(id)}/approve`,
+    { method: "POST" },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需家长会话令牌。
+ * @param id 兑换单 id
+ * @param reason 可选驳回原因
+ */
+export function rejectRedemption(id: string, reason?: string): Promise<RewardRedemption> {
+  return request<RewardRedemption>(
+    `/rewards/redemptions/${encodeURIComponent(id)}/reject`,
+    { method: "POST", body: JSON.stringify(reason != null ? { reason } : {}) },
+    true,
+    getParentToken(),
+  );
 }

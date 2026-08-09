@@ -4,13 +4,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
+import LevelRing from "@/components/LevelRing";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
-import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory, DueReview } from "@/lib/types";
-import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw } from "lucide-react";
+import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory, DueReview, MakeupQueue } from "@/lib/types";
+import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw, Gift } from "lucide-react";
 
 const taskIcons = {
   headphones: Headphones,
@@ -153,6 +154,79 @@ function AiReportCard({
   );
 }
 
+function MakeupCard({
+  makeup,
+  onCompleteTask,
+  completingId,
+}: {
+  makeup: MakeupQueue | null;
+  onCompleteTask: (planDayId: string) => void;
+  completingId: string | null;
+}) {
+  if (!makeup) return null;
+  const { weakWords, missedTasks } = makeup;
+  if (weakWords.length === 0 && missedTasks.length === 0) return null;
+
+  return (
+    <section data-component="MakeupCard" className="card-kids flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-orange/20 text-kids-orange">
+          <RefreshCw size={24} />
+        </div>
+        <div>
+          <h2 className="font-bold text-kids-title">补学小任务</h2>
+          <p className="text-kids-muted">
+            昨天的 {weakWords.length + missedTasks.length} 个小遗漏，今天补上就能拿星～
+          </p>
+        </div>
+      </div>
+
+      {weakWords.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {weakWords.map((w) => (
+            <li key={w.wordId}>
+              <Link
+                href={`/practice?focusWord=${encodeURIComponent(w.wordText)}`}
+                data-makeup-word-id={w.wordId}
+                data-component="MakeupWordLink"
+                className="flex items-center justify-between rounded-control bg-kids-secondary/60 px-4 py-3 hover:shadow-card-hover"
+              >
+                <span className="font-bold text-kids-title">{w.wordText}</span>
+                <span className="text-sm text-kids-muted">
+                  {w.meaning} · 掌握 {w.mastery}%
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {missedTasks.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {missedTasks.map((t) => (
+            <li
+              key={t.planDayId}
+              data-component="MakeupMissedTask"
+              className="flex items-center justify-between rounded-control bg-kids-secondary/60 px-4 py-3"
+            >
+              <span className="font-bold text-kids-title">{t.title}</span>
+              <button
+                data-component="MakeupCompleteBtn"
+                data-makeup-plan-day-id={t.planDayId}
+                onClick={() => onCompleteTask(t.planDayId)}
+                disabled={completingId === t.planDayId}
+                className="rounded-control bg-kids-sun px-3 py-1.5 font-bold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {completingId === t.planDayId ? "标记中…" : "标记完成"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function HomeContent() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<api.CourseSummary[]>([]);
@@ -164,6 +238,8 @@ function HomeContent() {
   const [mascotStory, setMascotStory] = useState<MascotStory | null>(null);
   // AI-605：到期/今日待复习单词（间隔重复）。
   const [reviews, setReviews] = useState<DueReview[]>([]);
+  // AI-704：补学队列（昨日未掌握弱词 + 昨日未完成计划日）。
+  const [makeup, setMakeup] = useState<MakeupQueue | null>(null);
   const [showStory, setShowStory] = useState(false);
   const [storyLoading, setStoryLoading] = useState(false);
   const [report, setReport] = useState<DailyReportResponse | null>(null);
@@ -189,13 +265,16 @@ function HomeContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [courseData, taskData, progressData, planData, levelData, reviewsData] = await Promise.all([
+      const [courseData, taskData, progressData, planData, levelData, reviewsData, makeupData] = await Promise.all([
         api.getCourses(),
         api.getDailyTasks(),
         api.getProgress(),
         user ? api.getPlanStatus(user.id) : Promise.resolve(null),
         user ? api.getMascotLevel(user.id) : Promise.resolve(null),
         user ? api.getDueReviews(user.id) : Promise.resolve([] as DueReview[]),
+        user
+          ? api.getMakeupQueue()
+          : Promise.resolve({ weakWords: [], missedTasks: [] } as MakeupQueue),
       ]);
       setCourses(courseData);
       setTasks(taskData);
@@ -203,6 +282,7 @@ function HomeContent() {
       setPlanStatus(planData);
       setMascotLevel(levelData);
       setReviews(reviewsData);
+      setMakeup(makeupData);
     } catch (err) {
       logger.error("Failed to load home data", err);
     } finally {
@@ -250,6 +330,40 @@ function HomeContent() {
       }
     },
     [completingId]
+  );
+
+  // AI-704：标记昨日未完成计划日为完成（补学回写 +1 积分，乐观移除 + 刷新积分/计划进度）。
+  const handleCompleteMakeupTask = useCallback(
+    async (planDayId: string) => {
+      if (completingId) return;
+      setCompletingId(planDayId);
+      try {
+        const res = await api.completeMakeupTask(planDayId);
+        if (res.success) {
+          setMakeup((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  missedTasks: prev.missedTasks.filter(
+                    (t) => t.planDayId !== planDayId
+                  ),
+                }
+              : prev
+          );
+          const [fresh, plan] = await Promise.all([
+            api.getProgress(),
+            user ? api.getPlanStatus(user.id) : Promise.resolve(null),
+          ]);
+          setProgress(fresh);
+          setPlanStatus(plan);
+        }
+      } catch (err) {
+        logger.error("Failed to complete makeup task", err);
+      } finally {
+        setCompletingId(null);
+      }
+    },
+    [completingId, user]
   );
 
   const handleViewStory = useCallback(async () => {
@@ -401,6 +515,34 @@ function HomeContent() {
             </div>
           )}
 
+          {/* AI-701：我的奖励 — 余额 + 等级环 + 去兑换深链 */}
+          {progress && (
+            <section
+              data-component="RewardsHomeCard"
+              className="card-kids flex flex-col gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-sun/20 text-kids-sun">
+                  <Gift size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-kids-title">我的奖励</h2>
+                  <p className="text-sm text-kids-muted">
+                    已有 <span className="font-extrabold text-kids-title">{progress.pointsBalance}</span> 积分可兑换
+                  </p>
+                </div>
+              </div>
+              <LevelRing totalStars={progress.totalStars} size={80} />
+              <Link
+                href="/rewards"
+                data-component="GoRewardsBtn"
+                className="self-start rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold hover:opacity-90"
+              >
+                去兑换
+              </Link>
+            </section>
+          )}
+
           {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}
           {planStatus?.hasPlan && (
             <section
@@ -461,6 +603,13 @@ function HomeContent() {
               </Link>
             </section>
           )}
+
+          {/* AI-704 补学队列：昨日未掌握弱词（深链练习）+ 昨日未完成计划日（标记完成） */}
+          <MakeupCard
+            makeup={makeup}
+            onCompleteTask={handleCompleteMakeupTask}
+            completingId={completingId}
+          />
 
           {/* Daily Tasks */}
           <section data-component="DailyTasks">

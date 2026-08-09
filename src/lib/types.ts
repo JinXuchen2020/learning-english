@@ -31,6 +31,10 @@ export interface Word {
   illustration: string;
   options: string[];
   correctIndex: number;
+  /** AI-703：组词模式所需——物品类别（如 pet/ocean/sky）。可空以兼容旧词。 */
+  category?: string | null;
+  /** AI-703：组词模式所需——颜色名（如 orange/blue）。可空以兼容旧词。 */
+  color?: string | null;
 }
 
 /* ----------------------- AI Difficulty Adaptation (AI-602) ----------------------- */
@@ -70,6 +74,38 @@ export interface ReviewSettings {
   enabled: boolean;
   /** 间隔阶梯（天），可经环境变量配置。 */
   intervals: number[];
+}
+
+/* ----------------------- AI Makeup Queue (AI-704) ----------------------- */
+
+/** 补学弱词项（昨日未掌握单词，来自 `GET /progress/makeup`）。 */
+export interface MakeupWordItem {
+  /** 单词 id（word_progress.wordId）。 */
+  wordId: string;
+  /** 单词英文文本。 */
+  wordText: string;
+  /** 中文释义。 */
+  meaning: string;
+  /** 当前掌握度 0-100。 */
+  mastery: number;
+  /** 上次练习时间 ISO 字符串。 */
+  lastPracticedAt: string;
+}
+
+/** 补学未完成计划日项（昨日未完成任务，来自 `GET /progress/makeup`）。 */
+export interface MakeupTaskItem {
+  /** 计划日 id（study_plan_days.id）。 */
+  planDayId: string;
+  /** 计划日标题。 */
+  title: string;
+  /** 计划日日期 YYYY-MM-DD（UTC）。 */
+  date: string;
+}
+
+/** 补学队列聚合（昨日弱词 + 昨日未完成计划日，与 AI-605 到期复习去重）。 */
+export interface MakeupQueue {
+  weakWords: MakeupWordItem[];
+  missedTasks: MakeupTaskItem[];
 }
 
 export interface DailyTask {
@@ -597,4 +633,63 @@ export interface PictureBook {
   isDefault: boolean;
   /** 生成时间（ISO 字符串，读回时存在）。 */
   createdAt?: string;
+}
+
+/* ----------------------- AI Growth Incentives (AI-701) ----------------------- */
+
+/** 奖励目录项（与后端 `Reward` 对齐，`GET /api/rewards` / 目录 CRUD 响应）。 */
+export interface Reward {
+  /** 奖励 id（uuid）。 */
+  id: string;
+  /** 奖励名（如「多讲一个睡前故事」）。 */
+  title: string;
+  /** 说明（可空）。 */
+  description: string | null;
+  /** 兑换所需积分。 */
+  cost: number;
+  /** 图标 emoji（可空）。 */
+  emoji: string | null;
+  /** 是否上架展示。 */
+  active: boolean;
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+  /** 更新时间（ISO 字符串）。 */
+  updatedAt: string;
+}
+
+/** 兑换申请单状态（与后端 `RedemptionStatus` 对齐）。 */
+export type RedemptionStatus = "pending" | "approved" | "rejected";
+
+/** 兑换申请单（与后端 `RewardRedemption` 对齐，AI-701）。 */
+export interface RewardRedemption {
+  /** 兑换单 id（uuid）。 */
+  id: string;
+  /** 申请人（孩子）用户 id。 */
+  userId: string;
+  /** 关联奖励 id。 */
+  rewardId: string;
+  /** 快照标题（防目录改删后失联）。 */
+  rewardTitle: string;
+  /** 快照成本。 */
+  cost: number;
+  /** 状态：pending(待审批) / approved(已批准) / rejected(已驳回)。 */
+  status: RedemptionStatus;
+  /** 驳回原因（驳回时存在）。 */
+  rejectReason: string | null;
+  /** 审批时间（ISO 字符串，审批后存在）。 */
+  decidedAt: string | null;
+  /** 创建时间（ISO 字符串）。 */
+  createdAt: string;
+}
+
+/** 商城概览（与后端 `getSummary` 返回对齐，`GET /api/rewards/summary`，AI-701）。 */
+export interface RewardsSummary {
+  /** 可消费积分余额。 */
+  balance: number;
+  /** 累计星星（驱动等级，lifetime）。 */
+  totalStars: number;
+  /** 当前等级。 */
+  level: number;
+  /** 等级进度信息（驱动等级环）。 */
+  levelInfo: MascotLevelInfo;
 }

@@ -11,6 +11,8 @@
 // module memory, not in this process. We reuse the same credentials the UI
 // registration created, so the WordProgress rows attach to the same user that
 // the browser is logged in as.
+import { execFileSync } from "child_process";
+import path from "path";
 import type { TestUser } from "./world";
 
 const API_BASE =
@@ -159,4 +161,56 @@ export async function seedPracticedWords(
     texts.push(w.text);
   }
   return texts;
+}
+
+/**
+ * AI-704: 为测试用户写入「昨日」补学数据（弱词 + 未完成计划日）。
+ *
+ * 直接调用后端 `seed-makeup.ts` 脚本（经 ts-node 运行），该脚本用同一凭据登录
+ * 拿到 userId 后直连 SQLite 写入 lastPracticedAt=昨日 的 word_progress 与
+ * date=昨日、isDone=false 的 study_plan_days。返回 { wordText, planDayId } 供断言。
+ *
+ * 后端 better-sqlite3 原生模块按 Node 20 预编译；E2E 如需用特定 Node 运行此脚本，
+ * 可经 `E2E_NODE_BIN` 指定（缺省用当前 cucumber 进程 Node）。
+ */
+export function seedMakeup(user: TestUser): { wordText: string; planDayId: string } {
+  if (!user) {
+    throw new Error('No test user; run "I am logged in as a new user" first');
+  }
+  const repoRoot = path.resolve(__dirname, "../../.."); // learning-english
+  const script = path.join(repoRoot, "server/src/scripts/seed-makeup.ts");
+  const tsNode = path.join(repoRoot, "server/node_modules/ts-node/dist/bin.js");
+  const nodeBin = process.env.E2E_NODE_BIN || process.execPath;
+
+  const out = execFileSync(
+    nodeBin,
+    [tsNode, script, user.username, user.password],
+    {
+      cwd: path.join(repoRoot, "server"),
+      encoding: "utf8",
+      // 必须与后端 E2E 用同一 SQLite 文件：后端以 `SQLITE_PATH=./e2e.sqlite`
+      // 启动（cwd=server → server/e2e.sqlite）。脚本 cwd 同为 server，故缺省
+      // 落到 ./e2e.sqlite 即可对齐；若外层已显式设置 SQLITE_PATH 则尊重之。
+      // 否则 buildDataSourceOptions 会用默认 dev.sqlite，与后端库不一致 →
+      // 经 API 拿到的 userId 在 dev.sqlite 的 users 表不存在 → FK 报错。
+      env: {
+        ...process.env,
+        SQLITE_PATH: process.env.SQLITE_PATH || "./e2e.sqlite",
+        // 跳过 ts-node 类型检查（测试脚本无需），显著加快冷启动。
+        TS_NODE_TRANSPILE_ONLY: "1",
+        // 不重复 synchronize：后端已在启动时同步过同一 e2e.sqlite 的 schema，
+        // 此处只做 INSERT，避免与后端争夺 schema 写锁导致 execFileSync 卡死超时。
+        DB_SYNCHRONIZE: "false",
+      },
+      timeout: 180000,
+    },
+  );
+
+  const lines = out.trim().split("\n");
+  const last = lines[lines.length - 1];
+  const parsed = JSON.parse(last) as { ok: boolean; wordText: string; planDayId: string };
+  if (!parsed.ok) {
+    throw new Error(`seed-makeup reported failure: ${last}`);
+  }
+  return { wordText: parsed.wordText, planDayId: parsed.planDayId };
 }

@@ -21,6 +21,9 @@ export default class E2EWorld extends World {
   speakingTaskId: string | null = null;
   // AI-606: 最近一次拍照识别出、待加入生词本的单词，跨 step 共享。
   scanWords: string[] = [];
+  // AI-704: 补学种子写入的弱词文本 / 未完成计划日 id，跨 step 共享。
+  makeupWordText: string | null = null;
+  makeupPlanDayId: string | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

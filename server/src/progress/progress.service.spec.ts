@@ -9,12 +9,17 @@ import {
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { WordProgress } from '../entities/word-progress.entity';
 import { User } from '../entities/user.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
+import { RewardsService } from '../rewards/rewards.service';
+import { POINT_RULES } from '../rewards/points.const';
 
 describe('ProgressService', () => {
   let service: ProgressService;
   let lessonProgressRepo: any;
   let wordProgressRepo: any;
   let usersRepo: any;
+  let studyPlanDayRepo: any;
+  let rewardsService: any;
 
   beforeEach(async () => {
     lessonProgressRepo = {
@@ -29,25 +34,55 @@ describe('ProgressService', () => {
       create: jest.fn((e) => ({ ...e })),
       save: jest.fn(async (e) => e),
       find: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      }),
     };
     usersRepo = { findOne: jest.fn(), increment: jest.fn() };
+    studyPlanDayRepo = {
+      save: jest.fn(async (e) => e),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
+    };
+    rewardsService = {
+      awardStars: jest.fn(async () => undefined),
+      getBalance: jest.fn(async () => 0),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         ProgressService,
         { provide: getRepositoryToken(LessonProgress), useValue: lessonProgressRepo },
         { provide: getRepositoryToken(WordProgress), useValue: wordProgressRepo },
         { provide: getRepositoryToken(User), useValue: usersRepo },
+        { provide: getRepositoryToken(StudyPlanDay), useValue: studyPlanDayRepo },
+        { provide: RewardsService, useValue: rewardsService },
       ],
     }).compile();
     service = moduleRef.get(ProgressService);
   });
 
-  it('getOverview aggregates counts with user fallback 0', async () => {
+  it('getOverview aggregates counts with user fallback 0 (AI-701 扩展 level/pointsBalance)', async () => {
     lessonProgressRepo.count.mockResolvedValue(3);
     wordProgressRepo.count.mockResolvedValue(10);
     usersRepo.findOne.mockResolvedValue(null);
     const res = await service.getOverview('u1');
-    expect(res).toEqual({ completedLessons: 3, practicedWords: 10, totalStars: 0, streakDays: 0 });
+    expect(res).toEqual({
+      completedLessons: 3,
+      practicedWords: 10,
+      totalStars: 0,
+      streakDays: 0,
+      level: 1,
+      pointsBalance: 0,
+    });
   });
 
   it('getOverview returns user stars/streak when present', async () => {
@@ -59,12 +94,13 @@ describe('ProgressService', () => {
     expect(res.streakDays).toBe(2);
   });
 
-  it('completeLesson creates progress, marks completed, increments stars', async () => {
+  it('completeLesson creates progress, marks completed, delegates star award to RewardsService', async () => {
     lessonProgressRepo.findOne.mockResolvedValue(null);
     const res = await service.completeLesson('u1', 'l1');
     expect(lessonProgressRepo.create).toHaveBeenCalledWith({ userId: 'u1', lessonId: 'l1' });
     expect(lessonProgressRepo.save).toHaveBeenCalled();
-    expect(usersRepo.increment).toHaveBeenCalledWith({ id: 'u1' }, 'totalStars', 1);
+    // AI-701：星星/积分累加经 RewardsService 单一入口（不再内联 increment totalStars）。
+    expect(rewardsService.awardStars).toHaveBeenCalledWith('u1', POINT_RULES.LESSON_COMPLETE);
     expect(res).toEqual({ success: true });
   });
 
@@ -76,13 +112,14 @@ describe('ProgressService', () => {
   });
 
   describe('recordWordAttempt (AI-602 adaptive)', () => {
-    it('initializes new progress and returns counts + mastery + difficulty', async () => {
+    it('initializes new progress and returns counts + mastery + difficulty (AI-701 答对累加积分)', async () => {
       wordProgressRepo.findOne.mockResolvedValue(null);
       const res = await service.recordWordAttempt('u1', 'w1', true);
       expect(res).toEqual({ success: true, attempts: 1, correctCount: 1, mastery: 100, difficulty: 'easy' });
+      expect(rewardsService.awardStars).toHaveBeenCalledWith('u1', POINT_RULES.WORD_CORRECT);
     });
 
-    it('accumulates attempts/correct and recomputes mastery/difficulty', async () => {
+    it('accumulates attempts/correct and recomputes mastery/difficulty (答错不累加积分)', async () => {
       wordProgressRepo.findOne.mockResolvedValue({
         userId: 'u1',
         wordId: 'w1',
@@ -95,6 +132,7 @@ describe('ProgressService', () => {
       // mastery = round(1/3*100) = 33, attempts>=3 but <80 -> easy
       expect(res.mastery).toBe(33);
       expect(res.difficulty).toBe('easy');
+      expect(rewardsService.awardStars).not.toHaveBeenCalled();
     });
 
     it('upgrades to hard after >=3 attempts at >=80% mastery', async () => {
@@ -216,6 +254,154 @@ describe('ProgressService', () => {
       const updated = await service.scheduleReview('u1', 'w-missing', new Date());
       expect(updated).toBeNull();
       expect(wordProgressRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getMakeupQueue (AI-704)', () => {
+    function mockWpBuilder(rows: any[]): any {
+      const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      wordProgressRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      return qb;
+    }
+    function mockSpdBuilder(rows: any[]): any {
+      const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+        getOne: jest.fn().mockResolvedValue(rows[0] ?? null),
+      };
+      studyPlanDayRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      return qb;
+    }
+    /** 相对测试运行时刻的「昨日」中午（UTC）。 */
+    function yesterdayNoon(): Date {
+      const d = new Date();
+      d.setUTCHours(12, 0, 0, 0);
+      return new Date(d.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    it('includes a yesterday weak word below mastery threshold (弱词入队)', async () => {
+      const yWord = {
+        userId: 'u1', wordId: 'w-cat', mastery: 30, lastPracticedAt: yesterdayNoon(),
+        word: { text: 'Cat', meaning: '猫' },
+      };
+      mockWpBuilder([yWord]);
+      mockSpdBuilder([]);
+      jest.spyOn(service, 'getDueReviews').mockResolvedValue([]);
+
+      const res = await service.getMakeupQueue('u1');
+      expect(res.weakWords).toHaveLength(1);
+      expect(res.weakWords[0].wordId).toBe('w-cat');
+      expect(res.weakWords[0].wordText).toBe('Cat');
+      expect(res.weakWords[0].mastery).toBe(30);
+      expect(res.missedTasks).toEqual([]);
+    });
+
+    it('excludes a word practiced today (非昨日不出队)', async () => {
+      const todayWord = {
+        userId: 'u1', wordId: 'w-now', mastery: 20, lastPracticedAt: new Date(),
+        word: { text: 'Now', meaning: '现在' },
+      };
+      mockWpBuilder([todayWord]);
+      mockSpdBuilder([]);
+      jest.spyOn(service, 'getDueReviews').mockResolvedValue([]);
+
+      const res = await service.getMakeupQueue('u1');
+      expect(res.weakWords).toEqual([]);
+    });
+
+    it('excludes a weak word already in AI-605 due reviews (去重不重复展示)', async () => {
+      const yWord = {
+        userId: 'u1', wordId: 'w-dup', mastery: 40, lastPracticedAt: yesterdayNoon(),
+        word: { text: 'Dup', meaning: '重复' },
+      };
+      mockWpBuilder([yWord]);
+      mockSpdBuilder([]);
+      jest.spyOn(service, 'getDueReviews').mockResolvedValue([
+        {
+          wordId: 'w-dup', wordText: 'Dup', meaning: '重复',
+          dueDate: '2026-08-09T00:00:00.000Z', reviewPriority: 0,
+          difficulty: 'easy', intervalDays: 1,
+        },
+      ]);
+
+      const res = await service.getMakeupQueue('u1');
+      expect(res.weakWords).toEqual([]);
+    });
+
+    it('includes a yesterday unfinished plan day (逾期任务入队)', async () => {
+      mockWpBuilder([]);
+      mockSpdBuilder([
+        { id: 'pd-1', title: 'Day 1 听力', date: '2026-08-08', plan: { userId: 'u1' } },
+      ]);
+      jest.spyOn(service, 'getDueReviews').mockResolvedValue([]);
+
+      const res = await service.getMakeupQueue('u1');
+      expect(res.missedTasks).toHaveLength(1);
+      expect(res.missedTasks[0].planDayId).toBe('pd-1');
+      expect(res.missedTasks[0].title).toBe('Day 1 听力');
+    });
+
+    it('returns empty arrays when DB empty (空库空队列)', async () => {
+      mockWpBuilder([]);
+      mockSpdBuilder([]);
+      jest.spyOn(service, 'getDueReviews').mockResolvedValue([]);
+
+      const res = await service.getMakeupQueue('u1');
+      expect(res).toEqual({ weakWords: [], missedTasks: [] });
+    });
+  });
+
+  describe('completeMakeupTask (AI-704)', () => {
+    function mockFindDay(day: any): any {
+      const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(day),
+      };
+      studyPlanDayRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      return qb;
+    }
+
+    it('marks isDone and awards points for an owned unfinished day', async () => {
+      mockFindDay({ id: 'pd-1', isDone: false, plan: { userId: 'u1' } });
+      const res = await service.completeMakeupTask('u1', 'pd-1');
+      expect(studyPlanDayRepo.save).toHaveBeenCalled();
+      const saved = studyPlanDayRepo.save.mock.calls[0][0];
+      expect(saved.isDone).toBe(true);
+      expect(rewardsService.awardStars).toHaveBeenCalledWith('u1', POINT_RULES.TASK_COMPLETE);
+      expect(res.success).toBe(true);
+    });
+
+    it('returns forbidden when day belongs to another user', async () => {
+      mockFindDay({ id: 'pd-2', isDone: false, plan: { userId: 'other' } });
+      const res = await service.completeMakeupTask('u1', 'pd-2');
+      expect(res.success).toBe(false);
+      expect(res.reason).toBe('forbidden');
+      expect(studyPlanDayRepo.save).not.toHaveBeenCalled();
+      expect(rewardsService.awardStars).not.toHaveBeenCalled();
+    });
+
+    it('returns not_found when day missing', async () => {
+      mockFindDay(null);
+      const res = await service.completeMakeupTask('u1', 'pd-x');
+      expect(res.success).toBe(false);
+      expect(res.reason).toBe('not_found');
+    });
+
+    it('is idempotent: already done day returns success without re-awarding', async () => {
+      mockFindDay({ id: 'pd-1', isDone: true, plan: { userId: 'u1' } });
+      const res = await service.completeMakeupTask('u1', 'pd-1');
+      expect(res.success).toBe(true);
+      expect(res.alreadyDone).toBe(true);
+      expect(studyPlanDayRepo.save).not.toHaveBeenCalled();
+      expect(rewardsService.awardStars).not.toHaveBeenCalled();
     });
   });
 });

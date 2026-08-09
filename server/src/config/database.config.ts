@@ -22,6 +22,9 @@ import { AiWordCard } from '../word-card/ai-word-card.entity';
 import { MascotStory } from '../ai/mascot-story.entity';
 import { PictureBook } from '../ai/picture-book.entity';
 import { ScannedWord } from '../entities/scanned-word.entity';
+import { UserPoints } from '../rewards/user-points.entity';
+import { Reward } from '../rewards/reward.entity';
+import { RewardRedemption } from '../rewards/reward-redemption.entity';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -50,6 +53,9 @@ export const appEntities = [
   MascotStory,
   PictureBook,
   ScannedWord,
+  UserPoints,
+  Reward,
+  RewardRedemption,
 ];
 
 export type DbType = 'sqlite' | 'postgres';

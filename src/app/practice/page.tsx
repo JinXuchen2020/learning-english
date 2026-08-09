@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Mascot from "@/components/Mascot";
@@ -11,7 +11,34 @@ import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
 import type { Word, QuizPhase, WordDifficultyInfo } from "@/lib/types";
 import { buildDifficultyMap, sortWordsByReviewPriority } from "@/lib/wordDifficulty";
+import { buildQuizItems, type QuizMode, type QuizItem } from "@/lib/quizVariants";
 import { Volume2, Star, ArrowLeft, RotateCcw } from "lucide-react";
+
+/** 颜色名 → 十六进制（组词模式颜色块）。未知颜色回落到主题绿。 */
+const COLOR_HEX: Record<string, string> = {
+  orange: "#F5A25D", brown: "#9A835A", blue: "#889DF0", white: "#F0E8D8",
+  green: "#6FBA2C", yellow: "#F7CD67", red: "#F8A6B2", pink: "#F8A6B2",
+  purple: "#B39DDB", black: "#4A3520", gray: "#9CA3AF",
+};
+
+function colorHex(name?: string | null): string {
+  if (name && COLOR_HEX[name]) return COLOR_HEX[name];
+  return "#82D5BB";
+}
+
+/** 用浏览器 TTS 朗读单词（听音选图模式音频优先；无 API 时静默降级）。 */
+function speakWord(text: string) {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+}
+
+const MODE_LABELS: Record<QuizMode, string> = {
+  multiple: "看字选词",
+  listen: "听音选图",
+  combination: "颜色组词",
+};
 
 const answerColors = [
   "bg-kids-teal hover:bg-kids-teal/80",
@@ -216,6 +243,7 @@ function Quiz({
   courseId,
   focusWord,
   difficultyMap,
+  initialMode = "multiple",
 }: {
   words: Word[];
   lessonId: string | null;
@@ -224,32 +252,50 @@ function Quiz({
   focusWord?: string | null;
   /** AI-602：单词自适应难度画像（自由练习时传入）。 */
   difficultyMap?: Map<string, WordDifficultyInfo>;
+  /** AI-703：初始练习模式（可由 ?mode= 查询参数预设）。 */
+  initialMode?: QuizMode;
 }) {
+  const [mode, setMode] = useState<QuizMode>(initialMode);
+  // AI-703：按模式统一生成题项（看字选词/听音选图/颜色组词）。
+  const items = useMemo<QuizItem[]>(
+    () => buildQuizItems(words, mode),
+    [words, mode],
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<QuizPhase>("answering");
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [showPhonics, setShowPhonics] = useState(false);
 
-  // AI-507：弱项下钻 —— 单词装载完成后跳转到命中词（仅一次）。
+  // 模式切换 → 重置题项进度。
   useEffect(() => {
-    if (!focusWord || words.length === 0) return;
-    const idx = words.findIndex(
-      (w) => w.text.toLowerCase() === focusWord.toLowerCase(),
+    setCurrentIndex(0);
+    setPhase("answering");
+    setSelectedAnswer(null);
+    setShowPhonics(false);
+  }, [mode]);
+
+  // AI-507：弱项下钻 —— 题项装载完成后跳转到命中词（仅一次）。
+  useEffect(() => {
+    if (!focusWord || items.length === 0) return;
+    const idx = items.findIndex(
+      (it) => it.word.text.toLowerCase() === focusWord.toLowerCase(),
     );
     if (idx >= 0) setCurrentIndex(idx);
-  }, [focusWord, words]);
+  }, [focusWord, items]);
 
-  const word = words[currentIndex];
-  const totalWords = words.length;
-  const progress = Math.round(((currentIndex + 1) / totalWords) * 100);
+  // 模式切换可能导致当前题项集变化，钳制越界索引。
+  const safeIndex = Math.min(currentIndex, Math.max(items.length - 1, 0));
+  const item = items[safeIndex];
+  const totalWords = items.length;
+  const progress = totalWords > 0 ? Math.round(((safeIndex + 1) / totalWords) * 100) : 0;
 
   const handleAnswer = useCallback(
     (index: number) => {
-      if (phase !== "answering") return;
+      if (phase !== "answering" || !item) return;
       setSelectedAnswer(index);
 
-      const isCorrect = index === word.correctIndex;
+      const isCorrect = index === item.correctIndex;
       if (isCorrect) {
         setPhase("correct");
         setCorrectCount((c) => c + 1);
@@ -258,15 +304,15 @@ function Quiz({
       }
 
       // Persist the attempt to the backend (fire-and-forget).
-      api.recordWordAttempt(word.id, isCorrect).catch((err) =>
+      api.recordWordAttempt(item.word.id, isCorrect).catch((err) =>
         logger.error("Failed to record word attempt", err)
       );
     },
-    [phase, word]
+    [phase, item]
   );
 
   const handleNext = useCallback(() => {
-    if (currentIndex + 1 >= totalWords) {
+    if (safeIndex + 1 >= totalWords) {
       setPhase("complete");
       // Mark the lesson complete so progress and stars update.
       if (lessonId) {
@@ -280,7 +326,7 @@ function Quiz({
       setSelectedAnswer(null);
       setShowPhonics(false);
     }
-  }, [currentIndex, totalWords, lessonId]);
+  }, [safeIndex, totalWords, lessonId]);
 
   const handleRestart = useCallback(() => {
     setCurrentIndex(0);
@@ -334,13 +380,55 @@ function Quiz({
     );
   }
 
+  // 该模式下无可用题项（如组词/听音在词数据不足时）。
+  if (!item) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
+        data-component="PracticeEmpty"
+      >
+        <Mascot expression="encouraging" size="large" />
+        <h1 className="text-2xl">No questions for this mode yet!</h1>
+        <p className="text-kids-muted">
+          Try the “看字选词” mode, or finish more lessons first.
+        </p>
+      </div>
+    );
+  }
+
+  const isImage = item.optionKind === "image";
+
   return (
     <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
+      {/* AI-703：模式切换器 */}
+      <div
+        className="flex justify-center gap-2 flex-wrap"
+        data-component="ModeSwitcher"
+        role="tablist"
+      >
+        {(["multiple", "listen", "combination"] as QuizMode[]).map((m) => (
+          <button
+            key={m}
+            data-action={`mode-${m}`}
+            role="tab"
+            aria-selected={mode === m}
+            onClick={() => setMode(m)}
+            className={`btn-kids !rounded-full text-base font-bold !px-5 ${
+              mode === m
+                ? "bg-[var(--seed-primary)] text-white"
+                : "bg-kids-secondary text-kids-title"
+            }`}
+          >
+            {MODE_LABELS[m]}
+          </button>
+        ))}
+      </div>
+
       {/* Progress Bar */}
       <div data-component="QuizProgress">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-bold text-kids-muted">
-            Word {currentIndex + 1} of {totalWords}
+            Word {safeIndex + 1} of {totalWords}
           </span>
           <span className="text-sm font-bold text-[var(--color-success)]">
             {correctCount} correct
@@ -351,64 +439,98 @@ function Quiz({
 
       {/* Word Card */}
       <section className="card-kids text-center space-y-4" data-component="WordCard">
-        {/* Animal illustration — distinct SVG per word */}
-        <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center overflow-hidden">
-          <WordIllustration word={word.text} />
-        </div>
+        {/* 看字选词：动物插图 + 单词 + 含义 + 音标切换 */}
+        {mode === "multiple" && (
+          <>
+            <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center overflow-hidden">
+              <WordIllustration word={item.word.text} />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{item.word.text}</h1>
+              <p className="text-kids-muted">{item.word.meaning}</p>
+              {difficultyMap && difficultyMap.get(item.word.id) && (
+                <span
+                  data-component="DifficultyBadge"
+                  data-difficulty={difficultyMap.get(item.word.id)!.difficulty}
+                  className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-kids-secondary text-kids-title"
+                >
+                  {difficultyMap.get(item.word.id)!.difficulty}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowPhonics(!showPhonics)}
+                className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
+                aria-label="Show pronunciation hint"
+              >
+                <Volume2 size={22} className="mr-2" />
+                {showPhonics ? item.word.phonics : "Listen"}
+              </button>
+            </div>
+          </>
+        )}
 
-        <div className="space-y-2">
-          <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{word.text}</h1>
-          <p className="text-kids-muted">{word.meaning}</p>
-          {/* AI-602: 自适应难度徽章（自由练习时有画像数据才显示） */}
-          {difficultyMap && difficultyMap.get(word.id) && (
-            <span
-              data-component="DifficultyBadge"
-              data-difficulty={difficultyMap.get(word.id)!.difficulty}
-              className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-kids-secondary text-kids-title"
+        {/* 颜色组词：颜色块 + 类别短语 */}
+        {mode === "combination" && (
+          <div className="space-y-3" data-component="ComboPrompt">
+            <div className="flex items-center justify-center gap-4">
+              <span
+                className="inline-block w-16 h-16 rounded-full border-4 border-white shadow-md"
+                style={{ background: colorHex(item.color) }}
+                aria-label={`color ${item.color}`}
+              />
+              <h1 className="text-3xl tracking-tight" data-component="QuizWordText">{item.promptText}</h1>
+            </div>
+            <p className="text-kids-muted">Find the word that matches!</p>
+          </div>
+        )}
+
+        {/* 听音选图：音频优先，隐藏文字 */}
+        {mode === "listen" && (
+          <div className="space-y-3" data-component="ListenPrompt">
+            <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center">
+              <Volume2 size={64} className="text-[var(--seed-primary)]" />
+            </div>
+            <button
+              data-component="ListenButton"
+              onClick={() => speakWord(item.word.text)}
+              className="btn-kids bg-[var(--seed-primary)] text-white !px-6 text-lg"
             >
-              {difficultyMap.get(word.id)!.difficulty}
-            </span>
-          )}
-        </div>
-
-        {/* Pronunciation Button */}
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => setShowPhonics(!showPhonics)}
-            className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
-            aria-label="Show pronunciation hint"
-          >
-            <Volume2 size={22} className="mr-2" />
-            {showPhonics ? word.phonics : "Listen"}
-          </button>
-        </div>
+              <Volume2 size={22} className="mr-2" />
+              🔊 Listen
+            </button>
+            <p className="text-kids-muted">Tap to hear, then choose the picture.</p>
+          </div>
+        )}
       </section>
 
       {/* Answer Grid */}
       <section data-component="AnswerGrid">
         <p className="text-center font-bold text-kids-title mb-4">
-          Which one is correct?
+          {mode === "combination" ? "Which picture is it?" : "Which one is correct?"}
         </p>
         <div className="grid grid-cols-2 gap-4">
-          {word.options.map((option, index) => {
+          {item.options.map((opt, index) => {
             let stateClass = "";
-            if (phase === "correct" && index === word.correctIndex) {
+            if (phase === "correct" && index === item.correctIndex) {
               stateClass = "ring-4 ring-[var(--color-success)] animate-pulse-green scale-105";
             } else if (phase === "incorrect" && index === selectedAnswer) {
               stateClass = "ring-4 ring-[var(--color-danger)] animate-shake opacity-70";
-            } else if (phase === "incorrect" && index === word.correctIndex) {
+            } else if (phase === "incorrect" && index === item.correctIndex) {
               stateClass = "ring-4 ring-[var(--color-success)]";
             }
 
             return (
               <button
-                key={`${word.id}-${index}`}
+                key={`${item.word.id}-${mode}-${index}`}
+                data-answer-correct={index === item.correctIndex}
                 onClick={() => handleAnswer(index)}
                 disabled={phase !== "answering"}
-                className={`btn-kids !rounded-card text-xl font-extrabold touch-target-lg transition-all duration-200 ${answerColors[index]} ${answerTextColors[index]} ${stateClass}`}
+                className={`btn-kids !rounded-card text-xl font-extrabold touch-target-lg transition-all duration-200 ${isImage ? "p-2" : ""} ${answerColors[index]} ${answerTextColors[index]} ${stateClass}`}
                 style={{ boxShadow: "0 5px 0 0 rgba(0,0,0,0.15)" }}
               >
-                {option}
+                {isImage ? <WordIllustration word={opt.word!.text} /> : opt.label}
               </button>
             );
           })}
@@ -431,12 +553,12 @@ function Quiz({
             </p>
             <p className="text-sm text-kids-muted">
               {phase === "correct"
-                ? `${word.text} — ${word.phonics}`
-                : `The answer is "${word.options[word.correctIndex]}" — ${word.phonics}`}
+                ? `${item.word.text} — ${item.word.phonics}`
+                : `The answer is "${item.options[item.correctIndex].word?.text ?? item.options[item.correctIndex].label}" — ${item.word.phonics}`}
             </p>
           </div>
-          <Button onClick={handleNext} variant="default" className="shrink-0">
-            {currentIndex + 1 >= totalWords ? "Finish" : "Next Word"}
+          <Button onClick={handleNext} variant="default" className="shrink-0" data-action="quiz-next">
+            {safeIndex + 1 >= totalWords ? "Finish" : "Next Word"}
           </Button>
         </section>
       )}
@@ -449,6 +571,10 @@ function PracticeInner() {
   const lessonId = searchParams.get("lessonId");
   const courseId = searchParams.get("courseId");
   const focusWord = searchParams.get("focusWord");
+  // AI-703：?mode=listen|combination 预设初始模式（其余归入看字选词）。
+  const modeParam = searchParams.get("mode");
+  const initialMode: QuizMode =
+    modeParam === "listen" || modeParam === "combination" ? modeParam : "multiple";
 
   const [words, setWords] = useState<Word[]>([]);
   const [difficultyMap, setDifficultyMap] = useState<Map<string, WordDifficultyInfo>>(
@@ -527,6 +653,7 @@ function PracticeInner() {
       courseId={courseId}
       focusWord={focusWord}
       difficultyMap={difficultyMap}
+      initialMode={initialMode}
     />
   );
 }

@@ -1,14 +1,14 @@
 {
-  "phase": "ai-606",
+  "phase": "ai-704",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 后端 jest 33 PASS(scan-agent/scan.service/scan.controller/mock-ai); 前端 vitest 100 PASS; next build 0 错 14 路由含 /scan; 全栈 ScanCard/ScanResult/ConfirmScanDto 字段对齐)",
-    "tests": "PASSED (unit: 3 files — scan-agent.spec / scan.service.spec / scan.controller.spec (纯逻辑解析+service+controller全分支覆盖); mock-ai.provider.spec OCR 扩展; e2e/bdd: 1 scenario / 7 steps 全绿 (登录→上传→识别→加入生词本))",
-    "review": "PASSED (0 open; userId 取自 JWT 防越权, confirm 按 userId 过滤; 图片 5MB+MIME 白名单校验 413/415; OCR 解析失败→recognized:false 友好兜底不抛 500; 无敏感日志)",
-    "optimization": "PASSED (0 open; 常量提取 MAX_IMAGE_BYTES/ALLOWED_IMAGE_MIME/HARD_UPLOAD_LIMIT_BYTES; 无 stub/临时调试; 复用 postFormData 多部件上传与 AI-106 退避层)"
+    "consistency": "PASSED (前端 tsc --noEmit 0 错误; 后端 tsc --noEmit 0 错误; next build 成功; 后端 jest 789/789 绿; 前端 vitest 119/119 绿; E2E 2 scenarios / 10 steps 绿; 前后端 MakeupQueue 契约对齐: wordId/wordText/meaning/mastery/lastPracticedAt + planDayId/title/date)",
+    "tests": "PASSED (unit: makeup.util.spec.ts 15 tests + progress.service.spec.ts 含 9 AI-704 用例(整体 27/27); e2e/bdd: makeup.feature 2 scenarios / 10 steps 跑通)",
+    "review": "PASSED (0 open; completeMakeupTask 越权校验仅归属当前用户、越权返回 false; getMakeupQueue 排除 AI-605 due-review wordId 去重; 实时视图无新实体/无迁移; best-effort 幂等; 无裸 console)",
+    "optimization": "PASSED (0 open; 无 stub/占位; 错误处理统一 getMakeupQueue 内部 try/catch 失败回落空队列; 无调试残留)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-606-gate.md",
-  "notes": "AI-606 拍照学单词(OCR): 新 ScannedWord 实体(个人生词本) + ScanModule(recognize/confirm/list) + 前端 /scan 页 + TabNav「拍照」入口; chatWithImage 复用 AI-106 RetryableProvider 退避; MockProvider 扩展 OCR 夹具使 E2E 免 key 可跑。四质量门全绿, 未 push。 | 后续 hygiene 修复(history): (1) logger 在 jest/NODE_ENV=test 下默认 mirror=false, 消除 CI 单测日志泄露(chat.service.spec 502 路径 'boom' 测试桩经 Logger 裸 console.error 污染输出), logger.spec 改显式 mirror:true; (2) ai.module.spec 6 失败修复——TestingModule 缺 MascotStory/PictureBook/Course/Lesson 仓库覆盖(无 forRoot→无 DataSource→自动仓库装配失败), 补 4 个 fake repo override 后 6 测试全绿; (3) parent-report E2E 'I should see at least 1 weak word' 异步竞态修复——原断言用 locator.count() 在周报 fetch 解析前立即计数→冷 CI 必现 'found 0'; 改为 waitForWeakWords 等 WeakWordItem 渲染(贴合本仓异步 UI 须 waitForFunction 的约定)。本地 curl 复现 seed→GET /ai/report/weekly/preview 返回 weakWordsTop=['Cat'] 证明后端+播种逻辑正确, 根因纯属浏览器层竞态。全量 jest 730 PASS / 84 suites 全绿; 本地单跑 parent-report 1 scenario/6 steps 全绿。"
+  "reportRef": "docs/quality/ai-704-gate.md",
+  "notes": "AI-704 逾期/补学循环：ProgressModule 新增 GET /api/progress/makeup（实时视图，由 word_progress + study_plan_days 现有表计算，无新实体/无迁移）与 POST /api/progress/makeup/task/:planDayId/complete（标记 isDone + 补学拿分，幂等 best-effort）；弱词口径 mastery<60 且 lastPracticedAt∈昨日 UTC 窗口，未完成计划日 date=昨日 isDone=false；与 AI-605 到期复习靠排除 due-review wordId 去重不重复；前端 Home MakeupCard 弱词深链 /practice?focusWord=<词>（复用练习计分/掌握度回写）、未完成计划日「标记完成」乐观移除+失败回滚；E2E 覆盖弱词补学与未完成计划日标记完成两条用户旅程；种子脚本 server/src/scripts/seed-makeup.ts 直写昨日数据供 E2E。"
 }

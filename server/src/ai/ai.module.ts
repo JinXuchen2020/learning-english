@@ -47,6 +47,7 @@ import { AiSpeechEvaluatorService } from './ai-speech-evaluator.service';
 import { AiTranscribeService } from './ai-transcribe.service';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
+import { RewardsModule } from '../rewards/rewards.module';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
@@ -142,7 +143,7 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, PictureBook, Course, Lesson, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence])],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, PictureBook, Course, Lesson, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence]), RewardsModule],
   controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController, PictureBookController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },

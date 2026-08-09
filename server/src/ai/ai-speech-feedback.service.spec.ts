@@ -1,5 +1,6 @@
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { AiSpeechAttemptService } from './ai-speech-attempt.service';
+import { RewardsService } from '../rewards/rewards.service';
 import { ScoreResult } from './ai-provider.interface';
 import { EvaluateSpeechDto } from './speech-evaluate.dto';
 
@@ -8,6 +9,13 @@ function makeFakeAttempts(opts: { recordImpl?: (e: any) => Promise<boolean> } = 
   return {
     record: jest.fn(opts.recordImpl ?? (async () => true)),
   } as unknown as AiSpeechAttemptService;
+}
+
+/** 假 RewardsService：awardStars 为 no-op（本 spec 不校验积分累加）。 */
+function makeFakeRewards() {
+  return {
+    awardStars: jest.fn(async () => undefined),
+  } as unknown as RewardsService;
 }
 
 function makeResult(over: Partial<ScoreResult> = {}): ScoreResult {
@@ -28,7 +36,7 @@ function makeDto(over: Partial<EvaluateSpeechDto> = {}): EvaluateSpeechDto {
 describe('AiSpeechFeedbackService (AI-306)', () => {
   it('落库成功 → record 被调用一次且返回 SpeechFeedback（passed/level 正确）', async () => {
     const attempts = makeFakeAttempts();
-    const svc = new AiSpeechFeedbackService(attempts);
+    const svc = new AiSpeechFeedbackService(attempts, makeFakeRewards());
     const result = makeResult({ score: 88 });
 
     const fb = await svc.feedback({ userId: 'kid', dto: makeDto(), result });
@@ -53,7 +61,7 @@ describe('AiSpeechFeedbackService (AI-306)', () => {
         throw new Error('db down');
       },
     });
-    const svc = new AiSpeechFeedbackService(attempts);
+    const svc = new AiSpeechFeedbackService(attempts, makeFakeRewards());
     const result = makeResult({ score: 30, mascotExpr: undefined as any });
 
     // 不应抛
@@ -68,7 +76,7 @@ describe('AiSpeechFeedbackService (AI-306)', () => {
 
   it('未提供 userId → 落库用 anonymous 占位', async () => {
     const attempts = makeFakeAttempts();
-    const svc = new AiSpeechFeedbackService(attempts);
+    const svc = new AiSpeechFeedbackService(attempts, makeFakeRewards());
     await svc.feedback({ dto: makeDto(), result: makeResult() });
     const entry = (attempts.record as jest.Mock).mock.calls[0][0];
     expect(entry.userId).toBe('anonymous');

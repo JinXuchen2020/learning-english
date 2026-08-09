@@ -6,6 +6,8 @@ import { TaskCompletion } from '../entities/task-completion.entity';
 import { StudyPlanDay } from '../plan/study-plan-day.entity';
 import { AiReportService } from '../ai/ai-report.service';
 import { ProgressService } from '../progress/progress.service';
+import { RewardsService } from '../rewards/rewards.service';
+import { POINT_RULES } from '../rewards/points.const';
 import { logger } from '../common/logger/logger';
 
 /** 计划任务写入条目（AI-206 apply 时由 PlanService 组装）。 */
@@ -41,6 +43,7 @@ export class TasksService {
     private dayRepo: Repository<StudyPlanDay>,
     private aiReportService: AiReportService,
     private progressService: ProgressService,
+    private rewardsService: RewardsService,
   ) {}
 
   /**
@@ -136,6 +139,13 @@ export class TasksService {
     await this.completionsRepo.save(
       this.completionsRepo.create({ userId, taskId, date: today }),
     );
+
+    // AI-701：新完成任务累加积分（best-effort，与 maybeTriggerReport 同口径）。
+    try {
+      await this.rewardsService.awardStars(userId, POINT_RULES.TASK_COMPLETE);
+    } catch (err) {
+      logger.warn('[TASKS] 完成任务累加积分失败（不影响主流程）', err as Error);
+    }
 
     // AI-505（Trigger A）：本次为新完成 → 检查是否「当日全部任务已完成」，是则自动触发生成每日报告。
     // 副作用：失败仅告警，绝不阻塞任务完成主流程。

@@ -49,6 +49,20 @@ export default class HomePage {
       const el = document.querySelector('[data-component="DailyTasks"] button');
       return el && el.getAttribute("aria-pressed") === "true";
     });
+    // 乐观 UI 翻牌后，后端 completeTask 仍可能在途。等「我的奖励」卡
+    // （setProgress 在 API 落库后回写 progress.pointsBalance）积分 >=1，
+    // 确认服务侧已入账，避免下一跳 /rewards 的 getProgress 抢跑读到 0
+    // （AI-701/702 E2E 竞态：rewards 页仅挂载时拉一次进度）。
+    await this.page.waitForFunction(
+      () => {
+        const el = document.querySelector('[data-component="RewardsHomeCard"]');
+        if (!el) return false;
+        const m = (el.textContent || "").match(/已有\s*(\d+)\s*积分/);
+        return m ? Number(m[1]) >= 1 : false;
+      },
+      undefined,
+      { timeout: 15000 },
+    );
   }
 
   async isFirstTaskCompleted(): Promise<boolean> {
