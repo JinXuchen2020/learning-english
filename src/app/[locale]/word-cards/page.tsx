@@ -117,7 +117,7 @@ function WordCardsInner() {
           id="wc-interest"
           data-component="InterestInput"
           className="w-full rounded-control border border-kids-secondary bg-white px-4 py-3 text-kids-text outline-none focus:border-[var(--seed-primary)]"
-          placeholder="{t('interestPlaceholder')}"
+          placeholder={t('interestPlaceholder')}
           value={interest}
           maxLength={80}
           onChange={(e) => setInterest(e.target.value)}

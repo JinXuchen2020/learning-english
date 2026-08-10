@@ -113,7 +113,7 @@ function ReadAlongPanel({
               data-action="submit-readalong"
             >
               <Mic size={20} className="mr-2" />
-              {evaluating ? "Checking…" : "Submit"}
+              {evaluating ? t("checking") : t("submit")}
             </Button>
           </div>
           {evaluating && (
@@ -122,7 +122,7 @@ function ReadAlongPanel({
               data-component="ReadAlongEvaluating"
             >
               <Mascot expression="thinking" size="small" />
-              Foxy is listening…
+              {t("listening")}
             </div>
           )}
           {error && (
@@ -153,7 +153,7 @@ function ReadAlongPanel({
           {feedback.passed && (
             <div className="flex items-center gap-1 text-[var(--color-success)] font-extrabold">
               <Star size={24} className="text-kids-sun fill-kids-sun" />
-              You earned a star! ⭐
+              {t("earnedStar")}
             </div>
           )}
           <Button variant="soft" onClick={clear} data-action="readalong-again">
@@ -376,7 +376,7 @@ function ChatInner() {
   // AI-409：把场景 id 映射成展示标题（用于会话列表项）；未知/自由对话回落。
   const sceneTitle = useCallback(
     (id: string | null): string => {
-      if (!id) return "Free chat";
+      if (!id) return t("freeChat");
       return scenes.find((s) => s.id === id)?.title ?? id;
     },
     [scenes],
@@ -392,10 +392,10 @@ function ChatInner() {
             className="text-2xl font-extrabold text-kids-title"
             data-component="ChatTitle"
           >
-            Chat with Foxy!
+            {t("title")}
           </h1>
           <p className="text-sm text-kids-muted">
-            Pick a scene and talk with your fox friend 🦊
+            {t("subtitle")}
           </p>
         </div>
         {/* AI-408：本会话累计星星徽标 */}
@@ -419,17 +419,17 @@ function ChatInner() {
         >
           <Mascot expression="celebrating" size="large" />
           <p className="text-xl font-extrabold text-kids-title">
-            🎉 You earned a star!
+            {t("celebrationTitle")}
           </p>
           <p className="text-sm font-bold text-kids-sun">
-            {celebration} ⭐ so far — keep chatting!
+            {t("celebrationSub", { count: celebration })}
           </p>
           <button
             onClick={() => setCelebration(null)}
             className="rounded-full bg-white px-4 py-1 text-xs font-bold text-kids-title hover:bg-kids-secondary"
             data-action="dismiss-celebration"
           >
-            Keep chatting!
+            {t("keepChatting")}
           </button>
         </div>
       )}
@@ -438,7 +438,7 @@ function ChatInner() {
       <section className="space-y-2" data-component="ChatSessionList">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-extrabold text-kids-title">
-            My conversations
+            {t("myConversations")}
           </h2>
           <button
             type="button"
@@ -446,17 +446,17 @@ function ChatInner() {
             className="rounded-full bg-kids-secondary px-3 py-1 text-xs font-bold text-kids-title hover:bg-kids-sun/30"
             data-action="new-chat"
           >
-            + New chat
+            {t("newChat")}
           </button>
         </div>
         {loadingSessions ? (
-          <p className="text-xs text-kids-muted">Loading conversations…</p>
+          <p className="text-xs text-kids-muted">{t("loadingConversations")}</p>
         ) : sessions.length === 0 ? (
           <p
             className="text-xs text-kids-muted"
             data-component="ChatSessionEmpty"
           >
-            No past chats yet 🐾
+            {t("noPastChats")}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -491,7 +491,7 @@ function ChatInner() {
                     </p>
                   )}
                   <p className="mt-0.5 text-[10px] text-kids-muted">
-                    {s.messageCount} message{s.messageCount === 1 ? "" : "s"}
+                    {t("messageCount", { count: s.messageCount })}
                   </p>
                 </button>
               </li>
@@ -507,7 +507,7 @@ function ChatInner() {
           data-component="SceneLoading"
         >
           <Mascot expression="thinking" size="small" />
-          Loading scenes…
+          {t("loadingScenes")}
         </div>
       ) : sceneError ? (
         <p
@@ -554,7 +554,7 @@ function ChatInner() {
               data-component="SceneVocab"
             >
               <span className="text-xs font-bold text-kids-muted">
-                Goal words:{" "}
+                {t("goalWords")}{" "}
               </span>
               {selectedScene.targetVocabulary.map((w) => (
                 <span
@@ -582,7 +582,7 @@ function ChatInner() {
           >
             <Mascot expression="encouraging" size="large" />
             <p className="font-semibold">
-              Choose a scene above, then say hi to Foxy! 👋
+              {t("emptyHint")}
             </p>
           </div>
         )}
@@ -675,7 +675,7 @@ function ChatInner() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          placeholder="Type something to Foxy…"
+          placeholder={t("inputPlaceholder")}
           className="flex-1 resize-none rounded-control border-2 border-kids-secondary bg-white px-3 py-2 text-kids-text focus:border-[var(--seed-primary)] focus:outline-none"
           data-component="ChatInput"
         />
@@ -687,7 +687,7 @@ function ChatInner() {
           data-action="send"
         >
           <Send size={18} className="mr-1" />
-          {sending ? "…" : "Send"}
+          {sending ? "…" : t("send")}
         </Button>
       </div>
     </div>
