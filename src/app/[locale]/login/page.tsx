@@ -66,7 +66,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-[80vh] flex flex-col items-center justify-center"
+      className="min-h-[80vh] flex flex-col items-center justify-center px-4"
       data-component="LoginPage"
     >
       <div className="w-full max-w-md card-kids space-y-6" data-component="AuthCard">

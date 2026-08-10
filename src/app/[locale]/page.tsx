@@ -391,19 +391,21 @@ function HomeContent() {
     <div className="space-y-8" data-component="Home">
       {/* Greeting Banner */}
       <section
-        className="card-kids flex items-center gap-5 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+        className="card-kids flex flex-col gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)] sm:flex-row sm:items-center"
         data-component="GreetingBanner"
       >
-        <Mascot expression="happy" size="large" level={mascotLevel?.level} />
-        <div className="relative">
-          <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
-            <p className="text-lg font-bold text-kids-title">
-              {t("greeting", { name: nickname })}
-            </p>
-            <p className="text-kids-text">{t("greetingReady")}</p>
+        <div className="flex items-center gap-5">
+          <Mascot expression="happy" size="large" level={mascotLevel?.level} />
+          <div className="relative">
+            <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
+              <p className="text-lg font-bold text-kids-title">
+                {t("greeting", { name: nickname })}
+              </p>
+              <p className="text-kids-text">{t("greetingReady")}</p>
+            </div>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-4">
+        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto sm:justify-end">
           <div className="flex items-center gap-2 bg-kids-sun/20 rounded-control px-4 py-2">
             <Flame size={22} className="text-kids-orange" />
             <span className="font-extrabold text-kids-title">
