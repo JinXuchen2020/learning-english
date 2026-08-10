@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+  const [role, setRole] = useState<'child' | 'parent'>('child');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +38,12 @@ export default function LoginPage() {
       if (mode === "login") {
         await login(username.trim(), password);
       } else {
-        await register(username.trim(), password, nickname.trim() || undefined);
+        await register(
+          username.trim(),
+          password,
+          nickname.trim() || undefined,
+          role,
+        );
       }
       router.push("/");
       router.refresh();
@@ -111,22 +117,56 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "register" && (
-            <div>
-              <label
-                htmlFor="nickname"
-                className="block text-sm font-bold text-kids-title mb-1.5"
-              >
-                {t("nicknameLabel")}
-              </label>
-              <input
-                id="nickname"
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder={t("nicknamePlaceholder")}
-                className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
-              />
-            </div>
+            <>
+              <div>
+                <label
+                  htmlFor="nickname"
+                  className="block text-sm font-bold text-kids-title mb-1.5"
+                >
+                  {t("nicknameLabel")}
+                </label>
+                <input
+                  id="nickname"
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder={t("nicknamePlaceholder")}
+                  className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-kids-title mb-1.5">
+                  {t("roleLabel")}
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-kids-secondary rounded-control p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRole("child")}
+                    className={`rounded-control py-2.5 font-bold transition-all touch-target ${
+                      role === "child"
+                        ? "bg-white text-[var(--seed-primary)] shadow-sm"
+                        : "text-kids-muted"
+                    }`}
+                    aria-pressed={role === "child"}
+                  >
+                    {t("roleChild")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRole("parent")}
+                    className={`rounded-control py-2.5 font-bold transition-all touch-target ${
+                      role === "parent"
+                        ? "bg-white text-[var(--seed-primary)] shadow-sm"
+                        : "text-kids-muted"
+                    }`}
+                    aria-pressed={role === "parent"}
+                  >
+                    {t("roleParent")}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           <div>

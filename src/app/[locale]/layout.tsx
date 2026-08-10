@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Nunito } from "next/font/google";
 import "../globals.css";
 import TabNav from "@/components/TabNav";
+import RoleGuard from "@/components/RoleGuard";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { AuthProvider } from "@/lib/auth-context";
 import { NextIntlClientProvider } from "next-intl";
@@ -50,8 +51,10 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <LocaleSwitcher />
           <AuthProvider>
-            <main className="max-w-5xl mx-auto px-6 pt-6">{children}</main>
-            <TabNav />
+            <RoleGuard>
+              <main className="max-w-5xl mx-auto px-6 pt-6">{children}</main>
+              <TabNav />
+            </RoleGuard>
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

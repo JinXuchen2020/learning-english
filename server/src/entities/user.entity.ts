@@ -61,6 +61,15 @@ export class User {
   @Column({ type: 'uuid', nullable: true })
   parentId: string | null;
 
+  /**
+   * 账号角色（AI-707 角色化导航）。
+   * 'child' = 孩子端（学习功能）；'parent' = 家长端（周报 / 家长中心）。
+   * 注册时由客户端选择并落库；登录 JWT 携带 `role` 供前端分流，
+   * 同时驱动 AI provider 上下文路由（child → 解析 parentId 到家长默认 provider）。
+   */
+  @Column({ type: 'varchar', default: 'child' })
+  role: 'child' | 'parent';
+
   @CreateDateColumn()
   createdAt: Date;
 

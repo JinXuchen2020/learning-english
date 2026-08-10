@@ -13,7 +13,12 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(username: string, password: string, nickname?: string) {
+  async register(
+    username: string,
+    password: string,
+    nickname?: string,
+    role?: 'child' | 'parent',
+  ) {
     const existing = await this.usersRepo.findOne({ where: { username } });
     if (existing) {
       throw new ConflictException('Username already taken');
@@ -24,6 +29,7 @@ export class AuthService {
       username,
       password: hashed,
       nickname: nickname || username,
+      role: role && role === 'parent' ? 'parent' : 'child',
     });
     const saved = await this.usersRepo.save(user);
 
@@ -53,7 +59,7 @@ export class AuthService {
   }
 
   private buildResponse(user: User) {
-    const payload = { sub: user.id, username: user.username };
+    const payload = { sub: user.id, username: user.username, role: user.role };
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
@@ -62,6 +68,7 @@ export class AuthService {
         nickname: user.nickname,
         totalStars: user.totalStars,
         streakDays: user.streakDays,
+        role: user.role,
       },
     };
   }

@@ -1,4 +1,10 @@
-import { IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
+import {
+  IsString,
+  MinLength,
+  MaxLength,
+  IsOptional,
+  IsIn,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -15,4 +21,8 @@ export class RegisterDto {
   @IsString()
   @MaxLength(20)
   nickname?: string;
+
+  @IsOptional()
+  @IsIn(['child', 'parent'])
+  role?: 'child' | 'parent';
 }

@@ -129,6 +129,7 @@ export interface AuthUser {
   nickname: string;
   totalStars: number;
   streakDays: number;
+  role: 'child' | 'parent';
 }
 
 export interface AuthResponse {
@@ -136,11 +137,19 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
-export function register(username: string, password: string, nickname?: string) {
+export function register(
+  username: string,
+  password: string,
+  nickname?: string,
+  role?: 'child' | 'parent',
+) {
   return request<AuthResponse>(
     "/auth/register",
-    { method: "POST", body: JSON.stringify({ username, password, nickname }) },
-    false
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password, nickname, role }),
+    },
+    false,
   );
 }
 

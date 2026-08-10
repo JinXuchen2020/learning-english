@@ -11,6 +11,8 @@
     "scan": "Scan",
     "report": "Report",
     "rewards": "Rewards",
+    "parentHome": "Overview",
+    "parentSettings": "Parent",
     "parent": "Parent",
     "mainNav": "Main navigation"
   },
@@ -344,7 +346,14 @@
     "capTts": "Speech Synthesis",
     "capPronunciation": "Pronunciation",
     "points": "pts",
-    "probeFailed": "Probe failed"
+    "probeFailed": "Probe failed",
+    "overviewGreeting": "Hello, {name}!",
+    "overviewSubtitle": "Here's an overview of your child's learning",
+    "statPending": "Pending rewards",
+    "statReport": "Learning report",
+    "viewReport": "View report",
+    "statSettings": "Parent settings",
+    "goSettings": "Go to settings"
   },
   "Report": {
     "reportTitle": "Parent Report",
@@ -427,6 +436,9 @@
     "errorTaken": "That username is already taken. Try another!",
     "errorWrong": "Oops! Wrong username or password.",
     "errorServer": "Could not reach the server. Is the API running?",
-    "grownupHint": "Ask a grown-up to help you set up your account."
+    "grownupHint": "Ask a grown-up to help you set up your account.",
+    "roleLabel": "I am a",
+    "roleChild": "Child",
+    "roleParent": "Parent"
   }
 }

@@ -13,11 +13,15 @@ import type { AuthUser } from "@/lib/api";
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  role: 'child' | 'parent' | null;
+  isParent: boolean;
+  isChild: boolean;
   login: (username: string, password: string) => Promise<AuthUser>;
   register: (
     username: string,
     password: string,
-    nickname?: string
+    nickname?: string,
+    role?: 'child' | 'parent'
   ) => Promise<AuthUser>;
   logout: () => void;
   refreshUser: (user: AuthUser) => void;
@@ -63,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isAuthenticated: !!user,
+      role: user?.role ?? null,
+      isParent: user?.role === 'parent',
+      isChild: user?.role === 'child',
       login,
       register,
       logout,

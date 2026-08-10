@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
@@ -238,6 +239,42 @@ function ParentInner() {
   // view === "panel"
   return (
     <div className="space-y-6" data-component="ParentPanel">
+      {/* 家长首页概览（TabNav 「首页/概览」tab 对应 /parent 顶部） */}
+      <section className="space-y-4" data-component="ParentOverview">
+        <div className="card-kids bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)] p-5">
+          <h1 className="text-2xl font-extrabold text-kids-title">
+            {t("overviewGreeting", { name: user?.nickname || user?.username || "" })}
+          </h1>
+          <p className="text-kids-muted mt-1">{t("overviewSubtitle")}</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Link
+            href="/parent#approvals"
+            className="card-kids p-4 flex flex-col gap-1 hover:opacity-90"
+            data-component="OverviewPending"
+          >
+            <span className="text-sm text-kids-muted">{t("statPending")}</span>
+            <span className="text-2xl font-extrabold text-kids-title">{approvals.length}</span>
+          </Link>
+          <Link
+            href="/parent-report"
+            className="card-kids p-4 flex flex-col gap-1 hover:opacity-90"
+            data-component="OverviewReport"
+          >
+            <span className="text-sm text-kids-muted">{t("statReport")}</span>
+            <span className="text-lg font-extrabold text-kids-title">{t("viewReport")}</span>
+          </Link>
+          <Link
+            href="/parent#settings"
+            className="card-kids p-4 flex flex-col gap-1 hover:opacity-90"
+            data-component="OverviewSettings"
+          >
+            <span className="text-sm text-kids-muted">{t("statSettings")}</span>
+            <span className="text-lg font-extrabold text-kids-title">{t("goSettings")}</span>
+          </Link>
+        </div>
+      </section>
+
       <section
         className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="ParentHeader"
@@ -264,7 +301,7 @@ function ParentInner() {
       )}
 
       {/* 奖励审批区 */}
-      <section className="space-y-3" data-component="ParentApprovals">
+      <section className="space-y-3" id="approvals" data-component="ParentApprovals">
         <h2 className="text-lg font-extrabold text-kids-title">{t("approvalsTitle")}</h2>
         {approvals.length === 0 ? (
           <p className="card-kids text-center text-kids-muted py-8" data-component="ApprovalsEmpty">
@@ -317,11 +354,13 @@ function ParentInner() {
         )}
       </section>
 
-      {/* AI 提供商配置（AI-705） */}
-      <ProviderConfigSection />
+      {/* 家长设置区（TabNav 「家长/设置」tab 经 /parent#settings 锚定） */}
+      <div id="settings" className="space-y-6">
+        {/* AI 提供商配置（AI-705） */}
+        <ProviderConfigSection />
 
-      {/* PIN 管理区 */}
-      <section className="space-y-3 card-kids" data-component="PinManage">
+        {/* PIN 管理区 */}
+        <section className="space-y-3 card-kids" data-component="PinManage">
         <h2 className="text-lg font-extrabold text-kids-title">{t("changePinTitle")}</h2>
         <div className="flex flex-wrap items-center gap-3">
           <input
@@ -356,6 +395,7 @@ function ParentInner() {
           </button>
         </div>
       </section>
+      </div>
 
       {/* 未来 M5 报告入口预留 */}
       <section className="card-kids opacity-80" data-component="ReportPlaceholder">
