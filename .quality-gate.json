@@ -1,14 +1,14 @@
 {
-  "phase": "ai-709",
+  "phase": "auth-session-persistence",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0 错误；e2e tsc --noEmit 0 错误（新增 more-drawer.steps.ts / cucumber.more-drawer.js 编译通过）；i18n-messages.spec.ts 2/2 通过（新增 TabNav.more + MoreDrawer 6 键 zh/en 均对齐，无键回归）；纯前端导航/抽屉组件，无后端契约/路由/类型变更——全栈契约对齐不适用)",
-    "tests": "PASSED (unit: 复用 src/lib/i18n-messages.spec.ts 2/2 全绿，作为新增 7 个 i18n key 的回归锚点；本 feature 为纯前端导航/抽屉，无逻辑分支源码故无新增单元测试，符合硬约束#6「纯展示型组件/页面不强制单测」；e2e/bdd: src/e2e/features/more-drawer.feature 2 scenarios（打开抽屉见 4 卡 / 点 chat 卡关闭抽屉）已编写，配套 more-drawer.steps.ts + cucumber.more-drawer.js；受 next build 沙箱 safe-delete + ~11min 编译制约未在本会话实跑，委托 CI 跑通，与 AI-707 角色守卫 e2e 同口径)",
-    "review": "PASSED (0 open；MoreDrawer 用 z-[70] 高于 LocaleSwitcher z-[60]，遮罩 bg-black/40 覆盖浮动语言器，无层级冲突；仅 child 端渲染 more 标签（!isParent 才渲染 MoreDrawer），家长端底栏 3 栏不受影响；抽屉三路关闭：pathname 变化 useEffect 自动关 + Esc 键关 + 遮罩点击关，可达性完整；isActive('more') 覆盖 MORE_ROUTES 四路由（/chat /plan /word-cards /speech），当前位于任一二級页时 more 标签高亮；未触碰其他页面布局，无借机重构)",
-    "optimization": "PASSED (0 open；无 stub/占位；复用既有 TabNav 图标系统（LayoutGrid）+ next-intl t()，零新增依赖；卡片 grid grid-cols-2 gap-4 简单布局，无临时调试代码)"
+    "consistency": "PASSED (前端 tsc --noEmit 0 错误；未改动 e2e/后端，e2e tsc 不适用；i18n 键无新增/无回归（i18n-messages.spec.ts 2/2 仍全绿）；纯前端认证态持久化改动，无后端契约/路由/类型变更——全栈契约对齐不适用)",
+    "tests": "PASSED (unit: 新增 src/lib/api-auth-persist.spec.ts 6/6 全绿，直接验证 setToken/getToken/setStoredUser/getStoredUser 的 localStorage 镜像与回退（含 corrupt JSON→null、null 清除）；复用 i18n-messages.spec.ts 2/2 作为无键变更回归锚点；刷新保留会话的端到端行为由 cucumber auth 场景在 next build+start+mock 后端下覆盖，受沙箱 next build 制约委托 CI（与 AI-707/708/709 同口径）)",
+    "review": "PASSED (0 open；根因：api.ts 原仅内存持有 JWT，刷新即清→被迫重登——已改为 localStorage 镜像（TOKEN_KEY/USER_KEY），模块内存为一级缓存、localStorage 跨刷新真源；后端 JWT TTL 7d（JWT_EXPIRES_IN）故刷新在窗口内透明恢复，过期才需重登；SSR 安全：storage 访问全 guard `typeof window`，服务端为 no-op；AuthGate 改为 `isInitialized` 后再决定是否跳 /login，避免刷新瞬间先闪跳登录再恢复；RoleGuard 仅 `isAuthenticated` 时动作，恢复期间不误跳；顺带修 AI-707 遗留 latent bug：`register` 回调原丢弃 `role` 参数（致角色切换失效、所有注册账号皆 child），已透传给 api.register)",
+    "optimization": "PASSED (0 open；无 stub/占位；复用既有 api.ts setToken/getToken 单一真源，零新增依赖；localStorage 读写包 try/catch 降级内存态（隐私模式/配额）)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-709-gate.md",
-  "notes": "AI-709 儿童端第 5 个「更多」Tab + 卡片网格底部抽屉（方案 A）。根因：AI-707 重写 TabNav 为迷你程序风格（child 4 / parent 3）修复 P0 移动端溢出后，/chat /plan /word-cards /speech 四张二级页成为孤儿页——全站无任何 <Link>/router.push 入口（仅 RoleGuard CHILD_ONLY 列表里引用），儿童完全无法进入。用户直觉「应像微信小程序加更多 Tab」正确且比预期更紧急。实现：TabNav 第 5 项改为 `<button aria-haspopup=\"dialog\">` 触发 MoreDrawer；MoreDrawer 为 bottom-sheet 卡片网格（2 列，图标+标签，面向 5-10 岁识字有限用户用图标而非纯文字列表），收纳 4 个孤儿页路由；aria-modal/role=dialog/aria-label 完整；Esc + 遮罩 + 路由变更三路关闭；z-[70] 高于固定语言器。i18n：TabNav.more（更多/More）+ MoreDrawer 6 键（title/chat/plan/wordCards/speech/close）中英全补齐。验证：前端 tsc 0 + e2e tsc 0 + i18n-messages.spec.ts 2/2。BDD/E2E：more-drawer.feature 2 scenarios 已编写（开抽屉见 4 卡 / 点 chat 卡关闭抽屉），待 CI 在 next build+start+mock 后端下实跑。"
+  "reportRef": "docs/quality/auth-session-persistence-gate.md",
+  "notes": "修复「网站刷新要重新登录」。根因：src/lib/api.ts 的 JWT 仅存于模块内存（let accessToken），硬刷新模块重载→令牌清空→AuthProvider user 初始 null→被 AuthGate 弹回 /login；代码注释自承『a hard refresh clears the session and the user signs in again』。后端 JWT 有效期 7d（server/src/auth/auth.module.ts signOptions.expiresIn = JWT_EXPIRES_IN||'7d'），故持久化到 localStorage 安全——刷新在 7 天内透明恢复会话。实现：api.ts 增加 TOKEN_KEY/USER_KEY 常量 + storageGet/storageSet（guard typeof window，SSR 安全），setToken 镜像到 localStorage、getToken 回退读 localStorage、新增 setStoredUser/getStoredUser 持久化轻量 user 对象（免 /auth/me 额外往返）；AuthProvider 加 initialized 状态 + 挂载时从 localStorage 恢复（token+user），applyAuth/logout/refreshUser 同步写 user；AuthGate 仅 isInitialized 后且 !isAuthenticated 才跳 /login，消除刷新闪跳；RoleGuard 不受恢复影响。顺带修复 AI-707 注册角色丢失 bug（register 回调漏传 role）。验证：前端 tsc 0 + api-auth-persist.spec.ts 6/6 + i18n-messages.spec.ts 2/2。端到端刷新场景委托 CI（next build+start+mock）。"
 }

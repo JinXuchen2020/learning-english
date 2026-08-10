@@ -6,20 +6,22 @@ import { useAuth } from "@/lib/auth-context";
 import Mascot from "@/components/Mascot";
 
 /**
- * Guards authenticated screens. Because the session token lives in memory,
- * a hard refresh returns the user to the login page — acceptable for this
- * prototype. While unauthenticated we show a friendly loading state and
- * redirect to /login.
+ * Guards authenticated screens. The session is rehydrated from localStorage on
+ * mount (see AuthProvider), so a hard refresh keeps the user logged in. While
+ * the session is still rehydrating (or genuinely unauthenticated) we show a
+ * friendly loading state; only after rehydration do we bounce to /login.
  */
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Wait until AuthProvider has restored (or confirmed absence of) a session,
+    // otherwise a refresh would flash a redirect to /login before restoring.
+    if (isInitialized && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isInitialized, isAuthenticated, router]);
 
   if (!isAuthenticated) {
     return (

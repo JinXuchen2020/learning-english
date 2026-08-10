@@ -55,18 +55,65 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 /**
- * The JWT is held in module memory only (no localStorage/sessionStorage),
- * which suits this prototype. The trade-off: a hard refresh clears the
- * session and the user signs in again.
+ * Session persistence.
+ *
+ * The JWT is cached in module memory (primary) AND mirrored to localStorage so
+ * a hard refresh keeps the user signed in. The backend JWT TTL is 7d
+ * (JWT_EXPIRES_IN), so a refresh within that window restores the session
+ * transparently. The lightweight `user` object is persisted alongside the
+ * token so the auth context can rehydrate without an extra /auth/me round-trip.
+ *
+ * All storage access is guarded for `typeof window === 'undefined'`, making
+ * this module safe to import during SSR (Next.js) — on the server storage is a
+ * no-op and the session simply stays memory-only.
  */
-let accessToken: string | null = null;
+const TOKEN_KEY = "le_auth_token";
+const USER_KEY = "le_auth_user";
+
+function storageGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable (private mode / quota) — degrade to memory only */
+  }
+}
+
+let accessToken: string | null = storageGet(TOKEN_KEY);
 
 export function setToken(token: string | null) {
   accessToken = token;
+  storageSet(TOKEN_KEY, token);
 }
 
 export function getToken(): string | null {
-  return accessToken;
+  return accessToken ?? storageGet(TOKEN_KEY);
+}
+
+/** Persist the lightweight auth user object so the context rehydrates on refresh. */
+export function setStoredUser(user: AuthUser | null) {
+  storageSet(USER_KEY, user ? JSON.stringify(user) : null);
+}
+
+/** Read the persisted auth user, or null if absent/corrupt. */
+export function getStoredUser(): AuthUser | null {
+  const raw = storageGet(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
 export class ApiError extends Error {
