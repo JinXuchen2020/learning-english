@@ -11,10 +11,19 @@
     "scan": "拍照",
     "report": "报告",
     "rewards": "奖励",
+    "more": "更多",
     "parentHome": "概览",
     "parentSettings": "家长",
     "parent": "家长",
     "mainNav": "主导航"
+  },
+  "MoreDrawer": {
+    "title": "更多功能",
+    "chat": "对话陪练",
+    "plan": "学习计划",
+    "wordCards": "生词本",
+    "speech": "口语",
+    "close": "关闭"
   },
   "Common": {
     "notFound": "页面未找到",

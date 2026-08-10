@@ -11,10 +11,19 @@
     "scan": "Scan",
     "report": "Report",
     "rewards": "Rewards",
+    "more": "More",
     "parentHome": "Overview",
     "parentSettings": "Parent",
     "parent": "Parent",
     "mainNav": "Main navigation"
+  },
+  "MoreDrawer": {
+    "title": "More",
+    "chat": "Chat",
+    "plan": "Study Plan",
+    "wordCards": "Word Cards",
+    "speech": "Speak",
+    "close": "Close"
   },
   "Common": {
     "notFound": "Page not found",

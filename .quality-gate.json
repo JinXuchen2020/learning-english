@@ -1,14 +1,14 @@
 {
-  "phase": "ai-708",
+  "phase": "ai-709",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0 错误；e2e tsc --noEmit 0 错误（新增 responsive.steps.ts 编译通过）；i18n-messages.spec.ts 2/2 通过（本 feature 未新增 i18n key，zh/en 键对齐未回归）；纯前端 CSS/布局改动，无后端契约/路由/类型变更——全栈契约对齐不适用)",
-    "tests": "PASSED (unit: 复用 src/lib/i18n-messages.spec.ts 2/2 全绿，作为无新增 key 的回归锚点；本 feature 无逻辑分支源码故无新增单元测试，符合硬约束#6「纯展示型组件/页面不强制单测」；e2e/bdd: src/e2e/features/responsive.feature 2 scenarios（375px 无横向溢出 + LocaleSwitcher 可见 / 320px 无横向溢出）已编写，配套 responsive.steps.ts + cucumber.responsive.js；受 next build 沙箱 safe-delete + ~11min 编译制约未在本会话实跑，委托 CI 跑通，与 AI-707 角色守卫 e2e 同口径)",
-    "review": "PASSED (0 open；纯 CSS/布局，无注入/空安全/鉴权/错误处理面；clamp 取值保守——html clamp(15px,4.2vw,18px) 下限 15px 上限 18px，h1/h2/h3 clamp 宽屏封顶既有尺寸、窄屏流式收缩；LocaleSwitcher 仅追加响应式原子类（max-[400px]:/max-[360px]:scale-90），未改定位/逻辑；首页问候横幅仅 ≤640px 改纵向堆叠（mascot+气泡保持同行、徽标换行到下方），登录容器仅补 px-4 留白；未触碰其他页面布局，无借机重构)",
-    "optimization": "PASSED (0 open；无 stub/占位；LocaleSwitcher 复用既有 bg-white/85 backdrop-blur 仅追加响应式类，零新增依赖；clamp 直接替换写死尺寸，无临时调试代码)"
+    "consistency": "PASSED (前端 tsc --noEmit 0 错误；e2e tsc --noEmit 0 错误（新增 more-drawer.steps.ts / cucumber.more-drawer.js 编译通过）；i18n-messages.spec.ts 2/2 通过（新增 TabNav.more + MoreDrawer 6 键 zh/en 均对齐，无键回归）；纯前端导航/抽屉组件，无后端契约/路由/类型变更——全栈契约对齐不适用)",
+    "tests": "PASSED (unit: 复用 src/lib/i18n-messages.spec.ts 2/2 全绿，作为新增 7 个 i18n key 的回归锚点；本 feature 为纯前端导航/抽屉，无逻辑分支源码故无新增单元测试，符合硬约束#6「纯展示型组件/页面不强制单测」；e2e/bdd: src/e2e/features/more-drawer.feature 2 scenarios（打开抽屉见 4 卡 / 点 chat 卡关闭抽屉）已编写，配套 more-drawer.steps.ts + cucumber.more-drawer.js；受 next build 沙箱 safe-delete + ~11min 编译制约未在本会话实跑，委托 CI 跑通，与 AI-707 角色守卫 e2e 同口径)",
+    "review": "PASSED (0 open；MoreDrawer 用 z-[70] 高于 LocaleSwitcher z-[60]，遮罩 bg-black/40 覆盖浮动语言器，无层级冲突；仅 child 端渲染 more 标签（!isParent 才渲染 MoreDrawer），家长端底栏 3 栏不受影响；抽屉三路关闭：pathname 变化 useEffect 自动关 + Esc 键关 + 遮罩点击关，可达性完整；isActive('more') 覆盖 MORE_ROUTES 四路由（/chat /plan /word-cards /speech），当前位于任一二級页时 more 标签高亮；未触碰其他页面布局，无借机重构)",
+    "optimization": "PASSED (0 open；无 stub/占位；复用既有 TabNav 图标系统（LayoutGrid）+ next-intl t()，零新增依赖；卡片 grid grid-cols-2 gap-4 简单布局，无临时调试代码)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-708-gate.md",
-  "notes": "AI-708 前端响应式加固（移动端 P1/P2）：补齐 AI-707 评估遗留的「前端自适应」剩余项（彼时仅评估未改码；P0 TabNav 12 栏溢出已由 AI-707 迷你程序底栏顺带消除）。P1：globals.css 的 html 根字号与 h1/h2/h3 由写死 18px/2rem/1.5rem/1.15rem 改为 clamp() 流式排版（html clamp(15px,4.2vw,18px)；h1 clamp(1.5rem,4.5vw,2rem)；h2 clamp(1.25rem,3.5vw,1.5rem)；h3 clamp(1.05rem,2.5vw,1.15rem)），窄屏随视口收缩、宽屏封顶保持桌面现状。P2：LocaleSwitcher 在窄屏缩小占位（max-[400px]:top-2 right-2 px-1.5 py-0.5 text-[11px]，max-[360px]:scale-90），降低与顶栏内容重叠；首页问候横幅 GreetingBanner 在 ≤640px 由 flex-row（右侧 ml-auto 推 streak/star 徽标）改为 flex-col（mascot+气泡保持同行、徽标换行到问候语下方），使顶右区域在窄屏留空避开固定语言器；登录页外层容器补 px-4 使认证卡片不贴屏幕边缘。验证：前端 tsc --noEmit 0 + e2e tsc --noEmit 0 + i18n-messages.spec.ts 2/2。BDD/E2E：responsive.feature 2 scenarios 已编写（窄视口无横向溢出 + LocaleSwitcher 可见），待 CI 在 next build+start+mock 后端下实跑。注意：验证依赖浏览器实际渲染，沙箱 next build 受限，故 E2E 实跑委托 CI；如需本会话实跑可放宽沙箱并起服后 npx cucumber-js --config src/e2e/cucumber.responsive.js。"
+  "reportRef": "docs/quality/ai-709-gate.md",
+  "notes": "AI-709 儿童端第 5 个「更多」Tab + 卡片网格底部抽屉（方案 A）。根因：AI-707 重写 TabNav 为迷你程序风格（child 4 / parent 3）修复 P0 移动端溢出后，/chat /plan /word-cards /speech 四张二级页成为孤儿页——全站无任何 <Link>/router.push 入口（仅 RoleGuard CHILD_ONLY 列表里引用），儿童完全无法进入。用户直觉「应像微信小程序加更多 Tab」正确且比预期更紧急。实现：TabNav 第 5 项改为 `<button aria-haspopup=\"dialog\">` 触发 MoreDrawer；MoreDrawer 为 bottom-sheet 卡片网格（2 列，图标+标签，面向 5-10 岁识字有限用户用图标而非纯文字列表），收纳 4 个孤儿页路由；aria-modal/role=dialog/aria-label 完整；Esc + 遮罩 + 路由变更三路关闭；z-[70] 高于固定语言器。i18n：TabNav.more（更多/More）+ MoreDrawer 6 键（title/chat/plan/wordCards/speech/close）中英全补齐。验证：前端 tsc 0 + e2e tsc 0 + i18n-messages.spec.ts 2/2。BDD/E2E：more-drawer.feature 2 scenarios 已编写（开抽屉见 4 卡 / 点 chat 卡关闭抽屉），待 CI 在 next build+start+mock 后端下实跑。"
 }
