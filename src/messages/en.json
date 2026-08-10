@@ -279,5 +279,26 @@
     "sceneLoadError": "Failed to load scenes",
     "sendError": "Failed to send, please try again~",
     "freeChatStillAvailable": " You can still chat freely."
+  },
+  "Login": {
+    "welcomeBack": "Welcome Back!",
+    "joinFoxy": "Join Foxy!",
+    "signInSub": "Sign in to keep learning with Foxy.",
+    "registerSub": "Create an account and start your adventure.",
+    "tabSignIn": "Sign In",
+    "tabSignUp": "Sign Up",
+    "nicknameLabel": "Nickname",
+    "nicknamePlaceholder": "What should Foxy call you?",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Your username",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Your secret password",
+    "pleaseFill": "Please fill in your username and password.",
+    "loading": "One moment...",
+    "submitCreate": "Create Account",
+    "errorTaken": "That username is already taken. Try another!",
+    "errorWrong": "Oops! Wrong username or password.",
+    "errorServer": "Could not reach the server. Is the API running?",
+    "grownupHint": "Ask a grown-up to help you set up your account."
   }
 }

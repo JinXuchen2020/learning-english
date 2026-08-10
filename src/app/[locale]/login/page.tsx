@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +13,7 @@ type Mode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations("Login");
   const { login, register } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -26,7 +28,7 @@ export default function LoginPage() {
     setError(null);
 
     if (!username.trim() || !password.trim()) {
-      setError("Please fill in your username and password.");
+      setError(t("pleaseFill"));
       return;
     }
 
@@ -43,13 +45,13 @@ export default function LoginPage() {
       if (err instanceof ApiError) {
         setError(
           err.status === 409
-            ? "That username is already taken. Try another!"
+            ? t("errorTaken")
             : err.status === 401
-            ? "Oops! Wrong username or password."
+            ? t("errorWrong")
             : err.message
         );
       } else {
-        setError("Could not reach the server. Is the API running?");
+        setError(t("errorServer"));
       }
     } finally {
       setLoading(false);
@@ -66,12 +68,10 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center gap-2">
           <Mascot expression="happy" size="large" />
           <h1 className="text-3xl">
-            {mode === "login" ? "Welcome Back!" : "Join Foxy!"}
+            {mode === "login" ? t("welcomeBack") : t("joinFoxy")}
           </h1>
           <p className="text-kids-muted">
-            {mode === "login"
-              ? "Sign in to keep learning with Foxy."
-              : "Create an account and start your adventure."}
+            {mode === "login" ? t("signInSub") : t("registerSub")}
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export default function LoginPage() {
             }`}
             aria-pressed={mode === "login"}
           >
-            Sign In
+            {t("tabSignIn")}
           </button>
           <button
             type="button"
@@ -105,7 +105,7 @@ export default function LoginPage() {
             }`}
             aria-pressed={mode === "register"}
           >
-            Sign Up
+            {t("tabSignUp")}
           </button>
         </div>
 
@@ -116,14 +116,14 @@ export default function LoginPage() {
                 htmlFor="nickname"
                 className="block text-sm font-bold text-kids-title mb-1.5"
               >
-                Nickname
+                {t("nicknameLabel")}
               </label>
               <input
                 id="nickname"
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="What should Foxy call you?"
+                placeholder={t("nicknamePlaceholder")}
                 className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
               />
             </div>
@@ -134,14 +134,14 @@ export default function LoginPage() {
               htmlFor="username"
               className="block text-sm font-bold text-kids-title mb-1.5"
             >
-              Username
+              {t("usernameLabel")}
             </label>
             <input
               id="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Your username"
+              placeholder={t("usernamePlaceholder")}
               autoComplete="username"
               className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
             />
@@ -152,14 +152,14 @@ export default function LoginPage() {
               htmlFor="password"
               className="block text-sm font-bold text-kids-title mb-1.5"
             >
-              Password
+              {t("passwordLabel")}
             </label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your secret password"
+              placeholder={t("passwordPlaceholder")}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
             />
@@ -181,16 +181,16 @@ export default function LoginPage() {
             disabled={loading}
           >
             {loading ? (
-              "One moment..."
+              t("loading")
             ) : mode === "login" ? (
               <>
                 <LogIn size={22} className="mr-2" />
-                Sign In
+                {t("tabSignIn")}
               </>
             ) : (
               <>
                 <UserPlus size={22} className="mr-2" />
-                Create Account
+                {t("submitCreate")}
               </>
             )}
           </Button>
@@ -198,7 +198,7 @@ export default function LoginPage() {
 
         <p className="flex items-center justify-center gap-1.5 text-xs text-kids-muted text-center">
           <Sparkles size={14} className="text-kids-sun" />
-          Ask a grown-up to help you set up your account.
+          {t("grownupHint")}
         </p>
       </div>
     </div>
