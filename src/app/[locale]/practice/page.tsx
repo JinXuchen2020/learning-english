@@ -510,7 +510,7 @@ function Quiz({
       {/* Answer Grid */}
       <section data-component="AnswerGrid">
         <p className="text-center font-bold text-kids-title mb-4">
-          {mode === "combination" ? "Which picture is it?" : "Which one is correct?"}
+          {mode === "combination" ? t("whichPicture") : t("whichCorrect")}
         </p>
         <div className="grid grid-cols-2 gap-4">
           {item.options.map((opt, index) => {

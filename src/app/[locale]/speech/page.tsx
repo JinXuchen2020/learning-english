@@ -23,18 +23,18 @@ import type {
 } from "@/lib/types";
 import type { RecordingResult } from "@/lib/speech-recorder";
 
-/** 口语反馈等级档位 → 展示文案 + 配色（与 AI-306 `levelFromScore` 语义一致）。 */
-const LEVEL_BADGE: Record<SpeechLevel, { label: string; cls: string }> = {
+/** 口语反馈等级档位 → 展示文案 key + 配色（与 AI-306 `levelFromScore` 语义一致）。 */
+const LEVEL_BADGE: Record<SpeechLevel, { labelKey: string; cls: string }> = {
   good: {
-    label: "Great!",
+    labelKey: "levelGreat",
     cls: "bg-[var(--color-success)]/15 text-[var(--color-success)]",
   },
   ok: {
-    label: "Good job!",
+    labelKey: "levelGood",
     cls: "bg-[var(--color-primary-wash)] text-[var(--seed-primary)]",
   },
   weak: {
-    label: "Keep trying!",
+    labelKey: "levelKeep",
     cls: "bg-[var(--color-warning)]/15 text-[var(--color-warning)]",
   },
 };
@@ -76,6 +76,7 @@ function SpeechCard({
   onSubmit: () => void;
   onNext: () => void;
 }) {
+  const t = useTranslations("Speech");
   const [showPhonics, setShowPhonics] = useState(false);
   const mascotExpr: MascotExpression = feedback
     ? mapBackendMascotExpr(feedback.mascotExpr)
@@ -91,13 +92,15 @@ function SpeechCard({
       {/* Progress */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-kids-muted">
-          {isSentence ? "Sentence" : "Word"} {index + 1} of {total}
+          {isSentence
+            ? t("progressSentence", { index: index + 1, total })
+            : t("progressWord", { index: index + 1, total })}
         </span>
         {feedback && (
           <span
             className={`rounded-full px-3 py-1 text-xs font-extrabold ${LEVEL_BADGE[feedback.level].cls}`}
           >
-            {LEVEL_BADGE[feedback.level].label}
+            {t(LEVEL_BADGE[feedback.level].labelKey)}
           </span>
         )}
       </div>
@@ -119,11 +122,11 @@ function SpeechCard({
             <button
               onClick={() => setShowPhonics((s) => !s)}
               className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
-              aria-label="Show pronunciation hint"
+              aria-label={t("pronunciationHintLabel")}
               data-action="toggle-phonics"
             >
               <Volume2 size={20} className="mr-2" />
-              {showPhonics ? "Phonics" : "Show phonics"}
+              {showPhonics ? t("phonics") : t("showPhonics")}
             </button>
           )}
         </div>
@@ -136,10 +139,10 @@ function SpeechCard({
           size="lg"
           onClick={onListen}
           data-action="listen"
-          aria-label={`Listen to ${item.text}`}
+          aria-label={t("listenTo", { text: item.text })}
         >
           <Volume2 size={22} className="mr-2" />
-          Listen
+          {t("listen")}
         </Button>
       </div>
 
@@ -167,7 +170,7 @@ function SpeechCard({
               data-action="submit-speech"
             >
               <Mic size={22} className="mr-2" />
-              {evaluating ? "Checking…" : "Submit"}
+              {evaluating ? t("checking") : t("submit")}
             </Button>
           </div>
 
@@ -177,7 +180,7 @@ function SpeechCard({
               data-component="SpeechEvaluating"
             >
               <Mascot expression="thinking" size="medium" />
-              Foxy is listening…
+              {t("foxyListening")}
             </div>
           )}
 
@@ -214,6 +217,7 @@ function SpeechFeedbackPanel({
   onNext: () => void;
   isLast: boolean;
 }) {
+  const t = useTranslations("Speech");
   return (
     <section
       className="card-kids flex flex-col items-center gap-4 text-center"
@@ -258,7 +262,7 @@ function SpeechFeedbackPanel({
             className="text-kids-sun fill-kids-sun animate-star-pop"
           />
           <p className="font-extrabold text-[var(--color-success)]">
-            You earned a star! ⭐
+            {t("earnedStar")}
           </p>
         </div>
       )}
@@ -269,7 +273,7 @@ function SpeechFeedbackPanel({
         data-action="next-word"
         className="mt-2"
       >
-        {isLast ? "Finish" : "Next word"}
+        {isLast ? t("finish") : t("nextWord")}
         <ArrowRight size={20} className="ml-2" />
       </Button>
     </section>
@@ -432,7 +436,7 @@ function SpeechInner() {
         data-component="SpeechLoading"
       >
         <Mascot expression="thinking" size="medium" />
-        <p className="text-kids-muted font-semibold">Getting words ready…</p>
+        <p className="text-kids-muted font-semibold">{t("gettingWordsReady")}</p>
       </div>
     );
   }
@@ -457,18 +461,16 @@ function SpeechInner() {
       >
         <Mascot expression="encouraging" size="large" />
         <h1 className="text-2xl">
-          {isSentence ? "No sentences here yet!" : "No words here yet!"}
+          {isSentence ? t("emptySentences") : t("emptyWords")}
         </h1>
         <p className="text-kids-muted">
-          {isSentence
-            ? "The sentence library is empty. Try word mode for now!"
-            : "Add some words from a course to start speaking."}
+          {isSentence ? t("emptySentencesHint") : t("emptyWordsHint")}
         </p>
         {!isSentence && (
           <Button variant="success" asChild>
             <Link href="/course">
               <ArrowRight size={20} className="mr-2" />
-              Browse Courses
+              {t("browseCourses")}
             </Link>
           </Button>
         )}
@@ -483,23 +485,23 @@ function SpeechInner() {
         data-component="SpeechComplete"
       >
         <Mascot expression="celebrating" size="large" />
-        <h1 className="text-3xl">Amazing Job!</h1>
+        <h1 className="text-3xl">{t("amazingJob")}</h1>
         <div className="flex items-center gap-2 text-xl font-extrabold text-[var(--color-success)]">
           <Trophy size={32} className="text-kids-sun" />
-          You earned {stars} {stars === 1 ? "star" : "stars"}!
+          {t("earnedStars", { count: stars })}
         </div>
         {taskId && taskMarked && (
           <p
             className="text-sm font-semibold text-[var(--seed-primary)]"
             data-component="TaskDoneNote"
           >
-            Daily task complete! ✓
+            {t("dailyTaskComplete")}
           </p>
         )}
         <Button variant="secondary" asChild>
           <Link href="/">
             <ArrowRight size={20} className="mr-2" />
-            Back to Home
+            {t("backToHome")}
           </Link>
         </Button>
       </div>
@@ -516,7 +518,7 @@ function SpeechInner() {
           className="text-2xl font-extrabold text-kids-title"
           data-component="SpeechTitle"
         >
-          Speak with Foxy!
+          {t("title")}
         </h1>
         <div
           className="flex items-center gap-2 text-kids-title font-extrabold"
@@ -532,7 +534,7 @@ function SpeechInner() {
         className="flex items-center gap-2 p-1 rounded-control bg-[var(--color-primary-wash)]/60 w-fit mx-auto"
         data-component="ModeToggle"
         role="tablist"
-        aria-label="Practice mode"
+        aria-label={t("practiceModeLabel")}
       >
         <button
           type="button"
@@ -546,7 +548,7 @@ function SpeechInner() {
               : "text-kids-muted"
           }`}
         >
-          Words
+          {t("modeWords")}
         </button>
         <button
           type="button"
@@ -560,7 +562,7 @@ function SpeechInner() {
               : "text-kids-muted"
           }`}
         >
-          Sentences
+          {t("modeSentences")}
         </button>
       </div>
 
@@ -586,6 +588,7 @@ function SpeechInner() {
 }
 
 export default function SpeechPage() {
+  const t = useTranslations("Speech");
   return (
     <AuthGate>
       <Suspense
@@ -595,7 +598,7 @@ export default function SpeechPage() {
             data-component="SpeechSuspense"
           >
             <Mascot expression="thinking" size="medium" />
-            <p className="text-kids-muted font-semibold">Getting ready…</p>
+            <p className="text-kids-muted font-semibold">{t("gettingReady")}</p>
           </div>
         }
       >

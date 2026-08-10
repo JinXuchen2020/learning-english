@@ -11,7 +11,8 @@
     "scan": "Scan",
     "report": "Report",
     "rewards": "Rewards",
-    "parent": "Parent"
+    "parent": "Parent",
+    "mainNav": "Main navigation"
   },
   "Common": {
     "notFound": "Page not found",
@@ -35,9 +36,58 @@
     "vocabEmpty": "No words yet. Snap a photo to add some~"
   },
   "Speech": {
+    "title": "Speak with Foxy!",
+    "levelGreat": "Great!",
+    "levelGood": "Good job!",
+    "levelKeep": "Keep trying!",
+    "progressSentence": "Sentence {index} of {total}",
+    "progressWord": "Word {index} of {total}",
+    "pronunciationHintLabel": "Show pronunciation hint",
+    "phonics": "Phonics",
+    "showPhonics": "Show phonics",
+    "listenTo": "Listen to {text}",
+    "listen": "Listen",
+    "checking": "Checking…",
+    "submit": "Submit",
+    "foxyListening": "Foxy is listening…",
+    "earnedStar": "You earned a star! ⭐",
+    "gettingWordsReady": "Getting words ready…",
+    "emptySentences": "No sentences here yet!",
+    "emptyWords": "No words here yet!",
+    "emptySentencesHint": "The sentence library is empty. Try word mode for now!",
+    "emptyWordsHint": "Add some words from a course to start speaking.",
+    "browseCourses": "Browse Courses",
+    "amazingJob": "Amazing Job!",
+    "earnedStars": "You earned {count} {count, plural, one {star} other {stars}}!",
+    "dailyTaskComplete": "Daily task complete! ✓",
+    "backToHome": "Back to Home",
+    "practiceModeLabel": "Practice mode",
+    "modeWords": "Words",
+    "modeSentences": "Sentences",
+    "gettingReady": "Getting ready…",
+    "finish": "Finish",
+    "nextWord": "Next word",
     "loadWordsError": "Failed to load words",
     "networkError": "The network wandered off, please try again!",
     "evalError": "Evaluation failed, try again~"
+  },
+  "SpeechRecorder": {
+    "permissionDenied": "We need your microphone to hear you speak. Please allow mic access in your browser settings, then try again.",
+    "noMicrophone": "No microphone found. Please connect a microphone and try again.",
+    "notSupported": "Recording isn't supported on this browser. Try Chrome or Safari.",
+    "insecureContext": "Recording needs a secure (https) connection. Open the app from the secure link.",
+    "unknown": "Something went wrong while recording. Please try again.",
+    "tapToRecord": "Tap to record",
+    "requestingMic": "Requesting microphone…",
+    "recording": "Recording… {seconds}s / {maxSeconds}s",
+    "stop": "Stop",
+    "stopRecordingLabel": "Stop recording",
+    "gotIt": "Got it!",
+    "iosFallbackNote": "(recorded as audio/mp4 on this device)",
+    "tryAgain": "Try again"
+  },
+  "LocaleSwitcher": {
+    "languageSwitcher": "Language switcher"
   },
   "Rewards": {
     "statusPending": "Pending",
@@ -62,7 +112,9 @@
   "Practice": {
     "modeMultiple": "Pick the Word",
     "modeListen": "Listen & Choose",
-    "modeCombination": "Color Combo"
+    "modeCombination": "Color Combo",
+    "whichPicture": "Which picture is it?",
+    "whichCorrect": "Which one is correct?"
   },
   "Plan": {
     "previewTitle": "Your study plan is ready!",

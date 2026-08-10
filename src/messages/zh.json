@@ -11,7 +11,8 @@
     "scan": "拍照",
     "report": "报告",
     "rewards": "奖励",
-    "parent": "家长"
+    "parent": "家长",
+    "mainNav": "主导航"
   },
   "Common": {
     "notFound": "页面未找到",
@@ -35,9 +36,58 @@
     "vocabEmpty": "还没有生词，拍张照片加几个吧～"
   },
   "Speech": {
+    "title": "和小狐狸一起说！",
+    "levelGreat": "太棒了！",
+    "levelGood": "做得好！",
+    "levelKeep": "继续加油！",
+    "progressSentence": "句子 {index} / {total}",
+    "progressWord": "单词 {index} / {total}",
+    "pronunciationHintLabel": "显示发音提示",
+    "phonics": "自然拼读",
+    "showPhonics": "显示自然拼读",
+    "listenTo": "听一听 {text}",
+    "listen": "听一听",
+    "checking": "检查中…",
+    "submit": "提交",
+    "foxyListening": "小狐狸正在听…",
+    "earnedStar": "你获得了一颗星！⭐",
+    "gettingWordsReady": "正在准备单词…",
+    "emptySentences": "还没有句子哦！",
+    "emptyWords": "还没有单词哦！",
+    "emptySentencesHint": "句子库还是空的，先去单词模式试试吧！",
+    "emptyWordsHint": "从课程里添加一些单词，就能开始说啦。",
+    "browseCourses": "浏览课程",
+    "amazingJob": "太厉害啦！",
+    "earnedStars": "你获得了 {count} 颗星！",
+    "dailyTaskComplete": "每日任务完成！✓",
+    "backToHome": "返回首页",
+    "practiceModeLabel": "练习模式",
+    "modeWords": "单词",
+    "modeSentences": "句子",
+    "gettingReady": "准备中…",
+    "finish": "完成",
+    "nextWord": "下一个",
     "loadWordsError": "加载单词失败",
     "networkError": "网络好像开小差了，再试一次吧！",
     "evalError": "评测失败，再试一次吧～"
+  },
+  "SpeechRecorder": {
+    "permissionDenied": "我们需要你的麦克风才能听到你说话。请在浏览器设置里允许麦克风权限，然后再试一次。",
+    "noMicrophone": "没有找到麦克风，请连接麦克风后再试一次。",
+    "notSupported": "当前浏览器不支持录音，请使用 Chrome 或 Safari。",
+    "insecureContext": "录音需要安全的（https）连接，请从安全链接打开应用。",
+    "unknown": "录音时出了点问题，请再试一次。",
+    "tapToRecord": "点击开始录音",
+    "requestingMic": "正在请求麦克风…",
+    "recording": "录音中… {seconds}秒 / {maxSeconds}秒",
+    "stop": "停止",
+    "stopRecordingLabel": "停止录音",
+    "gotIt": "录好啦！",
+    "iosFallbackNote": "（本设备以 audio/mp4 格式录制）",
+    "tryAgain": "再试一次"
+  },
+  "LocaleSwitcher": {
+    "languageSwitcher": "语言切换"
   },
   "Rewards": {
     "statusPending": "待审批",
@@ -62,7 +112,9 @@
   "Practice": {
     "modeMultiple": "看字选词",
     "modeListen": "听音选图",
-    "modeCombination": "颜色组词"
+    "modeCombination": "颜色组词",
+    "whichPicture": "这是哪张图？",
+    "whichCorrect": "哪个是对的？"
   },
   "Plan": {
     "previewTitle": "你的学习计划来啦！",
