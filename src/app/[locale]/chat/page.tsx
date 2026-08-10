@@ -81,15 +81,15 @@ function ReadAlongPanel({
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-kids-muted">
-          🎤 Read after Foxy
+          🎤 {t("readAfterFoxy")}
         </span>
         <button
           onClick={onClose}
           className="text-kids-muted text-xs font-bold hover:text-kids-title"
-          aria-label="Close read-along"
+          aria-label={t("closeReadAlong")}
           data-action="close-readalong"
         >
-          Close
+          {t("close")}
         </button>
       </div>
 
@@ -158,7 +158,7 @@ function ReadAlongPanel({
           )}
           <Button variant="soft" onClick={clear} data-action="readalong-again">
             <RotateCcw size={18} className="mr-2" />
-            Try again
+            {t("tryAgain")}
           </Button>
         </div>
       )}
@@ -294,8 +294,8 @@ function ChatInner() {
         logger.error("Failed to resume chat session", err);
         setSendError(
           err instanceof ApiError
-            ? err.message || "Could not open that chat. Try again?"
-            : "Network hiccup — could not open that chat.",
+            ? err.message || t("openChatError")
+            : t("openChatNetworkError"),
         );
       }
     },
@@ -619,7 +619,7 @@ function ChatInner() {
                       <button
                         onClick={() => playTts(msg.ttsUrl)}
                         className="shrink-0 rounded-full bg-kids-secondary p-2 text-[var(--seed-primary)]"
-                        aria-label="Play Foxy's voice"
+                        aria-label={t("playVoice")}
                         data-action="play-tts"
                       >
                         <Volume2 size={18} />
@@ -627,7 +627,7 @@ function ChatInner() {
                     </div>
                   ) : (
                     <span className="text-xs text-kids-muted">
-                      (no voice this time)
+                      {t("noVoice")}
                     </span>
                   )}
 
@@ -637,10 +637,10 @@ function ChatInner() {
                         setReadAlongForId((cur) => (cur === msg.id ? null : msg.id))
                       }
                       className="self-start rounded-full bg-kids-sun/20 px-3 py-1 text-xs font-bold text-kids-sun hover:bg-kids-sun/30"
-                      aria-label="Read after Foxy"
+                      aria-label={t("readAfterFoxy")}
                       data-action="read-along"
                     >
-                      🔁 Read along
+                      🔁 {t("readAlong")}
                     </button>
                   )}
                 </div>

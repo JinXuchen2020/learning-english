@@ -398,9 +398,9 @@ function HomeContent() {
         <div className="relative">
           <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
             <p className="text-lg font-bold text-kids-title">
-              Hi {nickname}! I&apos;m Foxy!
+              {t("greeting", { name: nickname })}
             </p>
-            <p className="text-kids-text">Ready to learn some new words today?</p>
+            <p className="text-kids-text">{t("greetingReady")}</p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
@@ -409,7 +409,7 @@ function HomeContent() {
             <span className="font-extrabold text-kids-title">
               {progress?.streakDays ?? 0}
             </span>
-            <span className="text-sm text-kids-muted">days</span>
+            <span className="text-sm text-kids-muted">{t("streakDays")}</span>
           </div>
           <div className="flex items-center gap-2 bg-kids-sun/20 rounded-control px-4 py-2">
             <Star size={22} className="text-kids-sun fill-kids-sun" />
@@ -425,7 +425,7 @@ function HomeContent() {
             >
               <MessageCircle size={22} className="text-kids-sun" />
               <span className="font-extrabold text-kids-title">{chatStars}</span>
-              <span className="text-sm text-kids-muted">chat</span>
+              <span className="text-sm text-kids-muted">{t("chatStarsLabel")}</span>
             </div>
           )}
         </div>
@@ -434,7 +434,7 @@ function HomeContent() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Mascot expression="thinking" size="medium" />
-          <p className="text-kids-muted font-semibold">Loading your learning...</p>
+          <p className="text-kids-muted font-semibold">{t("loading")}</p>
         </div>
       ) : (
         <>
@@ -618,9 +618,9 @@ function HomeContent() {
           {/* Daily Tasks */}
           <section data-component="DailyTasks">
             <h2 className="mb-4 flex items-center gap-2">
-              Today&apos;s Tasks
+              {t("todaysTasks")}
               <span className="text-sm font-semibold text-kids-muted bg-kids-secondary rounded-control px-3 py-1">
-                {doneCount}/{tasks.length} done
+                {t("tasksDone", { done: doneCount, total: tasks.length })}
               </span>
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -671,7 +671,7 @@ function HomeContent() {
                       className={cardClass}
                       data-task-id={task.id}
                       data-speech-link="true"
-                      aria-label={`Open speaking practice: ${task.title}`}
+                      aria-label={t("openSpeakingPractice", { title: task.title })}
                     >
                       {body}
                     </Link>
@@ -686,7 +686,7 @@ function HomeContent() {
                       data-task-id={task.id}
                       data-review-word-id={task.reviewWordText}
                       data-component="ReviewTaskLink"
-                      aria-label={`Review word: ${task.title}`}
+                      aria-label={t("reviewWordAria", { title: task.title })}
                     >
                       {body}
                     </Link>
@@ -710,7 +710,7 @@ function HomeContent() {
 
           {/* Course Progress Cards */}
           <section data-component="CourseProgress">
-            <h2 className="mb-4">My Courses</h2>
+            <h2 className="mb-4">{t("myCourses")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {courses.map((course) => (
                 <Link
@@ -731,13 +731,13 @@ function HomeContent() {
                     <span className="text-2xl font-extrabold text-kids-title">
                       {course.totalLessons}
                     </span>
-                    <span className="text-xs text-kids-muted">lessons</span>
+                    <span className="text-xs text-kids-muted">{t("lessons")}</span>
                   </div>
                   <div>
                     <p className="font-bold text-kids-title group-hover:text-[var(--seed-primary)] transition-colors">
                       {course.title}
                     </p>
-                    <p className="text-xs text-kids-muted">{course.wordCount} words</p>
+                    <p className="text-xs text-kids-muted">{t("courseWords", { count: course.wordCount })}</p>
                   </div>
                 </Link>
               ))}

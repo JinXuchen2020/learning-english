@@ -390,9 +390,9 @@ function Quiz({
         data-component="PracticeEmpty"
       >
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">No questions for this mode yet!</h1>
+        <h1 className="text-2xl">{t("emptyModeTitle")}</h1>
         <p className="text-kids-muted">
-          Try the "Pick the Word" mode, or finish more lessons first.
+          {t("emptyModeHint")}
         </p>
       </div>
     );
@@ -430,10 +430,10 @@ function Quiz({
       <div data-component="QuizProgress">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-bold text-kids-muted">
-            Word {safeIndex + 1} of {totalWords}
+            {t("quizWordProgress", { index: safeIndex + 1, total: totalWords })}
           </span>
           <span className="text-sm font-bold text-[var(--color-success)]">
-            {correctCount} correct
+            {t("correctCount", { count: correctCount })}
           </span>
         </div>
         <Progress value={progress} className="h-4" />
@@ -464,10 +464,10 @@ function Quiz({
               <button
                 onClick={() => setShowPhonics(!showPhonics)}
                 className="btn-kids bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] !px-5"
-                aria-label="Show pronunciation hint"
+                aria-label={t("pronunciationHintLabel")}
               >
                 <Volume2 size={22} className="mr-2" />
-                {showPhonics ? item.word.phonics : "Listen"}
+                {showPhonics ? item.word.phonics : t("listenBtn")}
               </button>
             </div>
           </>
@@ -484,7 +484,7 @@ function Quiz({
               />
               <h1 className="text-3xl tracking-tight" data-component="QuizWordText">{item.promptText}</h1>
             </div>
-            <p className="text-kids-muted">Find the word that matches!</p>
+            <p className="text-kids-muted">{t("findMatch")}</p>
           </div>
         )}
 
@@ -500,9 +500,9 @@ function Quiz({
               className="btn-kids bg-[var(--seed-primary)] text-white !px-6 text-lg"
             >
               <Volume2 size={22} className="mr-2" />
-              🔊 Listen
+              🔊 {t("listenBtn")}
             </button>
-            <p className="text-kids-muted">Tap to hear, then choose the picture.</p>
+            <p className="text-kids-muted">{t("tapToHear")}</p>
           </div>
         )}
       </section>
@@ -556,11 +556,16 @@ function Quiz({
             <p className="text-sm text-kids-muted">
               {phase === "correct"
                 ? `${item.word.text} — ${item.word.phonics}`
-                : `The answer is "${item.options[item.correctIndex].word?.text ?? item.options[item.correctIndex].label}" — ${item.word.phonics}`}
+                : t("answerReveal", {
+                    answer:
+                      item.options[item.correctIndex].word?.text ??
+                      item.options[item.correctIndex].label,
+                    phonics: item.word.phonics,
+                  })}
             </p>
           </div>
           <Button onClick={handleNext} variant="default" className="shrink-0" data-action="quiz-next">
-            {safeIndex + 1 >= totalWords ? "Finish" : "Next Word"}
+            {safeIndex + 1 >= totalWords ? t("finish") : t("nextWord")}
           </Button>
         </section>
       )}
@@ -569,6 +574,7 @@ function Quiz({
 }
 
 function PracticeInner() {
+  const t = useTranslations("Practice");
   const searchParams = useSearchParams();
   const lessonId = searchParams.get("lessonId");
   const courseId = searchParams.get("courseId");
@@ -622,7 +628,7 @@ function PracticeInner() {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <Mascot expression="thinking" size="medium" />
-        <p className="text-kids-muted font-semibold">Getting your words ready...</p>
+        <p className="text-kids-muted font-semibold">{t("gettingWordsReady")}</p>
       </div>
     );
   }
@@ -634,14 +640,14 @@ function PracticeInner() {
         data-component="PracticeEmpty"
       >
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">No words here yet!</h1>
+        <h1 className="text-2xl">{t("emptyWords")}</h1>
         <p className="text-kids-muted">
-          Pick a lesson from a course to start practicing.
+          {t("emptyWordsHint")}
         </p>
         <Button variant="success" asChild>
           <Link href="/course">
             <ArrowLeft size={20} className="mr-2" />
-            Browse Courses
+            {t("browseCourses")}
           </Link>
         </Button>
       </div>

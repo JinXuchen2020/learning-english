@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Mascot from "@/components/Mascot";
@@ -16,19 +17,16 @@ const stateConfig = {
     icon: CheckCircle2,
     color: "text-[var(--color-success)]",
     bg: "bg-[var(--color-primary-wash)]",
-    label: "Done",
   },
   available: {
     icon: PlayCircle,
     color: "text-[var(--seed-primary)]",
     bg: "bg-white",
-    label: "Start",
   },
   locked: {
     icon: Lock,
     color: "text-kids-disabled",
     bg: "bg-kids-secondary/50",
-    label: "Locked",
   },
 };
 
@@ -45,6 +43,7 @@ function courseEmoji(icon: string) {
 function CourseList() {
   const [courses, setCourses] = useState<api.CourseSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const t = useTranslations("Course");
 
   useEffect(() => {
     api
@@ -58,14 +57,14 @@ function CourseList() {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <Mascot expression="thinking" size="medium" />
-        <p className="text-kids-muted font-semibold">Finding courses...</p>
+        <p className="text-kids-muted font-semibold">{t("findingCourses")}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6" data-component="CourseList">
-      <h1>Choose a Course</h1>
+      <h1>{t("chooseCourse")}</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {courses.map((course) => (
           <Link
@@ -85,7 +84,7 @@ function CourseList() {
               </p>
               <p className="text-sm text-kids-muted">{course.description}</p>
               <p className="text-xs text-kids-muted mt-1">
-                {course.totalLessons} lessons · {course.wordCount} words
+                {t("courseMeta", { lessons: course.totalLessons, words: course.wordCount })}
               </p>
             </div>
           </Link>
@@ -100,6 +99,7 @@ function CourseList() {
 function CourseDetail({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<api.CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const t = useTranslations("Course");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -118,7 +118,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <Mascot expression="thinking" size="medium" />
-        <p className="text-kids-muted font-semibold">Opening your course...</p>
+        <p className="text-kids-muted font-semibold">{t("openingCourse")}</p>
       </div>
     );
   }
@@ -136,7 +136,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
         className="inline-flex items-center gap-1.5 text-sm font-bold text-kids-muted hover:text-[var(--seed-primary)]"
       >
         <ArrowLeft size={18} />
-        All courses
+        {t("allCourses")}
       </Link>
 
       {/* Course Header */}
@@ -153,17 +153,17 @@ function CourseDetail({ courseId }: { courseId: string }) {
           <div className="flex items-center gap-4 mt-3">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-kids-text bg-kids-secondary rounded-control px-3 py-1.5">
               <BookOpen size={16} />
-              {course.wordCount} words
+              {t("wordsCount", { count: course.wordCount })}
             </span>
             <span className="flex items-center gap-1.5 text-sm font-semibold text-kids-text bg-kids-secondary rounded-control px-3 py-1.5">
               <Clock size={16} />~
-              {course.lessons.reduce((sum, l) => sum + l.estimatedMinutes, 0)} min
+              {t("minutes", { count: course.lessons.reduce((sum, l) => sum + l.estimatedMinutes, 0) })}
             </span>
           </div>
         </div>
         <div className="w-40 shrink-0">
           <div className="flex justify-between text-sm font-bold mb-2">
-            <span className="text-kids-muted">Progress</span>
+            <span className="text-kids-muted">{t("progress")}</span>
             <span className="text-[var(--color-success)]">{progress}%</span>
           </div>
           <Progress
@@ -172,19 +172,25 @@ function CourseDetail({ courseId }: { courseId: string }) {
             indicatorClassName="bg-[var(--color-success)]"
           />
           <p className="text-xs text-kids-muted mt-1.5 text-center">
-            {course.completedLessons} of {course.totalLessons} lessons
+            {t("lessonsProgress", { done: course.completedLessons, total: course.totalLessons })}
           </p>
         </div>
       </section>
 
       {/* Lesson List */}
       <section data-component="LessonList">
-        <h2 className="mb-4">Lessons</h2>
+        <h2 className="mb-4">{t("lessonsHeading")}</h2>
         <div className="space-y-3">
           {course.lessons.map((lesson, index) => {
             const config = stateConfig[lesson.state];
             const Icon = config.icon;
             const isClickable = lesson.state !== "locked";
+            const stateLabel =
+              lesson.state === "completed"
+                ? t("stateDone")
+                : lesson.state === "available"
+                ? t("stateStart")
+                : t("stateLocked");
 
             const content = (
               <>
@@ -198,7 +204,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     {index + 1}. {lesson.title}
                   </p>
                   <p className="text-sm text-kids-muted">
-                    {lesson.wordCount} words · {lesson.estimatedMinutes} min
+                    {t("lessonMeta", { words: lesson.wordCount, minutes: lesson.estimatedMinutes })}
                   </p>
                 </div>
                 <span
@@ -210,7 +216,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
                       : "bg-kids-secondary text-kids-disabled"
                   }`}
                 >
-                  {config.label}
+                  {stateLabel}
                 </span>
               </>
             );
@@ -221,7 +227,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
                   key={lesson.id}
                   href={`/practice?lessonId=${lesson.id}&courseId=${course.id}`}
                   className={`card-kids flex items-center gap-4 !py-4 ${config.bg} hover:shadow-card-hover focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--seed-accent)]`}
-                  aria-label={`${lesson.title} — ${config.label}`}
+                  aria-label={`${lesson.title} — ${stateLabel}`}
                 >
                   {content}
                 </Link>
@@ -250,16 +256,16 @@ function CourseDetail({ courseId }: { courseId: string }) {
           <Mascot expression="encouraging" size="medium" />
           <div className="flex-1">
             <p className="font-bold text-kids-title text-lg">
-              You&apos;re doing great! Keep going!
+              {t("doingGreat")}
             </p>
             <p className="text-kids-muted text-sm">
-              Next up: {nextLesson.title} — learn {nextLesson.wordCount} new words.
+              {t("nextUp", { title: nextLesson.title, count: nextLesson.wordCount })}
             </p>
           </div>
           <Button variant="success" className="shrink-0" asChild>
             <Link href={`/practice?lessonId=${nextLesson.id}&courseId=${course.id}`}>
               <PlayCircle size={22} className="mr-2" />
-              Continue Learning
+              {t("continueLearning")}
             </Link>
           </Button>
         </section>

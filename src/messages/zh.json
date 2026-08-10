@@ -19,6 +19,25 @@
     "loading": "加载中…",
     "signIn": "登录以继续学习…"
   },
+  "Course": {
+    "findingCourses": "正在寻找课程…",
+    "chooseCourse": "选择课程",
+    "courseMeta": "{lessons} 节课 · {words} 个单词",
+    "allCourses": "全部课程",
+    "wordsCount": "{count} 个单词",
+    "minutes": "{count} 分钟",
+    "progress": "进度",
+    "lessonsProgress": "{done}/{total} 节课",
+    "lessonsHeading": "课时",
+    "lessonMeta": "{words} 个单词 · {minutes} 分钟",
+    "stateDone": "已完成",
+    "stateStart": "开始",
+    "stateLocked": "已锁定",
+    "doingGreat": "你做得真棒！继续加油！",
+    "nextUp": "接下来：{title} —— 学习 {count} 个新单词。",
+    "openingCourse": "正在打开课程…",
+    "continueLearning": "继续学习"
+  },
   "Scan": {
     "title": "拍照学单词",
     "subtitle": "拍张照片，小狐帮你认出里面的英文单词～",
@@ -114,7 +133,22 @@
     "modeListen": "听音选图",
     "modeCombination": "颜色组词",
     "whichPicture": "这是哪张图？",
-    "whichCorrect": "哪个是对的？"
+    "whichCorrect": "哪个是对的？",
+    "emptyModeTitle": "这个模式暂时没有问题！",
+    "emptyModeHint": "试试「看字选词」模式，或者先完成更多课程。",
+    "quizWordProgress": "单词 {index} / {total}",
+    "correctCount": "{count} 答对",
+    "pronunciationHintLabel": "显示发音提示",
+    "listenBtn": "听一听",
+    "findMatch": "找出匹配的单词！",
+    "tapToHear": "点一下听发音，再选出对应的图片。",
+    "gettingWordsReady": "正在准备单词…",
+    "emptyWords": "还没有单词哦！",
+    "emptyWordsHint": "从课程里选一节课，就能开始练习啦。",
+    "browseCourses": "浏览课程",
+    "answerReveal": "答案是「{answer}」—— {phonics}",
+    "finish": "完成",
+    "nextWord": "下一个"
   },
   "Plan": {
     "previewTitle": "你的学习计划来啦！",
@@ -219,7 +253,19 @@
     "planDone": "已完成 {done}/{total} 天",
     "reviewTitle": "今日复习",
     "reviewHint": "有 {count} 个单词该复习啦，别让它们被忘记～",
-    "reviewGo": "去复习"
+    "reviewGo": "去复习",
+    "greeting": "嗨 {name}！我是小狐狸 Foxy！",
+    "greetingReady": "今天准备好学些新单词了吗？",
+    "streakDays": "天",
+    "chatStarsLabel": "对话",
+    "loading": "正在加载你的学习…",
+    "todaysTasks": "今日任务",
+    "tasksDone": "{done}/{total} 已完成",
+    "openSpeakingPractice": "打开口语练习：{title}",
+    "reviewWordAria": "复习单词：{title}",
+    "myCourses": "我的课程",
+    "lessons": "节",
+    "courseWords": "{count} 个单词"
   },
   "Parent": {
     "loading": "加载家长模式…",
@@ -330,7 +376,16 @@
     "networkError": "网络好像开小差了，再试一次吧！",
     "sceneLoadError": "场景加载失败",
     "sendError": "发送失败，再试一次吧～",
-    "freeChatStillAvailable": " 仍可自由对话。"
+    "freeChatStillAvailable": " 仍可自由对话。",
+    "readAfterFoxy": "跟小狐狸读",
+    "closeReadAlong": "关闭跟读",
+    "close": "关闭",
+    "tryAgain": "再试一次",
+    "playVoice": "播放小狐狸的声音",
+    "noVoice": "（这次没有语音）",
+    "readAlong": "跟读",
+    "openChatError": "打不开这个聊天，再试一次吧？",
+    "openChatNetworkError": "网络开了小差，打不开这个聊天。"
   },
   "Login": {
     "welcomeBack": "欢迎回来！",
