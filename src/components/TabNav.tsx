@@ -1,26 +1,39 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, BookOpen, Gamepad2, Sparkles, Mic, MessageCircle, BarChart3, Layers, Camera, Gift, ShieldCheck } from "lucide-react";
+import { Link, usePathname } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
+import {
+  Home,
+  BookOpen,
+  Gamepad2,
+  Sparkles,
+  Mic,
+  MessageCircle,
+  BarChart3,
+  Layers,
+  Camera,
+  Gift,
+  ShieldCheck,
+} from "lucide-react";
 
 const tabs = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/course", label: "Courses", icon: BookOpen },
-  { href: "/plan", label: "Plan", icon: Sparkles },
-  { href: "/word-cards", label: "卡片", icon: Layers },
-  { href: "/practice", label: "Practice", icon: Gamepad2 },
-  { href: "/speech", label: "Speak", icon: Mic },
-  { href: "/chat", label: "Chat", icon: MessageCircle },
-  { href: "/picture-book", label: "绘本", icon: BookOpen },
-  { href: "/scan", label: "拍照", icon: Camera },
-  { href: "/parent-report", label: "报告", icon: BarChart3 },
-  { href: "/rewards", label: "奖励", icon: Gift },
-  { href: "/parent", label: "家长", icon: ShieldCheck },
+  { href: "/", key: "home", icon: Home },
+  { href: "/course", key: "courses", icon: BookOpen },
+  { href: "/plan", key: "plan", icon: Sparkles },
+  { href: "/word-cards", key: "cards", icon: Layers },
+  { href: "/practice", key: "practice", icon: Gamepad2 },
+  { href: "/speech", key: "speak", icon: Mic },
+  { href: "/chat", key: "chat", icon: MessageCircle },
+  { href: "/picture-book", key: "pictureBook", icon: BookOpen },
+  { href: "/scan", key: "scan", icon: Camera },
+  { href: "/parent-report", key: "report", icon: BarChart3 },
+  { href: "/rewards", key: "rewards", icon: Gift },
+  { href: "/parent", key: "parent", icon: ShieldCheck },
 ];
 
 export default function TabNav() {
   const pathname = usePathname();
+  const t = useTranslations("TabNav");
 
   // The login screen is full-bleed and has no tab bar.
   if (pathname === "/login") {
@@ -54,7 +67,7 @@ export default function TabNav() {
             >
               <Icon size={26} strokeWidth={2.2} />
               <span className="text-xs font-bold tracking-wide">
-                {tab.label}
+                {t(tab.key)}
               </span>
             </Link>
           );

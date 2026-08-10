@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,9 @@ function speakWord(text: string) {
 }
 
 const MODE_LABELS: Record<QuizMode, string> = {
-  multiple: "看字选词",
-  listen: "听音选图",
-  combination: "颜色组词",
+  multiple: "modeMultiple",
+  listen: "modeListen",
+  combination: "modeCombination",
 };
 
 const answerColors = [
@@ -256,6 +257,7 @@ function Quiz({
   initialMode?: QuizMode;
 }) {
   const [mode, setMode] = useState<QuizMode>(initialMode);
+  const t = useTranslations("Practice");
   // AI-703：按模式统一生成题项（看字选词/听音选图/颜色组词）。
   const items = useMemo<QuizItem[]>(
     () => buildQuizItems(words, mode),
@@ -390,7 +392,7 @@ function Quiz({
         <Mascot expression="encouraging" size="large" />
         <h1 className="text-2xl">No questions for this mode yet!</h1>
         <p className="text-kids-muted">
-          Try the “看字选词” mode, or finish more lessons first.
+          Try the "Pick the Word" mode, or finish more lessons first.
         </p>
       </div>
     );
@@ -419,7 +421,7 @@ function Quiz({
                 : "bg-kids-secondary text-kids-title"
             }`}
           >
-            {MODE_LABELS[m]}
+            {t(MODE_LABELS[m])}
           </button>
         ))}
       </div>

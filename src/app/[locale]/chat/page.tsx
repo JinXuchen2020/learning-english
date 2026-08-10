@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { Volume2, Send, Mic, RotateCcw, Star, ArrowRight, MessageCircle, Sparkles } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
@@ -42,6 +43,7 @@ function ReadAlongPanel({
   const [evaluating, setEvaluating] = useState(false);
   const [feedback, setFeedback] = useState<SpeechFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations("Chat");
 
   const clear = useCallback(() => {
     setRecording(null);
@@ -63,8 +65,8 @@ function ReadAlongPanel({
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? err.message || "评测失败，再试一次吧～"
-          : "网络好像开小差了，再试一次吧！",
+          ? err.message || t("evalError")
+          : t("networkError"),
       );
       logger.error("read-along evaluateSpeech failed", err);
     } finally {
@@ -166,6 +168,7 @@ function ReadAlongPanel({
 
 function ChatInner() {
   const { user } = useAuth();
+  const t = useTranslations("Chat");
 
   const [scenes, setScenes] = useState<ChatScene[]>([]);
   const [loadingScenes, setLoadingScenes] = useState(true);
@@ -208,8 +211,8 @@ function ChatInner() {
         if (active) {
           setSceneError(
             err instanceof ApiError
-              ? err.message || "场景加载失败"
-              : "网络好像开小差了，再试一次吧！",
+              ? err.message || t("sceneLoadError")
+              : t("networkError"),
           );
           logger.error("Failed to load chat scenes", err);
         }
@@ -347,10 +350,10 @@ function ChatInner() {
       // 狐狸语音自动播放（无 audioUrl 时静默降级，仅文本）。
       if (res.ttsUrl) playTts(res.ttsUrl);
     } catch (err) {
-      setSendError(
+          setSendError(
         err instanceof ApiError
-          ? err.message || "发送失败，再试一次吧～"
-          : "网络好像开小差了，再试一次吧！",
+          ? err.message || t("sendError")
+          : t("networkError"),
       );
       logger.error("sendChatMessage failed", err);
     } finally {
@@ -511,7 +514,7 @@ function ChatInner() {
           className="text-sm font-bold text-[var(--color-warning)] bg-[var(--color-warning)]/10 rounded-control px-4 py-2.5 text-center"
           role="alert"
         >
-          {sceneError} 仍可自由对话。
+          {sceneError}{t("freeChatStillAvailable")}
         </p>
       ) : (
         <section className="space-y-3" data-component="SceneCards">

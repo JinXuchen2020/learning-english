@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import LevelRing from "@/components/LevelRing";
@@ -64,6 +65,7 @@ function AiReportCard({
   onRetry: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const t = useTranslations("Home");
 
   // 尚未装载完成 → 思考态占位（不显示生成按钮，避免成功路径闪现按钮）。
   if (reportLoading) {
@@ -74,8 +76,8 @@ function AiReportCard({
       >
         <Mascot expression="thinking" size="medium" />
         <div className="flex-1">
-          <p className="font-bold text-kids-title">今日 AI 小结</p>
-          <p className="text-kids-muted">小狐正在准备今天的小结…</p>
+          <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
+          <p className="text-kids-muted">{t("aiReportLoading")}</p>
         </div>
       </section>
     );
@@ -90,15 +92,15 @@ function AiReportCard({
       >
         <Mascot expression="thinking" size="medium" />
         <div className="flex-1">
-          <p className="font-bold text-kids-title">今日 AI 小结</p>
-          <p className="text-kids-muted">小狐还没准备好今天的小结～</p>
+          <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
+          <p className="text-kids-muted">{t("aiReportEmpty")}</p>
         </div>
         <button
           data-component="AiReportGenerateBtn"
           onClick={onRetry}
           className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90"
         >
-          生成今日小结
+          {t("aiReportGenerate")}
         </button>
       </section>
     );
@@ -112,7 +114,7 @@ function AiReportCard({
     >
       <Mascot expression={expr} size="medium" />
       <div className="flex-1">
-        <p className="font-bold text-kids-title">今日 AI 小结</p>
+        <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
         <p data-component="AiReportSummary" className="text-kids-text">
           {report.summaryText}
         </p>
@@ -138,15 +140,15 @@ function AiReportCard({
           onClick={() => setExpanded((v) => !v)}
           className="mt-2 text-sm font-semibold text-[var(--seed-primary)] hover:underline"
         >
-          {expanded ? "收起" : "查看详情"}
+          {expanded ? t("aiReportToggleCollapse") : t("aiReportToggleExpand")}
         </button>
         {expanded && (
           <div
             data-component="AiReportDetails"
             className="mt-2 space-y-1 text-sm text-kids-muted"
           >
-            <p>日期：{report.date}</p>
-            {report.isDefault && <p>这是小狐给你的鼓励小贴士，今天先玩起来吧～</p>}
+            <p>{t("aiReportDate", { date: report.date })}</p>
+            {report.isDefault && <p>{t("aiReportDefaultTip")}</p>}
           </div>
         )}
       </div>
@@ -165,6 +167,7 @@ function MakeupCard({
 }) {
   if (!makeup) return null;
   const { weakWords, missedTasks } = makeup;
+  const t = useTranslations("Home");
   if (weakWords.length === 0 && missedTasks.length === 0) return null;
 
   return (
@@ -174,9 +177,9 @@ function MakeupCard({
           <RefreshCw size={24} />
         </div>
         <div>
-          <h2 className="font-bold text-kids-title">补学小任务</h2>
+          <h2 className="font-bold text-kids-title">{t("makeupTitle")}</h2>
           <p className="text-kids-muted">
-            昨天的 {weakWords.length + missedTasks.length} 个小遗漏，今天补上就能拿星～
+            {t("makeupHint", { count: weakWords.length + missedTasks.length })}
           </p>
         </div>
       </div>
@@ -193,7 +196,7 @@ function MakeupCard({
               >
                 <span className="font-bold text-kids-title">{w.wordText}</span>
                 <span className="text-sm text-kids-muted">
-                  {w.meaning} · 掌握 {w.mastery}%
+                  {w.meaning} · {t("masteryLabel", { pct: w.mastery })}
                 </span>
               </Link>
             </li>
@@ -203,21 +206,21 @@ function MakeupCard({
 
       {missedTasks.length > 0 && (
         <ul className="flex flex-col gap-2">
-          {missedTasks.map((t) => (
+          {missedTasks.map((taskItem) => (
             <li
-              key={t.planDayId}
+              key={taskItem.planDayId}
               data-component="MakeupMissedTask"
               className="flex items-center justify-between rounded-control bg-kids-secondary/60 px-4 py-3"
             >
-              <span className="font-bold text-kids-title">{t.title}</span>
+              <span className="font-bold text-kids-title">{taskItem.title}</span>
               <button
                 data-component="MakeupCompleteBtn"
-                data-makeup-plan-day-id={t.planDayId}
-                onClick={() => onCompleteTask(t.planDayId)}
-                disabled={completingId === t.planDayId}
+                data-makeup-plan-day-id={taskItem.planDayId}
+                onClick={() => onCompleteTask(taskItem.planDayId)}
+                disabled={completingId === taskItem.planDayId}
                 className="rounded-control bg-kids-sun px-3 py-1.5 font-bold text-white hover:opacity-90 disabled:opacity-60"
               >
-                {completingId === t.planDayId ? "标记中…" : "标记完成"}
+                {completingId === taskItem.planDayId ? t("makeupMarking") : t("makeupMarkDone")}
               </button>
             </li>
           ))}
@@ -229,6 +232,7 @@ function MakeupCard({
 
 function HomeContent() {
   const { user } = useAuth();
+  const t = useTranslations("Home");
   const [courses, setCourses] = useState<api.CourseSummary[]>([]);
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [progress, setProgress] = useState<api.ProgressOverview | null>(null);
@@ -254,7 +258,7 @@ function HomeContent() {
       const r = await api.getDailyReport(user.id);
       setReport(r);
     } catch (err) {
-      // AI-504：拉取失败（4xx/5xx）→ 不阻塞主数据，展示「生成今日小结」按钮。
+      // AI-504：拉取失败（4xx/5xx）→ 不阻塞主数据，展示「{t("aiReportGenerate")}」按钮。
       logger.error("Failed to load daily AI report", err);
       setReport(null);
     } finally {
@@ -434,7 +438,7 @@ function HomeContent() {
         </div>
       ) : (
         <>
-          {/* AI-504：今日 AI 小结卡片（吉祥物气泡 + 弱项 + 明日建议，可展开详情） */}
+          {/* AI-504：{t("aiReportTitle")}卡片（吉祥物气泡 + 弱项 + 明日建议，可展开详情） */}
           <AiReportCard report={report} reportLoading={reportLoading} onRetry={loadReport} />
 
           {/* AI-603：吉祥物成长 — 等级环 + 看成长故事 */}
@@ -442,11 +446,11 @@ function HomeContent() {
             <section data-component="MascotGrowthCard" className="card-kids flex items-center gap-5">
               <Mascot expression="happy" size="large" level={mascotLevel.level} />
               <div className="flex-1">
-                <h2 className="font-bold text-kids-title">小狐狸 Lv.{mascotLevel.level}</h2>
+                <h2 className="font-bold text-kids-title">{t("mascotLevelTitle", { level: mascotLevel.level })}</h2>
                 <p className="text-kids-muted">
                   {mascotLevel.isMaxLevel
-                    ? `已收集 ${mascotLevel.totalStars} 星，满级啦！`
-                    : `还差 ${mascotLevel.nextLevelStars - mascotLevel.totalStars} 星升到 Lv.${mascotLevel.level + 1}`}
+                    ? t("mascotMax", { stars: mascotLevel.totalStars })
+                    : t("mascotNext", { need: mascotLevel.nextLevelStars - mascotLevel.totalStars, level: mascotLevel.level + 1 })}
                 </p>
                 {!mascotLevel.isMaxLevel && (
                   <div className="mt-2 h-2 w-full rounded-full bg-kids-secondary">
@@ -476,7 +480,7 @@ function HomeContent() {
                 disabled={storyLoading}
                 className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60"
               >
-                {storyLoading ? "加载中…" : "看成长故事"}
+                {storyLoading ? t("storyLoading") : t("storyView")}
               </button>
             </section>
           )}
@@ -502,20 +506,20 @@ function HomeContent() {
                   {mascotStory?.storyText}
                 </p>
                 {mascotStory?.isDefault && (
-                  <p className="text-xs text-kids-muted">（小狐的鼓励小贴士）</p>
+                  <p className="text-xs text-kids-muted">{t("storyTip")}</p>
                 )}
                 <button
                   data-component="MascotStoryClose"
                   className="w-full rounded-control bg-kids-secondary px-4 py-2 font-bold text-kids-title hover:opacity-90"
                   onClick={() => setShowStory(false)}
                 >
-                  关闭
+                  {t("storyClose")}
                 </button>
               </div>
             </div>
           )}
 
-          {/* AI-701：我的奖励 — 余额 + 等级环 + 去兑换深链 */}
+          {/* AI-701：{t("rewardsTitle")} — 余额 + 等级环 + {t("rewardsGo")}深链 */}
           {progress && (
             <section
               data-component="RewardsHomeCard"
@@ -526,9 +530,9 @@ function HomeContent() {
                   <Gift size={24} />
                 </div>
                 <div>
-                  <h2 className="font-bold text-kids-title">我的奖励</h2>
+                  <h2 className="font-bold text-kids-title">{t("rewardsTitle")}</h2>
                   <p className="text-sm text-kids-muted">
-                    已有 <span className="font-extrabold text-kids-title">{progress.pointsBalance}</span> 积分可兑换
+                    {t("rewardsBalancePrefix")}<span className="font-extrabold text-kids-title">{progress.pointsBalance}</span>{t("rewardsBalanceSuffix")}
                   </p>
                 </div>
               </div>
@@ -538,7 +542,7 @@ function HomeContent() {
                 data-component="GoRewardsBtn"
                 className="self-start rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold hover:opacity-90"
               >
-                去兑换
+                {t("rewardsGo")}
               </Link>
             </section>
           )}
@@ -554,9 +558,9 @@ function HomeContent() {
                 color="#10B981"
               />
               <div>
-                <h2 className="font-bold text-kids-title">本周学习计划</h2>
+                <h2 className="font-bold text-kids-title">{t("planProgressTitle")}</h2>
                 <p className="text-kids-muted">
-                  已完成 {planStatus.doneDays}/{planStatus.totalDays} 天
+                  {t("planDone", { done: planStatus.doneDays, total: planStatus.totalDays })}
                 </p>
               </div>
             </section>
@@ -573,9 +577,9 @@ function HomeContent() {
                   <RefreshCw size={24} />
                 </div>
                 <div>
-                  <h2 className="font-bold text-kids-title">今日复习</h2>
+                  <h2 className="font-bold text-kids-title">{t("reviewTitle")}</h2>
                   <p className="text-kids-muted">
-                    有 {reviews.length} 个单词该复习啦，别让它们被忘记～
+                    {t("reviewHint", { count: reviews.length })}
                   </p>
                 </div>
               </div>
@@ -599,7 +603,7 @@ function HomeContent() {
                 data-component="ReviewGoBtn"
                 className="self-start rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold"
               >
-                去复习
+                {t("reviewGo")}
               </Link>
             </section>
           )}

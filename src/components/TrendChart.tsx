@@ -1,5 +1,6 @@
 import React from "react";
 import type { MasteryTrendPoint } from "@/lib/types";
+import { useTranslations } from "next-intl";
 
 /**
  * 家长周报趋势图（AI-507）。
@@ -13,6 +14,7 @@ export default function TrendChart({
 }: {
   points: MasteryTrendPoint[];
 }) {
+  const t = useTranslations("Report");
   const W = 320;
   const H = 160;
   const padX = 26;
@@ -54,7 +56,7 @@ export default function TrendChart({
       width="100%"
       className="rounded-card bg-white"
       role="img"
-      aria-label="本周学习趋势图"
+      aria-label={t("trendChartAria")}
       data-component="TrendChart"
     >
       {/* 基线 */}
@@ -97,9 +99,9 @@ export default function TrendChart({
       {/* 图例 */}
       <g>
         <rect x={padX} y={6} width={10} height={10} rx={2} fill="#82D5BB" />
-        <text x={padX + 14} y={15} fontSize={9} fill="#8a7a70">每日任务</text>
+        <text x={padX + 14} y={15} fontSize={9} fill="#8a7a70">{t("legendTasks")}</text>
         <circle cx={padX + 78} cy={11} r={4} fill="#E8895B" />
-        <text x={padX + 86} y={15} fontSize={9} fill="#8a7a70">口语分</text>
+        <text x={padX + 86} y={15} fontSize={9} fill="#8a7a70">{t("legendSpeech")}</text>
       </g>
     </svg>
   );

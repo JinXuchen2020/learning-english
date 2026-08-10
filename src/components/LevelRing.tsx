@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { buildLevelInfo, levelName, MAX_LEVEL } from "@/lib/mascotLevel";
 
 /**
@@ -17,6 +18,7 @@ export default function LevelRing({
   /** 环直径（px），默认 88。 */
   size?: number;
 }) {
+  const t = useTranslations("Home");
   const info = buildLevelInfo(totalStars);
   const stroke = 7;
   const radius = (size - stroke) / 2;
@@ -87,8 +89,8 @@ export default function LevelRing({
         <p className="font-extrabold text-kids-title text-lg">{levelName(info.level)}</p>
         <p className="text-sm text-kids-muted">
           {info.isMaxLevel
-            ? `已集 ${info.totalStars} 星，满级啦！`
-            : `还差 ${info.nextLevelStars - info.totalStars} 星升到 Lv.${Math.min(MAX_LEVEL, info.level + 1)}`}
+            ? t("mascotMax", { stars: info.totalStars })
+            : t("mascotNext", { need: info.nextLevelStars - info.totalStars, level: Math.min(MAX_LEVEL, info.level + 1) })}
         </p>
       </div>
     </div>

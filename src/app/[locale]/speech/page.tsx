@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Volume2, Star, Mic, ArrowRight, Trophy } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
@@ -277,6 +278,7 @@ function SpeechFeedbackPanel({
 
 function SpeechInner() {
   const { user } = useAuth();
+  const t = useTranslations("Speech");
   // AI-308：从 URL 读取口语任务 id（Home 深链携带），会话完成后回写任务状态。
   const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
@@ -321,8 +323,8 @@ function SpeechInner() {
           const err = wordsRes.reason;
           setLoadError(
             err instanceof ApiError
-              ? err.message || "加载单词失败"
-              : "网络好像开小差了，再试一次吧！",
+              ? err.message || t("loadWordsError")
+              : t("networkError"),
           );
           logger.error("Failed to load words for speech practice", err);
         }
@@ -376,15 +378,15 @@ function SpeechInner() {
       if (fb.passed) setStars((s) => s + 1);
     } catch (err) {
       if (err instanceof ApiError) {
-        setCardError(err.message || "评测失败，再试一次吧～");
+        setCardError(err.message || t("evalError"));
       } else {
-        setCardError("网络好像开小差了，再试一次吧！");
+        setCardError(t("networkError"));
       }
       logger.error("evaluateSpeech failed", err);
     } finally {
       setEvaluating(false);
     }
-  }, [recording, evaluating, items, currentIndex, mode, user]);
+  }, [recording, evaluating, items, currentIndex, mode, user, t]);
 
   const handleNext = useCallback(() => {
     if (currentIndex + 1 >= items.length) {

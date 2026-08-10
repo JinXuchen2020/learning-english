@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +13,7 @@ import { Camera, BookMarked } from "lucide-react";
 /** 拍照学单词页主体（已登录态由 `AuthGate` 包裹，AI-606）。 */
 function ScanInner() {
   const { user } = useAuth();
+  const t = useTranslations("Scan");
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [recognizing, setRecognizing] = useState(false);
@@ -43,7 +45,7 @@ function ScanInner() {
 
   const handleScan = useCallback(async () => {
     if (!file) {
-      setError("请先选择一张图片～");
+      setError(t("errorNoFile"));
       return;
     }
     setRecognizing(true);
@@ -55,16 +57,16 @@ function ScanInner() {
       if (res.recognized && res.cards.length > 0) {
         setCards(res.cards);
       } else {
-        setHint(res.message ?? "没有认出单词，换一张更清晰的图片试试～");
+        setHint(res.message ?? t("hintNone"));
       }
     } catch (err) {
-      const msg = err instanceof api.ApiError ? err.message : "识别失败，请稍后再试。";
+      const msg = err instanceof api.ApiError ? err.message : t("errorRecognize");
       logger.error("Failed to recognize image", err);
       setError(msg);
     } finally {
       setRecognizing(false);
     }
-  }, [file, user?.nickname]);
+  }, [file, user?.nickname, t]);
 
   const refreshAfterConfirm = useCallback(
     async (confirmed: ScanCard[]) => {
@@ -83,9 +85,9 @@ function ScanInner() {
       await refreshAfterConfirm(confirmed);
     } catch (err) {
       logger.error("Failed to add all to vocab", err);
-      setError("加入生词本失败，请稍后再试。");
+      setError(t("errorAddVocab"));
     }
-  }, [cards, refreshAfterConfirm]);
+  }, [cards, refreshAfterConfirm, t]);
 
   const handleAddOne = useCallback(
     async (id: string) => {
@@ -94,10 +96,10 @@ function ScanInner() {
         await refreshAfterConfirm(confirmed);
       } catch (err) {
         logger.error("Failed to add word to vocab", err);
-        setError("加入生词本失败，请稍后再试。");
+        setError(t("errorAddVocab"));
       }
     },
-    [refreshAfterConfirm],
+    [refreshAfterConfirm, t],
   );
 
   return (
@@ -109,8 +111,8 @@ function ScanInner() {
       >
         <Mascot expression="happy" size="large" />
         <div className="flex-1">
-          <h1 className="text-2xl font-extrabold text-kids-title">拍照学单词</h1>
-          <p className="text-kids-muted">拍张照片，小狐帮你认出里面的英文单词～</p>
+          <h1 className="text-2xl font-extrabold text-kids-title">{t("title")}</h1>
+          <p className="text-kids-muted">{t("subtitle")}</p>
         </div>
       </section>
 
@@ -131,11 +133,11 @@ function ScanInner() {
           disabled={recognizing || !file}
           className="rounded-control bg-[var(--seed-primary)] px-5 py-3 font-bold text-white shadow-button transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          {recognizing ? "识别中…" : "开始识别"}
+          {recognizing ? t("recognizing") : t("start")}
         </button>
         {file && (
           <p data-component="SelectedFile" className="text-sm text-kids-muted">
-            已选择：{file.name}
+            {t("selected", { name: file.name })}
           </p>
         )}
       </section>
@@ -161,13 +163,13 @@ function ScanInner() {
       {cards.length > 0 && (
         <section className="space-y-3" data-component="ScanResult">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-extrabold text-kids-title">认出的单词</h2>
+            <h2 className="text-lg font-extrabold text-kids-title">{t("recognized")}</h2>
             <button
               data-component="ScanAddAllBtn"
               onClick={() => void handleAddAll()}
               className="flex items-center gap-1 rounded-control bg-[var(--seed-primary)] px-4 py-2 text-sm font-bold text-white shadow-button"
             >
-              <BookMarked size={16} /> 全部加入生词本
+              <BookMarked size={16} /> {t("addAll")}
             </button>
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="ScanCardList">
@@ -188,7 +190,7 @@ function ScanInner() {
                   onClick={() => void handleAddOne(c.id)}
                   className="rounded-control bg-kids-secondary px-3 py-2 text-sm font-bold text-kids-text"
                 >
-                  加入生词本
+                  {t("addOne")}
                 </button>
               </li>
             ))}
@@ -198,10 +200,10 @@ function ScanInner() {
 
       {/* Vocab book */}
       <section className="space-y-3" data-component="VocabBook">
-        <h2 className="text-lg font-extrabold text-kids-title">我的生词本</h2>
+        <h2 className="text-lg font-extrabold text-kids-title">{t("myVocab")}</h2>
         {vocab.length === 0 ? (
           <p data-component="VocabEmptyHint" className="card-kids text-center text-kids-muted py-8">
-            还没有生词，拍张照片加几个吧～
+            {t("vocabEmpty")}
           </p>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="VocabBookList">

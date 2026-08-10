@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,7 @@ function PlanPreview({
   checkedDays: Set<number>;
   onToggleDay: (index: number) => void;
 }) {
+  const t = useTranslations("Plan");
   const weeks: PlanWeek[] = result.plan.weeks ?? [];
 
   // 计算每周之前累计的天数，给每天一个跨周稳定的全局序号（用于勾选 key）。
@@ -105,9 +107,9 @@ function PlanPreview({
       <div className="flex items-center gap-3">
         <Mascot expression="celebrating" size="medium" />
         <div>
-          <h2 className="text-xl">你的学习计划来啦！</h2>
+          <h2 className="text-xl">{t('previewTitle')}</h2>
           <p className="text-kids-muted font-semibold">
-            {weeks.length} 周 · 共 {totalDays} 天
+            {t('weeksDays', { weeks: weeks.length, totalDays })}
           </p>
         </div>
       </div>
@@ -117,7 +119,7 @@ function PlanPreview({
           data-component="PlanDegradedNote"
           className="text-sm font-bold text-[var(--color-warning)] bg-[var(--color-warning)]/10 rounded-control px-4 py-2.5"
         >
-          Foxy 用了一套现成计划，稍后你可以再让它量身定制～
+          {t('degradedNote')}
         </p>
       )}
 
@@ -126,7 +128,7 @@ function PlanPreview({
           data-component="PlanAppliedSuccess"
           className="text-sm font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 rounded-control px-4 py-2.5"
         >
-          🎉 已应用到你的每日任务，正在跳转到首页…
+          {t('appliedNote')}
         </p>
       )}
 
@@ -134,7 +136,7 @@ function PlanPreview({
         {weeks.map((week, wi) => (
           <div key={wi} className="card-kids" data-component="PlanWeekCard">
             <h3 className="mb-2">
-              第 {week.week ?? wi + 1} 周{week.theme ? ` · ${week.theme}` : ""}
+              {t('weekN', { n: week.week ?? wi + 1 })}{week.theme ? ` · ${week.theme}` : ""}
             </h3>
             <div className="space-y-2">
               {(week.days ?? []).map((day, di) => {
@@ -162,7 +164,7 @@ function PlanPreview({
                           {fmt.label}
                         </p>
                         <p className="text-sm text-kids-muted">
-                          {fmt.lessonCount} 节
+                          {fmt.lessonCount} {t('lessons')}
                           {fmt.skills.length > 0 &&
                             ` · ${fmt.skills.map(planSkillLabel).join(" / ")}`}
                         </p>
@@ -180,7 +182,7 @@ function PlanPreview({
                         }`}
                       >
                         {done ? <Check size={18} strokeWidth={3} /> : null}
-                        {done ? "已完成" : "完成今天"}
+                        {done ? t('done') : t('finishToday')}
                       </button>
                     </div>
 
@@ -199,9 +201,9 @@ function PlanPreview({
                                 color: planSkillColor(lesson.skillType),
                               }}
                             >
-                              {planLessonTypeLabel(lesson) || "任务"}
+                              {planLessonTypeLabel(lesson) || t('task')}
                             </span>
-                            <span>{lesson.title || planLessonTypeLabel(lesson) || "今日学习"}</span>
+                            <span>{lesson.title || planLessonTypeLabel(lesson) || t('todayStudy')}</span>
                           </li>
                         ))}
                       </ul>
@@ -215,7 +217,7 @@ function PlanPreview({
       </div>
 
       {weeks.length === 0 && (
-        <p className="text-kids-muted">计划正在生成，稍等一下下～</p>
+        <p className="text-kids-muted">{t('generatingPlan')}</p>
       )}
 
       {/* Actions */}
@@ -228,7 +230,7 @@ function PlanPreview({
           disabled={applying || applied}
           data-action="regenerate"
         >
-          重新生成 ↻
+          {t('regenerate')}
         </Button>
         <Button
           type="button"
@@ -238,7 +240,7 @@ function PlanPreview({
           disabled={applying || applied}
           data-action="apply"
         >
-          {applying ? "正在应用…" : applied ? "已应用 ✓" : "应用此计划 ✨"}
+          {applying ? t('applying') : applied ? t('applied') : t('applyPlan')}
         </Button>
       </div>
     </div>
@@ -247,6 +249,7 @@ function PlanPreview({
 
 function PlanContent() {
   const { user } = useAuth();
+  const t = useTranslations("Plan");
   const router = useRouter();
   const [values, setValues] = useState<PlanFormValues>(EMPTY_VALUES);
   const [loading, setLoading] = useState(false);
@@ -286,9 +289,9 @@ function PlanContent() {
       setResult(res);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || "生成失败，再试一次吧～");
+        setError(err.message || t('genError'));
       } else {
-        setError("网络好像开小差了，再试一次吧！");
+        setError(t('networkError'));
       }
       logger.error("generatePlan failed", err);
     } finally {
@@ -308,9 +311,9 @@ function PlanContent() {
       setTimeout(() => router.push("/"), 1200);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || "应用失败，再试一次吧～");
+        setError(err.message || t('applyError'));
       } else {
-        setError("网络好像开小差了，再试一次吧！");
+        setError(t('networkError'));
       }
       logger.error("applyPlan failed", err);
       setApplying(false);
@@ -329,7 +332,7 @@ function PlanContent() {
   return (
     <div className="space-y-8" data-component="PlanWizard">
       <h1 className="text-2xl font-extrabold text-kids-title" data-component="PlanTitle">
-        定制你的学习计划
+        {t('title')}
       </h1>
 
       {/* Mascot guide */}
@@ -339,7 +342,7 @@ function PlanContent() {
           <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
             <p className="text-lg font-bold text-kids-title">Hi! I&apos;m Foxy!</p>
             <p className="text-kids-text">
-              告诉我一点点，我就能帮你做一份专属学习计划～
+              {t('mascotHint')}
             </p>
           </div>
         </div>
@@ -366,7 +369,7 @@ function PlanContent() {
         {/* Age range */}
         <fieldset>
           <legend className="block text-base font-extrabold text-kids-title mb-2">
-            你几岁啦？
+            {t('ageLabel')}
           </legend>
           <div className="flex flex-wrap gap-2">
             {AGE_RANGES.map((ar) => (
@@ -390,7 +393,7 @@ function PlanContent() {
         {/* Level */}
         <fieldset>
           <legend className="block text-base font-extrabold text-kids-title mb-2">
-            现在的英语水平？
+            {t('levelLabel')}
           </legend>
           <div className="flex flex-wrap gap-2">
             {PLAN_LEVELS.map((lv) => (
@@ -414,7 +417,7 @@ function PlanContent() {
         {/* Daily minutes */}
         <fieldset>
           <legend className="block text-base font-extrabold text-kids-title mb-2">
-            每天想学多久？
+            {t('minutesLabel')}
           </legend>
           <div className="flex flex-wrap gap-2">
             {DAILY_MINUTE_OPTIONS.map((m) => (
@@ -422,7 +425,7 @@ function PlanContent() {
                 key={m}
                 field="dailyMinutes"
                 value={String(m)}
-                label={`${m} 分钟`}
+                label={`${m} ${t('minutes')}`}
                 selected={values.dailyMinutes === m}
                 onToggle={() => setValues((v) => ({ ...v, dailyMinutes: m }))}
               />
@@ -438,7 +441,7 @@ function PlanContent() {
         {/* Interests (multi) */}
         <fieldset>
           <legend className="block text-base font-extrabold text-kids-title mb-2">
-            喜欢什么呀？（可多选）
+            {t('interestLabel')}
           </legend>
           <div className="flex flex-wrap gap-2">
             {INTEREST_OPTIONS.map((i) => (
@@ -463,7 +466,7 @@ function PlanContent() {
         {/* Weeks */}
         <fieldset>
           <legend className="block text-base font-extrabold text-kids-title mb-2">
-            计划学几周？
+            {t('weeksLabel')}
           </legend>
           <div className="flex flex-wrap gap-2">
             {WEEK_OPTIONS.map((w) => (
@@ -471,7 +474,7 @@ function PlanContent() {
                 key={w}
                 field="weeks"
                 value={String(w)}
-                label={`${w} 周`}
+                label={`${w} ${t('weeks')}`}
                 selected={values.weeks === w}
                 onToggle={() => setValues((v) => ({ ...v, weeks: w }))}
               />
@@ -491,7 +494,7 @@ function PlanContent() {
           disabled={!valid || loading}
           data-action="generate"
         >
-          {loading ? "Foxy 正在思考…" : "生成我的学习计划 ✨"}
+          {loading ? t('generating') : t('generate')}
         </Button>
       </form>
 
@@ -502,7 +505,7 @@ function PlanContent() {
           data-component="PlanLoading"
         >
           <Mascot expression="thinking" size="large" />
-          <p className="text-kids-muted font-semibold">Foxy 正在为你准备计划…</p>
+          <p className="text-kids-muted font-semibold">{t('loadingPlan')}</p>
         </div>
       )}
 

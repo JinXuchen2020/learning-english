@@ -4,8 +4,8 @@ import { When, Then } from "@cucumber/cucumber";
 import ParentPage from "../support/pages/parent";
 import type E2EWorld from "../support/world";
 
-function parent(this: E2EWorld): ParentPage {
-  return new ParentPage(this.page, this.baseUrl);
+function parent(world: E2EWorld): ParentPage {
+  return new ParentPage(world.page, world.baseUrl);
 }
 
 Then("I should see the AI provider config section", async function (this: E2EWorld) {

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import LevelRing from "@/components/LevelRing";
 import AuthGate from "@/components/AuthGate";
@@ -11,15 +12,16 @@ import { logger } from "@/lib/logger";
 import type { Reward, RewardRedemption, RedemptionStatus } from "@/lib/types";
 import { Star } from "lucide-react";
 
-/** 兑换状态徽章展示（pending/approved/rejected → 中文 + 配色）。 */
-const STATUS_BADGE: Record<RedemptionStatus, { label: string; className: string }> = {
-  pending: { label: "待审批", className: "bg-kids-secondary text-kids-text" },
-  approved: { label: "已批准", className: "bg-[var(--color-success)] text-white" },
-  rejected: { label: "已驳回", className: "bg-kids-sun/20 text-kids-orange" },
+/** 兑换状态徽章展示（pending/approved/rejected → 文案 key + 配色）。 */
+const STATUS_BADGE: Record<RedemptionStatus, { labelKey: string; className: string }> = {
+  pending: { labelKey: "statusPending", className: "bg-kids-secondary text-kids-text" },
+  approved: { labelKey: "statusApproved", className: "bg-[var(--color-success)] text-white" },
+  rejected: { labelKey: "statusRejected", className: "bg-kids-sun/20 text-kids-orange" },
 };
 
 function RewardsInner() {
   const { user } = useAuth();
+  const t = useTranslations("Rewards");
   const [balance, setBalance] = useState(0);
   const [totalStars, setTotalStars] = useState(0);
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -43,11 +45,11 @@ function RewardsInner() {
       setMyRedemptions(mine);
     } catch (err) {
       logger.error("Failed to load rewards store", err);
-      setError("加载奖励商城失败，请稍后再试～");
+      setError(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadAll();
@@ -68,9 +70,9 @@ function RewardsInner() {
         setMyRedemptions(mine);
       } catch (err) {
         if (err instanceof api.ApiError && (err as api.ApiError & { code?: string }).code === "INSUFFICIENT_POINTS") {
-          setError(`积分不够啦，还差一点就能换「${reward.title}」～再去攒积分吧！`);
+          setError(t("insufficient", { title: reward.title }));
         } else {
-          const msg = err instanceof api.ApiError ? err.message : "兑换失败，请稍后再试。";
+          const msg = err instanceof api.ApiError ? err.message : t("redeemError");
           setError(msg);
         }
         logger.error("Failed to redeem reward", err);
@@ -78,7 +80,7 @@ function RewardsInner() {
         setBusyId(null);
       }
     },
-    [busyId]
+    [busyId, t]
   );
 
   return (
@@ -90,8 +92,8 @@ function RewardsInner() {
       >
         <Mascot expression="happy" size="large" level={undefined} />
         <div className="flex-1">
-          <h1 className="text-2xl font-extrabold text-kids-title">奖励商城</h1>
-          <p className="text-kids-muted">攒积分，换你想要的奖励～</p>
+          <h1 className="text-2xl font-extrabold text-kids-title">{t("title")}</h1>
+          <p className="text-kids-muted">{t("subtitle")}</p>
         </div>
       </section>
 
@@ -105,20 +107,20 @@ function RewardsInner() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Mascot expression="thinking" size="medium" />
-          <p className="text-kids-muted font-semibold">加载奖励商城…</p>
+          <p className="text-kids-muted font-semibold">{t("loading")}</p>
         </div>
       ) : (
         <>
           {/* 余额 + 等级环 */}
           <section className="card-kids" data-component="RewardsBalance">
-            <h2 className="font-bold text-kids-title mb-3">我的积分</h2>
+            <h2 className="font-bold text-kids-title mb-3">{t("myPoints")}</h2>
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 bg-kids-sun/20 rounded-control px-4 py-2" data-component="BalanceBadge">
                 <Star size={22} className="text-kids-sun fill-kids-sun" />
                 <span className="font-extrabold text-kids-title text-xl" data-component="BalanceValue">
                   {balance}
                 </span>
-                <span className="text-sm text-kids-muted">分</span>
+                <span className="text-sm text-kids-muted">{t("points")}</span>
               </div>
               <LevelRing totalStars={totalStars} size={96} />
             </div>
@@ -126,10 +128,10 @@ function RewardsInner() {
 
           {/* 奖励商城 */}
           <section className="space-y-3" data-component="RewardStore">
-            <h2 className="text-lg font-extrabold text-kids-title">可用奖励</h2>
+            <h2 className="text-lg font-extrabold text-kids-title">{t("available")}</h2>
             {rewards.length === 0 ? (
               <p className="card-kids text-center text-kids-muted py-8" data-component="RewardEmptyHint">
-                暂时没有可兑换的奖励，喊爸爸妈妈来添加吧～
+                {t("availableEmpty")}
               </p>
             ) : (
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="RewardList">
@@ -152,7 +154,7 @@ function RewardsInner() {
                           <p className="text-sm text-kids-muted truncate">{r.description}</p>
                         )}
                         <p className="text-sm font-extrabold text-[var(--seed-primary)]">
-                          {r.cost} 分
+                          {r.cost} {t("points")}
                         </p>
                       </div>
                       <button
@@ -162,7 +164,7 @@ function RewardsInner() {
                         onClick={() => void handleRedeem(r)}
                         className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
                       >
-                        {busyId === r.id ? "兑换中…" : affordable ? "兑换" : "分不够"}
+                        {busyId === r.id ? t("redeeming") : affordable ? t("redeem") : t("notEnough")}
                       </button>
                     </li>
                   );
@@ -173,10 +175,10 @@ function RewardsInner() {
 
           {/* 我的兑换 */}
           <section className="space-y-3" data-component="MyRedemptions">
-            <h2 className="text-lg font-extrabold text-kids-title">我的兑换</h2>
+            <h2 className="text-lg font-extrabold text-kids-title">{t("myRedemptions")}</h2>
             {myRedemptions.length === 0 ? (
               <p className="card-kids text-center text-kids-muted py-8" data-component="MyRedemptionsEmpty">
-                还没有兑换记录，去上面选一个奖励吧～
+                {t("myRedemptionsEmpty")}
               </p>
             ) : (
               <ul className="flex flex-col gap-2" data-component="MyRedemptionsList">
@@ -193,12 +195,12 @@ function RewardsInner() {
                       <span className="font-bold text-kids-title flex-1 truncate">
                         {rd.rewardTitle}
                       </span>
-                      <span className="text-sm text-kids-muted">{rd.cost} 分</span>
+                      <span className="text-sm text-kids-muted">{rd.cost} {t("points")}</span>
                       <span
                         data-component="RedemptionStatusBadge"
                         className={`rounded-control px-3 py-1 text-sm font-bold ${badge.className}`}
                       >
-                        {badge.label}
+                        {t(badge.labelKey)}
                       </span>
                     </li>
                   );

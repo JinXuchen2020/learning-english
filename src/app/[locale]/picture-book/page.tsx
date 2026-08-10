@@ -10,10 +10,12 @@ import { logger } from "@/lib/logger";
 import type { CourseSummary } from "@/lib/api";
 import type { PictureBook, PictureBookPage } from "@/lib/types";
 import { BookOpen, Volume2, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /** 绘本页主体（已登录态由 `AuthGate` 包裹）。 */
 function PictureBookInner() {
   const { user } = useAuth();
+  const t = useTranslations("PictureBook");
   const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [book, setBook] = useState<PictureBook | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -42,7 +44,7 @@ function PictureBookInner() {
         setShowModal(true);
         void courseTitle; // 预留：未来在弹层展示课程名
       } catch (err) {
-        const msg = err instanceof api.ApiError ? err.message : "绘本生成失败，请稍后再试。";
+        const msg = err instanceof api.ApiError ? err.message : t('genError');
         logger.error("Failed to load picture book", err);
         setError(msg);
       } finally {
@@ -77,8 +79,8 @@ function PictureBookInner() {
       >
         <Mascot expression="happy" size="large" />
         <div className="flex-1">
-          <h1 className="text-2xl font-extrabold text-kids-title">AI 绘本馆</h1>
-          <p className="text-kids-muted">学完课程，小狐狸把单词编成故事书，还能读给你听～</p>
+          <h1 className="text-2xl font-extrabold text-kids-title">{t('title')}</h1>
+          <p className="text-kids-muted">{t('subtitle')}</p>
         </div>
       </section>
 
@@ -91,24 +93,24 @@ function PictureBookInner() {
 
       {/* 示例绘本（免课程种子，随时可读） */}
       <section className="card-kids space-y-3" data-component="SampleBookCard">
-        <h2 className="font-bold text-kids-title">先来读一本示例绘本</h2>
-        <p className="text-sm text-kids-muted">不需要选课程，马上体验小狐狸的故事书。</p>
+        <h2 className="font-bold text-kids-title">{t('sampleTitle')}</h2>
+        <p className="text-sm text-kids-muted">{t('sampleDesc')}</p>
         <button
           data-component="ViewSampleBookBtn"
           onClick={() => void handleSample()}
           disabled={loading}
           className="rounded-control bg-[var(--seed-primary)] px-5 py-3 font-bold text-white shadow-button transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? "生成中…" : "读示例绘本"}
+          {loading ? t('generating') : t('readSample')}
         </button>
       </section>
 
       {/* 课程选择器 */}
       <section className="space-y-3" data-component="CoursePicker">
-        <h2 className="font-bold text-kids-title">选一门课程，生成专属绘本</h2>
+        <h2 className="font-bold text-kids-title">{t('courseTitle')}</h2>
         {courses.length === 0 ? (
           <p className="text-sm text-kids-muted" data-component="CourseEmpty">
-            还没有可用课程，先去「Courses」完成一门吧～
+            {t('courseEmpty')}
           </p>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="CourseList">
@@ -122,7 +124,7 @@ function PictureBookInner() {
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-extrabold text-kids-title">{c.title}</span>
                   <span className="rounded-full bg-kids-secondary px-2 py-0.5 text-xs font-bold text-kids-text">
-                    {c.wordCount} 词
+                    {c.wordCount} {t('words')}
                   </span>
                 </div>
                 <p className="text-sm text-kids-muted">{c.description}</p>
@@ -132,7 +134,7 @@ function PictureBookInner() {
                   disabled={loading}
                   className="rounded-control bg-[var(--seed-primary)] px-4 py-2 text-sm font-bold text-white shadow-button transition-colors hover:opacity-90 disabled:opacity-50"
                 >
-                  生成绘本
+                  t('generate')
                 </button>
               </li>
             ))}
@@ -159,7 +161,7 @@ function PictureBookInner() {
                 {book.title}
               </h2>
               <button
-                aria-label="关闭绘本"
+                aria-label={t('close')}
                 data-component="PictureBookClose"
                 onClick={() => setShowModal(false)}
                 className="rounded-full bg-kids-secondary p-2 text-kids-text"
@@ -170,7 +172,7 @@ function PictureBookInner() {
 
             {book.isDefault && (
               <p className="mb-3 text-sm text-kids-muted" data-component="PictureBookDegradedHint">
-                当前为内置示例绘本（AI 降级兜底），仍可正常阅读。
+                {t('degradedHint')}
               </p>
             )}
 
@@ -187,7 +189,7 @@ function PictureBookInner() {
                   </p>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <p className="text-xs text-kids-muted" data-component="PictureBookPagePrompt">
-                      🖼 配图提示：{page.illustrationPrompt}
+                      🖼 {t('illustrationPrompt')}：{page.illustrationPrompt}
                     </p>
                     <button
                       aria-label={`朗读第 ${page.pageNumber} 页`}
@@ -197,7 +199,7 @@ function PictureBookInner() {
                       disabled={speakingPage === page.pageNumber}
                       className="flex items-center gap-1 rounded-control bg-[var(--seed-primary)] px-3 py-2 text-sm font-bold text-white shadow-button transition-colors hover:opacity-90 disabled:opacity-50"
                     >
-                      <Volume2 size={16} /> 朗读
+                      <Volume2 size={16} /> {t('readAloud')}
                     </button>
                   </div>
                 </div>
