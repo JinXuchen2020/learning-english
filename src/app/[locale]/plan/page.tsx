@@ -340,7 +340,7 @@ function PlanContent() {
         <Mascot expression="happy" size="large" />
         <div className="relative">
           <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
-            <p className="text-lg font-bold text-kids-title">Hi! I&apos;m Foxy!</p>
+            <p className="text-lg font-bold text-kids-title">{t('mascotGreeting')}</p>
             <p className="text-kids-text">
               {t('mascotHint')}
             </p>
