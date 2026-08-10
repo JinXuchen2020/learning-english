@@ -264,7 +264,7 @@ POST /api/ai/report/daily body: {userId, date}
 
 ```
 server/src/ai/
-  ai.module.ts          -- 动态模块, 根据 .env 的 AI_PROVIDER 选 provider (bigmodel | nvidia | mock)
+  ai.module.ts          -- 动态模块; 注入 `AiProviderRouter`（实现 `AiProvider`）：默认回退 env `AI_PROVIDER`(bigmodel|nvidia|mock)，家长经 `/provider-config` 配置「每账号默认 provider」后，运行时按请求上下文（AsyncLocalStorage 的 userId/role → User.parentId → resolveDefault）解析生效，无需重启（AI-705）
   ai-provider.interface.ts
   providers/
     bigmodel.provider.ts      -- 智谱 BigModel (首选, OpenAI 兼容端点, GLM-4.7-Flash)

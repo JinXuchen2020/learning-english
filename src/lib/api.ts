@@ -40,6 +40,10 @@ import type {
   RewardsSummary,
   RedemptionStatus,
   MakeupQueue,
+  ProviderConfigView,
+  CreateProviderConfigDto,
+  UpdateProviderConfigDto,
+  ProviderTestResult,
 } from "./types";
 
 /**
@@ -791,6 +795,82 @@ export function rejectRedemption(id: string, reason?: string): Promise<RewardRed
   return request<RewardRedemption>(
     `/rewards/redemptions/${encodeURIComponent(id)}/reject`,
     { method: "POST", body: JSON.stringify(reason != null ? { reason } : {}) },
+    true,
+    getParentToken(),
+  );
+}
+
+/* ----------------------- AI Provider Config (AI-705) ----------------------- */
+
+/**
+ * 列出当前家长账号下全部 provider 配置（掩码视图）。`GET /api/provider-config`，需家长会话令牌。
+ * ownerUserId 由后端从 ParentGuard JWT 解析，前端不传。
+ */
+export function listProviderConfigs(): Promise<ProviderConfigView[]> {
+  return request<ProviderConfigView[]>("/provider-config", {}, true, getParentToken());
+}
+
+/**
+ * 新增一条 provider 配置（明文 apiKey 由后端加密落库）。`POST /api/provider-config`。
+ */
+export function createProviderConfig(
+  dto: CreateProviderConfigDto
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>("/provider-config", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  }, true, getParentToken());
+}
+
+/**
+ * 修改一条 provider 配置；省略的字段（如 apiKey）不改动原值。`PUT /api/provider-config/:id`。
+ */
+export function updateProviderConfig(
+  id: string,
+  dto: UpdateProviderConfigDto
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>(
+    `/provider-config/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(dto) },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 删除一条 provider 配置（越权/不存在后端抛 403/404）。`DELETE /api/provider-config/:id`。
+ */
+export function deleteProviderConfig(id: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(
+    `/provider-config/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 设为当前账号默认（同账号互斥）。`POST /api/provider-config/:id/default`。
+ */
+export function setDefaultProviderConfig(
+  id: string
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>(
+    `/provider-config/${encodeURIComponent(id)}/default`,
+    { method: "POST" },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 轻量连通性探测（按该配置构建 provider 并发一个极小 chat 请求）。
+ * `POST /api/provider-config/:id/test`，返回 `{ ok, message }`。
+ */
+export function testProviderConfig(id: string): Promise<ProviderTestResult> {
+  return request<ProviderTestResult>(
+    `/provider-config/${encodeURIComponent(id)}/test`,
+    { method: "POST" },
     true,
     getParentToken(),
   );

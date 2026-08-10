@@ -53,6 +53,14 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   parentPinHash: string | null;
 
+  /**
+   * 家长归属（AI-705）。儿童 → 家长 `User.id`，用于把儿童发起的 AI 请求
+   * 解析到其家长的默认 provider；向前兼容：初始全 null（解析器遇 null 回退 env 默认）。
+   * 家庭绑定 UX（家长认领儿童）超出 AI-705 范围。
+   */
+  @Column({ type: 'uuid', nullable: true })
+  parentId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

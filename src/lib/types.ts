@@ -693,3 +693,63 @@ export interface RewardsSummary {
   /** 等级进度信息（驱动等级环）。 */
   levelInfo: MascotLevelInfo;
 }
+
+/* ----------------------- AI Provider Config (AI-705) ----------------------- */
+
+/** Provider 类型（与后端 `ProviderType` 对齐）。 */
+export type ProviderType = "openai-compatible" | "bigmodel" | "mock";
+
+/** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
+export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";
+
+/** 模型映射（各能力可选覆盖，与后端 `ProviderModels` 对齐）。 */
+export interface ProviderModels {
+  chat?: string;
+  vision?: string;
+  tts?: string;
+}
+
+/** Provider 配置视图（与后端 `ProviderConfigView` 对齐，绝不含明文 apiKey）。 */
+export interface ProviderConfigView {
+  id: string;
+  ownerUserId: string;
+  name: string;
+  type: ProviderType;
+  baseUrl: string | null;
+  models: ProviderModels;
+  capabilities: ProviderCapability[];
+  isDefault: boolean;
+  /** 是否已配置 key（前端据此提示「未填密钥」）。 */
+  hasKey: boolean;
+  /** 密钥掩码（保留尾 4 位，如 ****abcd）。未配置则为空串。 */
+  masked: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `POST /api/provider-config` 请求体（与后端 `CreateProviderConfigDto` 对齐）。 */
+export interface CreateProviderConfigDto {
+  name: string;
+  type: ProviderType;
+  baseUrl?: string;
+  /** 明文 key（后端加密落库）；mock 可空。 */
+  apiKey?: string;
+  models?: ProviderModels;
+  capabilities?: ProviderCapability[];
+}
+
+/** `PUT /api/provider-config/:id` 请求体（与后端 `UpdateProviderConfigDto` 对齐；省略字段不改）。 */
+export interface UpdateProviderConfigDto {
+  name?: string;
+  baseUrl?: string;
+  /** 传则更新（重新加密）；省略则不改动原 key。 */
+  apiKey?: string;
+  models?: ProviderModels;
+  capabilities?: ProviderCapability[];
+}
+
+/** `POST /api/provider-config/:id/test` 响应（与后端 `testConnection` 对齐）。 */
+export interface ProviderTestResult {
+  ok: boolean;
+  message: string;
+}

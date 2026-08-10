@@ -1,0 +1,224 @@
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ProviderConfig, ProviderType, ProviderCapability, ProviderModels } from './provider-config.entity';
+import { CreateProviderConfigDto, UpdateProviderConfigDto } from './provider-config.dto';
+import { encryptSecret, decryptSecret, maskSecret } from './crypto.util';
+import { OpenAiCompatibleProvider } from './openai-compatible.provider';
+import { BigModelProvider } from '../bigmodel.provider';
+import { MockAiProvider } from '../mock-ai.provider';
+import { createRetryableProvider } from '../retryable-ai-provider';
+import { AiProvider } from '../ai-provider.interface';
+import { User } from '../../entities/user.entity';
+
+/** 前端视图（绝不返回明文 apiKey）。 */
+export interface ProviderConfigView {
+  id: string;
+  ownerUserId: string;
+  name: string;
+  type: ProviderType;
+  baseUrl: string | null;
+  models: ProviderModels;
+  capabilities: ProviderCapability[];
+  isDefault: boolean;
+  hasKey: boolean;
+  masked: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Provider 配置服务（AI-705）。
+ *
+ * 职责：CRUD（密钥加密落库、读取掩码）、默认互斥、按 owner 解析默认配置、
+ * 从配置构建运行时 `AiProvider`、轻量连通性探测、以及把请求上下文解析为
+ * effective parent（供 `AiProviderRouter` 选 provider）。
+ */
+@Injectable()
+export class ProviderConfigService {
+  constructor(
+    @InjectRepository(ProviderConfig)
+    private readonly repo: Repository<ProviderConfig>,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
+  ) {}
+
+  /** 新增：加密 apiKey，默认非默认。 */
+  async create(ownerUserId: string, dto: CreateProviderConfigDto): Promise<ProviderConfigView> {
+    const entity = this.repo.create({
+      ownerUserId,
+      name: dto.name,
+      type: dto.type,
+      baseUrl: dto.baseUrl ?? null,
+      apiKeyEnc: dto.apiKey ? encryptSecret(dto.apiKey) : null,
+      modelsJson: dto.models ? JSON.stringify(dto.models) : null,
+      capabilitiesJson: dto.capabilities ? JSON.stringify(dto.capabilities) : null,
+      isDefault: false,
+    });
+    const saved = await this.repo.save(entity);
+    return this.toView(saved);
+  }
+
+  /** 修改：apiKey 传则重新加密，省略则保留原值。所有权校验。 */
+  async update(
+    id: string,
+    ownerUserId: string,
+    dto: UpdateProviderConfigDto,
+  ): Promise<ProviderConfigView> {
+    const entity = await this.requireOwned(id, ownerUserId);
+    if (dto.name !== undefined) entity.name = dto.name;
+    if (dto.baseUrl !== undefined) entity.baseUrl = dto.baseUrl ?? null;
+    if (dto.apiKey !== undefined) entity.apiKeyEnc = dto.apiKey ? encryptSecret(dto.apiKey) : null;
+    if (dto.models !== undefined) entity.modelsJson = JSON.stringify(dto.models);
+    if (dto.capabilities !== undefined) entity.capabilitiesJson = JSON.stringify(dto.capabilities);
+    const saved = await this.repo.save(entity);
+    return this.toView(saved);
+  }
+
+  /** 删除：所有权校验；删默认则后续解析回退 env 默认。 */
+  async remove(id: string, ownerUserId: string): Promise<void> {
+    const entity = await this.requireOwned(id, ownerUserId);
+    await this.repo.remove(entity);
+  }
+
+  /** 列出当前家长账号下全部配置（掩码）。 */
+  async list(ownerUserId: string): Promise<ProviderConfigView[]> {
+    const all = await this.repo.find({ where: { ownerUserId } });
+    return all.map((e) => this.toView(e));
+  }
+
+  /** 设为该账号默认（同账号互斥）。 */
+  async setDefault(id: string, ownerUserId: string): Promise<ProviderConfigView> {
+    const entity = await this.requireOwned(id, ownerUserId);
+    await this.repo.update({ ownerUserId }, { isDefault: false });
+    entity.isDefault = true;
+    const saved = await this.repo.save(entity);
+    return this.toView(saved);
+  }
+
+  /** 解析某账号的默认配置（无则 null）。 */
+  async resolveDefault(ownerUserId: string): Promise<ProviderConfig | null> {
+    return this.repo.findOne({ where: { ownerUserId, isDefault: true } });
+  }
+
+  /** 从配置构建运行时 provider（解密 key）。解密失败抛错交由上层回退。 */
+  buildProvider(config: ProviderConfig): AiProvider {
+    const models = this.parseModels(config.modelsJson);
+    const apiKey = config.apiKeyEnc ? decryptSecret(config.apiKeyEnc) : '';
+    let inner: AiProvider;
+    switch (config.type) {
+      case 'openai-compatible':
+        inner = new OpenAiCompatibleProvider({
+          apiKey,
+          baseUrl: config.baseUrl ?? undefined,
+          chatModel: models.chat,
+          visionModel: models.vision,
+          ttsModel: models.tts,
+        });
+        break;
+      case 'bigmodel':
+        inner = new BigModelProvider({
+          apiKey,
+          baseUrl: config.baseUrl ?? undefined,
+          model: models.chat,
+          visionModel: models.vision,
+      ttsModel: models.tts,
+        });
+        break;
+      case 'mock':
+      default:
+        inner = new MockAiProvider();
+        break;
+    }
+    return createRetryableProvider(inner);
+  }
+
+  /** 轻量连通性探测：用配置构建 provider 并发一个极小 chat 请求。 */
+  async testConnection(config: ProviderConfig): Promise<{ ok: boolean; message: string }> {
+    try {
+      const provider = this.buildProvider(config);
+      const res = await provider.chat([{ role: 'user', content: 'ping' }], { maxTokens: 1 });
+      return { ok: true, message: `连通成功（模型返回 ${(res.text || '').slice(0, 20)}）` };
+    } catch (e) {
+      const err = e as Error;
+      return { ok: false, message: `连通失败：${err?.message ?? 'unknown'}` };
+    }
+  }
+
+  /** 按 id（所有权校验后）探测连通性，供控制器调用。 */
+  async testConnectionById(id: string, ownerUserId: string): Promise<{ ok: boolean; message: string }> {
+    const entity = await this.requireOwned(id, ownerUserId);
+    return this.testConnection(entity);
+  }
+
+  /**
+   * 把请求上下文解析为 effective parent：
+   * - parent 角色 → 自身 userId；
+   * - child / 无角色 → 查 `User.parentId`（null 则 undefined）；
+   * - 任何异常 → undefined（调用方回退 env 默认）。
+   */
+  async resolveEffectiveParentId(userId: string | undefined, role?: string): Promise<string | undefined> {
+    if (!userId) return undefined;
+    try {
+      if (role === 'parent') return userId;
+      const user = await this.usersRepo.findOne({ where: { id: userId } });
+      return user?.parentId ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // —— 内部工具 ——
+
+  /** 所有权校验：非本人配置抛 403，不存在抛 404。 */
+  private async requireOwned(id: string, ownerUserId: string): Promise<ProviderConfig> {
+    const entity = await this.repo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('provider 配置不存在');
+    if (entity.ownerUserId !== ownerUserId) throw new ForbiddenException('无权操作该 provider 配置');
+    return entity;
+  }
+
+  private parseModels(json?: string | null): ProviderModels {
+    if (!json) return {};
+    try {
+      return JSON.parse(json) as ProviderModels;
+    } catch {
+      return {};
+    }
+  }
+
+  private parseCapabilities(json?: string | null): ProviderCapability[] {
+    if (!json) return [];
+    try {
+      return JSON.parse(json) as ProviderCapability[];
+    } catch {
+      return [];
+    }
+  }
+
+  /** 实体 → 前端视图；解密 key 仅用于生成掩码，绝不外泄明文。 */
+  private toView(e: ProviderConfig): ProviderConfigView {
+    let masked = '';
+    if (e.apiKeyEnc) {
+      try {
+        masked = maskSecret(decryptSecret(e.apiKeyEnc));
+      } catch {
+        masked = '****'; // 密钥不可读（key 轮换后）
+      }
+    }
+    return {
+      id: e.id,
+      ownerUserId: e.ownerUserId,
+      name: e.name,
+      type: e.type,
+      baseUrl: e.baseUrl,
+      models: this.parseModels(e.modelsJson),
+      capabilities: this.parseCapabilities(e.capabilitiesJson),
+      isDefault: e.isDefault,
+      hasKey: !!e.apiKeyEnc,
+      masked,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+    };
+  }
+}

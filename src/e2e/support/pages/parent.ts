@@ -114,4 +114,154 @@ export default class ParentPage {
       { timeout: 15000 },
     );
   }
+
+  /* ---------------------- AI Provider Config (AI-705) ---------------------- */
+
+  /** 等待 AI 提供商配置区出现。 */
+  async waitForProviderSection(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.querySelector('[data-component="ProviderConfigSection"]'),
+      undefined,
+      { timeout },
+    );
+  }
+
+  /** 打开新增/编辑表单。 */
+  async clickAddProvider(): Promise<void> {
+    await this.page.locator('[data-component="AddProviderBtn"]').click();
+    await this.page.waitForSelector('[data-component="ProviderConfigForm"]');
+  }
+
+  /** 填充表单（type 取值 openai-compatible | bigmodel | mock）。 */
+  async fillProviderForm(opts: {
+    name: string;
+    type?: string;
+    baseUrl?: string;
+    apiKey?: string;
+  }): Promise<void> {
+    await this.page
+      .locator('[data-component="ProviderNameInput"]')
+      .fill(opts.name);
+    if (opts.type) {
+      await this.page
+        .locator('[data-component="ProviderTypeSelect"]')
+        .selectOption(opts.type);
+    }
+    if (opts.baseUrl !== undefined) {
+      await this.page
+        .locator('[data-component="ProviderBaseUrlInput"]')
+        .fill(opts.baseUrl);
+    }
+    if (opts.apiKey !== undefined) {
+      await this.page
+        .locator('[data-component="ProviderApiKeyInput"]')
+        .fill(opts.apiKey);
+    }
+  }
+
+  /** 保存表单，并等待模态表单关闭（ProviderConfigForm 卸载）。 */
+  async saveProvider(): Promise<void> {
+    await this.page.locator('[data-component="SaveProviderBtn"]').click();
+    await this.page.waitForFunction(
+      () => !document.querySelector('[data-component="ProviderConfigForm"]'),
+      undefined,
+      { timeout: 15000 },
+    );
+  }
+
+  /** 等待某个命名的配置项出现（异步拉取后）。 */
+  async waitForProviderItem(name: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (n: string) =>
+        !!document.querySelector(
+          `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"]`,
+        ),
+      name,
+      { timeout },
+    );
+  }
+
+  /** 等待某个命名的配置项消失（删除后）。 */
+  async waitForProviderItemGone(name: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (n: string) =>
+        !document.querySelector(
+          `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"]`,
+        ),
+      name,
+      { timeout },
+    );
+  }
+
+  /** 等待某配置项被标记为默认（data-config-default=true）。 */
+  async waitForProviderDefault(name: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (n: string) => {
+        const el = document.querySelector(
+          `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"]`,
+        );
+        return !!el && el.getAttribute("data-config-default") === "true";
+      },
+      name,
+      { timeout },
+    );
+  }
+
+  /** 等待某配置项展示掩码密钥（文本含 ****，且非「未配置密钥」）。 */
+  async waitForProviderMasked(name: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (n: string) => {
+        const el = document.querySelector(
+          `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"]`,
+        );
+        if (!el) return false;
+        const txt = el.textContent || "";
+        return /\*\*\*\*/.test(txt) && !txt.includes("未配置密钥");
+      },
+      name,
+      { timeout },
+    );
+  }
+
+  /** 在指定配置项内点击「设为默认」。 */
+  async setProviderDefault(name: string): Promise<void> {
+    await this.page
+      .locator(
+        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="SetDefaultProviderBtn"]`,
+      )
+      .click();
+  }
+
+  /** 在指定配置项内点击「测试连通」。 */
+  async testProvider(name: string): Promise<void> {
+    await this.page
+      .locator(
+        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="TestProviderBtn"]`,
+      )
+      .click();
+  }
+
+  /** 在指定配置项内点击「删除」。 */
+  async deleteProvider(name: string): Promise<void> {
+    await this.page
+      .locator(
+        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="DeleteProviderBtn"]`,
+      )
+      .click();
+  }
+
+  /** 等待某配置项出现连通性探测结果（成功或失败均算出现）。 */
+  async waitForProviderTestResult(name: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (n: string) =>
+        !!document.querySelector(
+          `[data-component="ProviderTestResult"][data-config-id]`,
+        ) &&
+        !!document.querySelector(
+          `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"] [data-component="ProviderTestResult"]`,
+        ),
+      name,
+      { timeout },
+    );
+  }
 }
