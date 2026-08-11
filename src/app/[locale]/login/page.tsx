@@ -95,6 +95,7 @@ export default function LoginPage() {
                 : "text-kids-muted"
             }`}
             aria-pressed={mode === "login"}
+            data-testid="login-mode-signin"
           >
             {t("tabSignIn")}
           </button>
@@ -110,6 +111,7 @@ export default function LoginPage() {
                 : "text-kids-muted"
             }`}
             aria-pressed={mode === "register"}
+            data-testid="login-mode-signup"
           >
             {t("tabSignUp")}
           </button>
@@ -149,6 +151,7 @@ export default function LoginPage() {
                         : "text-kids-muted"
                     }`}
                     aria-pressed={role === "child"}
+                    data-testid="login-role-child"
                   >
                     {t("roleChild")}
                   </button>
@@ -161,6 +164,7 @@ export default function LoginPage() {
                         : "text-kids-muted"
                     }`}
                     aria-pressed={role === "parent"}
+                    data-testid="login-role-parent"
                   >
                     {t("roleParent")}
                   </button>
