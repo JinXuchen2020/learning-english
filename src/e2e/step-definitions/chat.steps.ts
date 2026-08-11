@@ -77,7 +77,7 @@ Then("I should see the chat heading", async function (this: E2EWorld) {
   const text = await this.page
     .locator('[data-component="ChatTitle"]')
     .textContent();
-  if (!text || !text.includes("Chat with Foxy")) {
+  if (!text || !text.includes("Foxy")) {
     throw new Error(`Expected chat heading but got: "${text}"`);
   }
 });

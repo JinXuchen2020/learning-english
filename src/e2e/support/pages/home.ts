@@ -57,8 +57,10 @@ export default class HomePage {
       () => {
         const el = document.querySelector('[data-component="RewardsHomeCard"]');
         if (!el) return false;
-        const m = (el.textContent || "").match(/已有\s*(\d+)\s*积分/);
-        return m ? Number(m[1]) >= 1 : false;
+        // 文案随语言变化（zh「已有 N 积分可兑换」/ en「You have N points」），
+        // 仅抽取其中的数字，判定积分已 >=1（服务侧已入账）。
+        const m = (el.textContent || "").match(/\d+/);
+        return m ? Number(m[0]) >= 1 : false;
       },
       undefined,
       { timeout: 15000 },
@@ -82,42 +84,26 @@ export default class HomePage {
     return (await this.page.locator('[data-component="PlanProgress"]').textContent())?.trim();
   }
 
-  /** 解析「已完成 X/Y 天」中的 X（已完成天数）。 */
+  /** 解析「已完成 X/Y」中的 X（已完成天数）。文案随语言变化，仅抽取数值。 */
   async planDoneDays(): Promise<number> {
     const text = await this.planProgressText();
-    const match = text?.match(/已完成\s*(\d+)\s*\/\s*\d+\s*天/);
+    const match = text?.match(/(\d+)\s*\/\s*(\d+)/);
     if (!match) throw new Error(`无法从计划完成度文本解析已完成天数: "${text}"`);
     return Number(match[1]);
   }
 
-  /** Navigate to Home via the TabNav (client-side) so the in-memory auth token survives. */
+  /** Navigate to Home. JWT is mirrored to localStorage, so a full page.goto
+   *  preserves the login state (middleware redirects bare "/" to the default
+   *  locale prefix). This is locale-agnostic and avoids stale TabNav hrefs. */
   async openDashboard(): Promise<void> {
-    const path = await this.page.evaluate(() => location.pathname);
-    if (path !== "/") {
-      const homeLink = this.page.locator('nav a[href="/"]');
-      if (await homeLink.count()) {
-        await homeLink.first().click();
-      }
-    }
+    await this.page.goto(`${this.baseUrl}/`);
     await this.waitLoaded();
   }
 
-  /** AI-605：客户端导航「弹跳」回 Home（先走其它 TabNav 路由再回 "/"），
-   *  强制 Home 重新挂载并重新拉取数据（播种到期复习词后刷新复习卡用）。
-   *  注意：token 仅存在于模块内存，绝不能整页刷新（page.reload 会清空登录态）。 */
+  /** AI-605：强制 Home 重新挂载并重新拉取数据（播种到期复习词后刷新复习卡用）。
+   *  JWT 已镜像到 localStorage，整页 goto 保留登录态，且必定触发 Home 重挂载。 */
   async bounceToHome(): Promise<void> {
-    const away = this.page.locator('nav a[href="/practice"]');
-    if (await away.count()) {
-      await away.first().click({ force: true });
-      await this.page.waitForSelector(
-        '[data-component="WordPractice"], [data-component="PracticeEmpty"]',
-        { timeout: 15000 },
-      );
-    }
-    const home = this.page.locator('nav a[href="/"]');
-    if (await home.count()) {
-      await home.first().click({ force: true });
-    }
+    await this.page.goto(`${this.baseUrl}/`);
     await this.waitLoaded();
   }
 
@@ -192,8 +178,9 @@ export default class HomePage {
           await card.click();
           await this.page.waitForSelector('[data-component="SpeechPage"]', { timeout: 15000 });
           await speech.completeSession();
-          const back = this.page.locator('[data-component="SpeechComplete"] a[href="/"]');
-          if (await back.count()) await back.first().click();
+          // 整页 goto 回 Home（token 在 localStorage，登录态保留；
+          // SpeechComplete 的返回链接 href 带 locale 前缀，直接 goto 最稳）。
+          await this.page.goto(`${this.baseUrl}/`);
           await this.waitLoaded();
           acted = true;
           break;

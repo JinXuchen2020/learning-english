@@ -81,9 +81,8 @@ export default class ChatPage {
     // Inject fake mic BEFORE navigation so read-along recordings work headless.
     await this.page.addInitScript(fakeMicrophoneScript);
 
-    // Navigate via the TabNav "Chat" link (client-side) so the in-memory auth
-    // token survives — a full page.goto('/chat') would reset module memory
-    // and bounce to /login via AuthGate.
+    // /chat 在「更多」抽屉，TabNav 无直链 → link.count() 为 0 → 走整页 goto 兜底。
+    // JWT 已镜像到 localStorage，整页 goto 保留登录态（middleware 重定向到默认 locale 前缀）。
     const chatLink = this.page.locator('nav a[href="/chat"]');
     if (await chatLink.count()) {
       await chatLink.first().click();
@@ -372,11 +371,13 @@ export default class ChatPage {
   async recordReadAlong(): Promise<void> {
     const panel = this.page.locator('[data-component="ReadAlongPanel"]');
     const recorder = panel.locator('[data-component="SpeechRecorder"]');
-    await recorder.locator('button[aria-label="Tap to record"]').click();
+    // 录音按钮无稳定 data-action，且 aria-label 随语言变化；idle/recording 态下
+    // SpeechRecorder 内仅渲染唯一一个按钮，故用 button.first() 定位（与 speech.ts 同口径）。
+    await recorder.locator('button').first().click();
     await panel
       .locator('[data-component="SpeechRecorder"][data-status="recording"]')
       .waitFor({ timeout: 10000 });
-    await recorder.locator('button[aria-label="Stop recording"]').click();
+    await recorder.locator('button').first().click();
     await panel
       .locator('[data-component="SpeechRecorder"][data-status="recorded"]')
       .waitFor({ timeout: 10000 });
@@ -396,7 +397,8 @@ export default class ChatPage {
     const text = await this.page
       .locator('[data-component="ReadAlongFeedback"]')
       .textContent();
-    return !!text && text.includes("star");
+    // 得星文案随语言变化（en "star" / zh "星"/"⭐"），用与语言无关的正则判定。
+    return !!text && /star|星|⭐/i.test(text);
   }
 
   /** AI-409：会话列表中的会话项数量（data-component="ChatSessionItem"）。 */

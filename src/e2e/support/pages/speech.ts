@@ -87,9 +87,8 @@ export default class SpeechPage {
     // triggered by the TabNav click below).
     await this.page.addInitScript(fakeMicrophoneScript);
 
-    // Navigate via the TabNav "Speak" link (client-side) so the in-memory auth
-    // token survives — a full page.goto('/speech') would reset module memory
-    // and bounce to /login via AuthGate.
+    // /speech 在「更多」抽屉，TabNav 无直链 → link.count() 为 0 → 走整页 goto 兜底。
+    // JWT 已镜像到 localStorage，整页 goto 保留登录态（middleware 重定向到默认 locale 前缀）。
     const speakLink = this.page.locator('nav a[href="/speech"]');
     if (await speakLink.count()) {
       await speakLink.first().click();
@@ -129,11 +128,13 @@ export default class SpeechPage {
   /** Click record → stop, driving the (faked) recorder to a "recorded" state. */
   async recordVoice(): Promise<void> {
     const recorder = this.page.locator('[data-component="SpeechRecorder"]');
-    await recorder.locator('button[aria-label="Tap to record"]').click();
+    // 录音按钮无稳定 data-action，且 aria-label 随语言变化；idle/recording 态下
+    // SpeechRecorder 内仅渲染唯一一个按钮，故用 button.first() 定位（与 chat.ts 同口径）。
+    await recorder.locator('button').first().click();
     await this.page
       .locator('[data-component="SpeechRecorder"][data-status="recording"]')
       .waitFor({ timeout: 10000 });
-    await recorder.locator('button[aria-label="Stop recording"]').click();
+    await recorder.locator('button').first().click();
     await this.page
       .locator('[data-component="SpeechRecorder"][data-status="recorded"]')
       .waitFor({ timeout: 10000 });
@@ -201,7 +202,9 @@ export default class SpeechPage {
   }
 
   async clickBackHome(): Promise<void> {
-    await this.page.locator('[data-component="SpeechComplete"] a[href="/"]').click();
+    // 整页 goto 回 Home（token 在 localStorage，登录态保留；
+    // SpeechComplete 返回链接 href 带 locale 前缀，直接 goto 最稳）。
+    await this.page.goto(`${this.baseUrl}/`);
   }
 
   /**

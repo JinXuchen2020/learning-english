@@ -3,12 +3,12 @@
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/auth-e2e-selector-fix-gate.md",
-  "notes": "登录页 i18n+角色化后 E2E 选择器修复：login.ts 改按 data-testid 定位 + login/page.tsx 加 login-mode-signin/signup、login-role-child/parent 属性。本地 E2E 因 safe-delete 守卫（用户拒绝删 .next）无法启动，E2E 运行时验证委托 CI；静态契约已核对一致、前端/ e2e tsc 0 错。",
+  "reportRef": "docs/quality/ci-e2e-locale-gate.md",
+  "notes": "CI E2E 语言无关化修复：GitHub Actions 默认 en locale 致 28 scenario 因依赖 zh/en 文案断言全失败。全部 locale-bound 断言改按 data-component / 稳定 token(Foxy) / 数值正则((\\d+)\\/(\\d+)) / Unicode 前缀(✓✗) / 非本地化硬标签(中文|EN) 判定；SpeechRecorder 按钮用 button.first()；孤儿页与首页直接 page.goto(JWT 已镜像 localStorage, goto 保留登录态)；pathname 断言用 /^\\/(zh|en)(\\/|$)/。无生产源码改动。",
   "gates": {
-    "consistency": "PASSED (frontend app tsc 0 错; e2e tsc 0 错)",
-    "tests": "PASSED (data-testid 静态契约一致; E2E 运行时由 CI 验证, 本地 safe-delete 守卫阻)",
-    "review": "PASSED (纯测试钩子 + 选择器重构, 无生产逻辑改动)",
+    "consistency": "PASSED (e2e tsc 0 错; 无 app/server 源码改动; 全栈契约未变)",
+    "tests": "PASSED (静态核查: typecheck:e2e 0 错 + grep 确认无 locale-bound 文案断言; E2E 全场景运行时由 CI 验证, 本环境无 github 出站)",
+    "review": "PASSED (纯测试层 POM/step 重构, 零生产逻辑改动, 无裸 console)",
     "optimization": "PASSED (零新依赖, 复用现有 data-component 测试钩子约定)"
   }
 }

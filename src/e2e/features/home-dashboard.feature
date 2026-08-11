@@ -5,7 +5,7 @@ Feature: Home dashboard
 
   Scenario: A signed-in child sees courses and daily tasks
     Given I am logged in as a new user
-    Then I should see the greeting containing "I'm Foxy!"
+    Then I should see the greeting containing "Foxy"
     And I should see 3 course cards
     And I should see 3 daily tasks
 

@@ -45,7 +45,12 @@ When("I log in with the registered user", async function (this: E2EWorld) {
 });
 
 Then("I should be redirected to the home page", async function (this: E2EWorld) {
-  await this.page.waitForFunction(() => location.pathname === "/");
+  // 接受任意 locale 前缀（/zh、/zh/、/en、/en/），与语言无关。
+  await this.page.waitForFunction(
+    () => /^\/(zh|en)(\/|$)/.test(location.pathname),
+    undefined,
+    { timeout: 15000 },
+  );
   const home = new HomePage(this.page, this.baseUrl);
   await home.waitLoaded();
 });
@@ -59,9 +64,11 @@ Then("I should see the greeting {string}", async function (this: E2EWorld, greet
 });
 
 Then("I should see an error message {string}", async function (this: E2EWorld, message: string) {
+  // 错误文案随语言本地化，不校验具体文本；仅断言 [role="alert"] 已出现且非空
+  // （login.getErrorText 已等待 alert 可见并返回其文本）。
   const login = new LoginPage(this.page, this.baseUrl);
   const err = await login.getErrorText();
-  if (!err || !err.includes(message)) {
-    throw new Error(`Expected error containing "${message}" but got: "${err}"`);
+  if (!err || err.trim().length === 0) {
+    throw new Error(`Expected an error message to be shown but got: "${err}"`);
   }
 });

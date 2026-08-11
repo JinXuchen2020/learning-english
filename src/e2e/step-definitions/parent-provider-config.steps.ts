@@ -74,8 +74,9 @@ Then(
     );
     await el.waitFor({ state: "visible", timeout: 15000 });
     const txt = (await el.textContent()) || "";
-    if (!txt.includes("连通成功")) {
-      throw new Error(`Expected connection test success but got: ${txt}`);
+    // 成功结果以 "✓" 前缀标记（与语言无关；失败为 "✗"），不依赖本地化文案。
+    if (!txt.includes("✓")) {
+      throw new Error(`Expected connection test success (✓) but got: ${txt}`);
     }
   }
 );

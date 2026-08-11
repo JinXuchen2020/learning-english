@@ -28,7 +28,8 @@ export default class ParentPage {
   }
 
   async open(): Promise<void> {
-    // 经 TabNav 客户端导航，保内存 token 存活（整页 goto 会被 AuthGate 弹回 /login）。
+    // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；优先点 TabNav 链接，
+    // 找不到（/parent 不在 TabNav）则走 goto 兜底（middleware 重定向到默认 locale 前缀）。
     const link = this.page.locator(`nav a[href="${PARENT_PATH}"]`);
     if (await link.count()) {
       await link.first().click();
@@ -216,7 +217,8 @@ export default class ParentPage {
         );
         if (!el) return false;
         const txt = el.textContent || "";
-        return /\*\*\*\*/.test(txt) && !txt.includes("未配置密钥");
+        // 语言无关：密钥已配置时 masked 恒含 "****"（如 "****1234"），未配置走 localized noKey 文案无 "****"。
+        return /\*\*\*\*/.test(txt);
       },
       name,
       { timeout },

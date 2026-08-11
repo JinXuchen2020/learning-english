@@ -31,7 +31,7 @@ Then(
   async function (this: E2EWorld) {
     const page = new SpeechPage(this.page, this.baseUrl);
     const text = await page.headingText();
-    if (!text || !text.includes("Speak with Foxy")) {
+    if (!text || !text.includes("Foxy")) {
       throw new Error(`Expected speech practice heading but got: "${text}"`);
     }
   },

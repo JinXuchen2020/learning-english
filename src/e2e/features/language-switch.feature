@@ -11,7 +11,7 @@ Feature: Language switch (AI-706)
     Given I am logged in as a new user
     When I switch the UI language to "en"
     Then the URL should contain "/en"
-    And I should see the greeting containing "I'm Foxy!"
+    And I should see the greeting containing "Foxy"
 
   Scenario: The locale prefix persists when navigating via the tab bar (AI-706)
     Given I am logged in as a new user

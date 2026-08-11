@@ -95,7 +95,10 @@ export default class LoginPage {
       // (e.g. the backend accepted the credentials) instead of failing — that
       // is a real bug, surface it clearly rather than a cryptic "null".
       const onHome = await this.page
-        .evaluate(() => location.pathname === "/")
+        .evaluate(() => {
+          const p = location.pathname;
+          return !p.includes("/login") && /^\/(zh|en)(\/|$)/.test(p);
+        })
         .catch(() => false);
       if (onHome) {
         throw new Error(
