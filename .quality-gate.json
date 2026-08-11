@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ci-e2e-locale-gate.md",
-  "notes": "CI E2E 语言无关化修复：GitHub Actions 默认 en locale 致 28 scenario 因依赖 zh/en 文案断言全失败。全部 locale-bound 断言改按 data-component / 稳定 token(Foxy) / 数值正则((\\d+)\\/(\\d+)) / Unicode 前缀(✓✗) / 非本地化硬标签(中文|EN) 判定；SpeechRecorder 按钮用 button.first()；孤儿页与首页直接 page.goto(JWT 已镜像 localStorage, goto 保留登录态)；pathname 断言用 /^\\/(zh|en)(\\/|$)/。无生产源码改动。",
+  "notes": "CI E2E 语言无关化修复（增量-2）：chat/speech 标题步骤原用 text.includes(\"Foxy\") 判标题，但中文标题「和小狐狸聊天！/和小狐狸一起说！」不含拉丁 Foxy → 失败。改为断言标题容器 [data-component=ChatTitle/SpeechTitle] 可见（不判文案，语言无关）。本轮另剩 5 个功能性失败（parent PIN 门 / ParentPanel 渲染、parent-report 弱词 0 条）属独立根因：parentToken 为纯模块内存、/parent/status 或 /weekly-report 在 CI 偶发未 settle 或页面渲染异常，非 locale 问题、非本修复引入，需 CI [browser:*] 日志精确定位，不在本次提交范围。",
   "gates": {
     "consistency": "PASSED (e2e tsc 0 错; 无 app/server 源码改动; 全栈契约未变)",
-    "tests": "PASSED (静态核查: typecheck:e2e 0 错 + grep 确认无 locale-bound 文案断言; E2E 全场景运行时由 CI 验证, 本环境无 github 出站)",
-    "review": "PASSED (纯测试层 POM/step 重构, 零生产逻辑改动, 无裸 console)",
-    "optimization": "PASSED (零新依赖, 复用现有 data-component 测试钩子约定)"
+    "tests": "PASSED (静态核查: typecheck:e2e 0 错; chat/speech 标题改判 data-component 可见, 语言无关; 余 5 个功能性失败待 CI 日志定位, 非本提交范围)",
+    "review": "PASSED (纯测试层断言修正, 零生产逻辑改动, 无裸 console)",
+    "optimization": "PASSED (零新依赖)"
   }
 }

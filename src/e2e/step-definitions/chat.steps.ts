@@ -73,13 +73,12 @@ When("I open the chat page", async function (this: E2EWorld) {
 });
 
 Then("I should see the chat heading", async function (this: E2EWorld) {
-  const page = new ChatPage(this.page, this.baseUrl);
-  const text = await this.page
+  // 语言无关：标题文案随 locale 变化（zh「和小狐狸聊天！」/ en「Chat with Foxy!」），
+  // 不判文案，只断言标题容器可见（data-component 稳定）。
+  await this.page
     .locator('[data-component="ChatTitle"]')
-    .textContent();
-  if (!text || !text.includes("Foxy")) {
-    throw new Error(`Expected chat heading but got: "${text}"`);
-  }
+    .first()
+    .waitFor({ state: "visible", timeout: 15000 });
 });
 
 Then(
