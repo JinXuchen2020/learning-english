@@ -1,14 +1,14 @@
 {
-  "phase": "auth-session-persistence",
+  "phase": "test-spec-drift-fix",
   "stack": "node-ts",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0 错误；未改动 e2e/后端，e2e tsc 不适用；i18n 键无新增/无回归（i18n-messages.spec.ts 2/2 仍全绿）；纯前端认证态持久化改动，无后端契约/路由/类型变更——全栈契约对齐不适用)",
-    "tests": "PASSED (unit: 新增 src/lib/api-auth-persist.spec.ts 6/6 全绿，直接验证 setToken/getToken/setStoredUser/getStoredUser 的 localStorage 镜像与回退（含 corrupt JSON→null、null 清除）；复用 i18n-messages.spec.ts 2/2 作为无键变更回归锚点；刷新保留会话的端到端行为由 cucumber auth 场景在 next build+start+mock 后端下覆盖，受沙箱 next build 制约委托 CI（与 AI-707/708/709 同口径）)",
-    "review": "PASSED (0 open；根因：api.ts 原仅内存持有 JWT，刷新即清→被迫重登——已改为 localStorage 镜像（TOKEN_KEY/USER_KEY），模块内存为一级缓存、localStorage 跨刷新真源；后端 JWT TTL 7d（JWT_EXPIRES_IN）故刷新在窗口内透明恢复，过期才需重登；SSR 安全：storage 访问全 guard `typeof window`，服务端为 no-op；AuthGate 改为 `isInitialized` 后再决定是否跳 /login，避免刷新瞬间先闪跳登录再恢复；RoleGuard 仅 `isAuthenticated` 时动作，恢复期间不误跳；顺带修 AI-707 遗留 latent bug：`register` 回调原丢弃 `role` 参数（致角色切换失效、所有注册账号皆 child），已透传给 api.register)",
-    "optimization": "PASSED (0 open；无 stub/占位；复用既有 api.ts setToken/getToken 单一真源，零新增依赖；localStorage 读写包 try/catch 降级内存态（隐私模式/配额）)"
+    "consistency": "PASSED (nest build / 前端 tsc --noEmit 均无改动需重编译；本次仅改 .spec.ts 测试期望，无生产逻辑/类型/路由变更——全栈契约对齐不适用)",
+    "tests": "PASSED (后端 npm test 全量 823/823 全绿（93 suites），含修复的 auth.controller.spec.ts 2/2 与 weekly-report.service.spec.ts 10/10；两处失败均因测试期望落后于代码/时间，非功能缺陷：auth 透传 DTO 可选 role（调用为 4 参含 undefined）已对齐；weekly-report 不传 weekStart 时默认当前周周一（WS 改为动态 currentWeekMonday()）已对齐)",
+    "review": "PASSED (0 open；两处均为测试维护，未改生产代码；不改生产逻辑去迁就测试——保持契约真实)",
+    "optimization": "PASSED (0 open；零新增依赖；仅测试期望修正，无 stub/占位)"
   },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/auth-session-persistence-gate.md",
-  "notes": "修复「网站刷新要重新登录」。根因：src/lib/api.ts 的 JWT 仅存于模块内存（let accessToken），硬刷新模块重载→令牌清空→AuthProvider user 初始 null→被 AuthGate 弹回 /login；代码注释自承『a hard refresh clears the session and the user signs in again』。后端 JWT 有效期 7d（server/src/auth/auth.module.ts signOptions.expiresIn = JWT_EXPIRES_IN||'7d'），故持久化到 localStorage 安全——刷新在 7 天内透明恢复会话。实现：api.ts 增加 TOKEN_KEY/USER_KEY 常量 + storageGet/storageSet（guard typeof window，SSR 安全），setToken 镜像到 localStorage、getToken 回退读 localStorage、新增 setStoredUser/getStoredUser 持久化轻量 user 对象（免 /auth/me 额外往返）；AuthProvider 加 initialized 状态 + 挂载时从 localStorage 恢复（token+user），applyAuth/logout/refreshUser 同步写 user；AuthGate 仅 isInitialized 后且 !isAuthenticated 才跳 /login，消除刷新闪跳；RoleGuard 不受恢复影响。顺带修复 AI-707 注册角色丢失 bug（register 回调漏传 role）。验证：前端 tsc 0 + api-auth-persist.spec.ts 6/6 + i18n-messages.spec.ts 2/2。端到端刷新场景委托 CI（next build+start+mock）。"
+  "reportRef": "docs/quality/test-spec-drift-fix-gate.md",
+  "notes": "纯测试维护提交：修复两处随代码/时间漂移的测试期望。① auth.controller.spec.ts：AuthController.register 正确透传 RegisterDto 可选 role 字段，真实调用为 4 参（含 undefined），spec 原只断言 3 参→改为 toHaveBeenCalledWith('a','b','c',undefined)。② weekly-report.service.spec.ts：generateAndSendWeeklyReport 不传 weekStart 时默认用当前周周一，原 WS 硬编码 '2026-08-03' 随真实日期漂移 mismatch→改为动态 currentWeekMonday()（与 service weekStartOf(todayUtc()) 同 UTC 口径）。两处均只改测试、生产零改动。验证：npm test 823/823 全绿。"
 }

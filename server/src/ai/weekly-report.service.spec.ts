@@ -15,6 +15,15 @@ function zeroStats(date: string): DailyReportStats {
   };
 }
 
+/** 当前周的 Monday（与 service `weekStartOf(todayUtc())` 口径一致），用于「不传 weekStart」的发送测试。 */
+function currentWeekMonday(): string {
+  const d = new Date(`${new Date().toISOString().split('T')[0]}T00:00:00.000Z`);
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const diff = (day + 6) % 7; // Monday=0
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().split('T')[0];
+}
+
 /** 构造 WeeklyReportService（直接 new，注入全部依赖的 mock）。 */
 function makeService(overrides: {
   user?: any;
@@ -123,7 +132,8 @@ describe('WeeklyReportService.buildWeeklyReport (AI-506)', () => {
 });
 
 describe('WeeklyReportService.generateAndSendWeeklyReport (AI-506)', () => {
-  const WS = '2026-08-03';
+  // 不传 weekStart 时 service 用「当前周周一」；WS 动态计算，避免测试随真实日期漂移。
+  const WS = currentWeekMonday();
 
   it('有 parentEmail → 发信 + 落 AiParentEmailLog(sent)', async () => {
     const saveLog = jest.fn(async (e) => ({ ...e, id: 'log-9' }));
