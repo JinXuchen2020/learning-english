@@ -58,3 +58,27 @@ GitHub Actions 默认以 `en` locale 跑 E2E，导致 **28 个 scenario 全失�
 
 - 需用户在**有 github 出站的机器 `git push`** 触发 CI 验证：parent 4 个 scenario + parent-report 场景⑥ 可能级联转绿或独立，待运行时确认。
 - 历史遗留 3 个 E2E 超时（plan-progress / sentence-library ×2）与本次修复无关，可单列排查。
+
+## 增量-3：剩余 5 个功能性失败全修（RoleGuard + CSS.escape）
+
+**背景**：前两轮语言无关化把 CI 失败从 28 压到 7 再到 5。这 5 个是功能性失败（非 locale）：`parent.feature` S1/S2、`parent-provider-config.feature` S1/S2、`parent-report.feature` S1。
+
+**根因① — RoleGuard 把家长模式页弹回首页（核心）**
+- `src/components/RoleGuard.tsx`（AI-707 引入）含 `else if (isChild && matches(pathname, PARENT_ONLY)) router.replace("/")`，而 `PARENT_ONLY = ["/parent", "/parent-report"]`。
+- AI-702 设计：孩子账号经 PIN 门禁解锁「家长模式页」。但 RoleGuard 在孩子一进入 `/parent` 时立刻 `router.replace("/")` → 整个 `ParentPanel` unmount，URL 落到 `http://localhost:3000/zh`（首页 dashboard）。这正是 5 个场景共同失败点（PIN 门超时 / panel 不出现 / 弱词 0 条）。
+- **修复**：`PARENT_MODE = ["/parent","/parent-report"]`（双开注释）、`PARENT_ONLY` 置空、删除 `isChild` 重定向分支。`ParentGuard`（后端校验 `role==='parent'`）仍独立保护 `/rewards/redemptions` 等接口，PIN 门禁与家长要挟令牌管控页面访问，无需 RoleGuard 再拦。
+- 本地 `next dev` source-fresh 复跑确认：孩子账号进入 `/parent` 后不再被弹回，PIN 门→面板流程通畅。
+
+**根因② — POM 在 Node 上下文调用浏览器全局 `CSS.escape()`（被①掩盖的 latent bug）**
+- `src/e2e/support/pages/parent.ts` 的 `setProviderDefault`/`testProvider`/`deleteProvider` 在 **Node 侧**拼 Playwright locator 选择器时直接调 `CSS.escape()`。该全局仅存在于浏览器；Node 下 `ReferenceError: CSS is not defined`。
+- 此前 RoleGuard 把孩子弹走，provider-config 场景从未跑到这段代码，故 CI/本地均未暴露；根因①修复后场景深入才触发。
+- **修复**：新增 Node 侧 `cssEscape()` 兜底（仅转义 `\` 与 `"`，并优先用浏览器 `CSS.escape`）；`waitForFunction` 浏览器回调仍用 `CSS.escape`（浏览器全局可用），Node 侧 locator 拼串改用 `cssEscape(name)`。二者按参数名 `n`(浏览器) / `name`(Node) 区分，互不污染。
+
+**清理（提交前）**
+- 删除历史会话遗留的 TEMP DEBUG：`parent.ts` 的 `approveFirst`/`waitForPendingApprovals` 内 `page.evaluate` dump + `console.log`；`hooks.ts` 的 `[browser:resp]` 非 2xx 响应监听；`parent.ts` `exitParent` 的 `ExitParentBtn` 点击加 `force:true`（规避 Next 客户端导航后节点 detached 竞态）。
+- 还原 `src/tsconfig.json` 格式化差异；删除未跟踪调试产物（`.e2e-*.txt/json`、`.repro-weak.mjs`、`src/debug-parent.cts`、`src/next.config.e2e.mjs`）。
+
+**验证**
+- `npm run typecheck:e2e` → 0 错。
+- 本地复跑 `e2e/features/{parent,parent-provider-config,parent-report}.feature`（msedge）：**5 scenario / 56 step 全绿**。
+- 本环境无 github 出站，仍需用户 `git push` 让 CI 终验（预期 28→0）。

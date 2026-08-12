@@ -16,6 +16,21 @@
 // 断言全部用 waitForFunction 等异步渲染，禁止 locator.count() 即时计数。
 import { Page } from "@playwright/test";
 
+// CSS.escape is a *browser* global. These page-object methods run in the Node
+// harness, where `CSS` is undefined — so calling CSS.escape() here throws
+// "ReferenceError: CSS is not defined" (as seen after the RoleGuard fix let the
+// provider-config scenarios reach this code). Polyfill the subset we need so
+// attribute selectors with CJK / special characters build safely in both
+// contexts (browser waitForFunction still hits the real CSS.escape branch).
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  // Minimal fallback: escape backslashes and double quotes (the only chars that
+  // break a double-quoted CSS attribute selector).
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 const PARENT_PATH = "/parent";
 
 export default class ParentPage {
@@ -83,9 +98,11 @@ export default class ParentPage {
     );
   }
 
-  /** 退出家长模式 → 回到门禁。 */
+  /** 退出家长模式 → 回到门禁。点击用 force:true 规避 Next 客户端导航后节点 detached 竞态。 */
   async exitParent(): Promise<void> {
-    await this.page.locator('[data-component="ExitParentBtn"]').click();
+    await this.page
+      .locator('[data-component="ExitParentBtn"]')
+      .click({ force: true });
     await this.waitForGate();
   }
 
@@ -229,7 +246,7 @@ export default class ParentPage {
   async setProviderDefault(name: string): Promise<void> {
     await this.page
       .locator(
-        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="SetDefaultProviderBtn"]`,
+        `[data-component="ProviderConfigItem"][data-config-name="${cssEscape(name)}"] [data-component="SetDefaultProviderBtn"]`,
       )
       .click();
   }
@@ -238,7 +255,7 @@ export default class ParentPage {
   async testProvider(name: string): Promise<void> {
     await this.page
       .locator(
-        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="TestProviderBtn"]`,
+        `[data-component="ProviderConfigItem"][data-config-name="${cssEscape(name)}"] [data-component="TestProviderBtn"]`,
       )
       .click();
   }
@@ -247,7 +264,7 @@ export default class ParentPage {
   async deleteProvider(name: string): Promise<void> {
     await this.page
       .locator(
-        `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(name)}"] [data-component="DeleteProviderBtn"]`,
+        `[data-component="ProviderConfigItem"][data-config-name="${cssEscape(name)}"] [data-component="DeleteProviderBtn"]`,
       )
       .click();
   }

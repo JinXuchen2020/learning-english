@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ci-e2e-locale-gate.md",
-  "notes": "CI E2E 语言无关化修复（增量-2）：chat/speech 标题步骤原用 text.includes(\"Foxy\") 判标题，但中文标题「和小狐狸聊天！/和小狐狸一起说！」不含拉丁 Foxy → 失败。改为断言标题容器 [data-component=ChatTitle/SpeechTitle] 可见（不判文案，语言无关）。本轮另剩 5 个功能性失败（parent PIN 门 / ParentPanel 渲染、parent-report 弱词 0 条）属独立根因：parentToken 为纯模块内存、/parent/status 或 /weekly-report 在 CI 偶发未 settle 或页面渲染异常，非 locale 问题、非本修复引入，需 CI [browser:*] 日志精确定位，不在本次提交范围。",
+  "notes": "CI E2E 28→7→5 收尾（增量-3）：前两轮语言无关化把失败压到 5 个功能性场景（parent.feature S1/S2、parent-provider-config.feature S1/S2、parent-report.feature S1）。本提交全修：根因① RoleGuard.tsx（AI-707）把 isChild 在 PARENT_ONLY=[/parent,/parent-report] 时 router.replace('/')，破坏 AI-702 孩子经 PIN 解锁的家长模式 → 孩子一进家长页就被弹回首页，ParentPanel 整体 unmount；改为 PARENT_MODE 双开、PARENT_ONLY 置空。根因② parent.ts 的 POM 方法在 Node 上下文直接调用浏览器全局 CSS.escape() → ReferenceError（此前被 RoleGuard 弹走掩盖，从未触发）；改为 Node 侧 cssEscape 兜底 + 浏览器回调仍用 CSS.escape。本地复跑 3 个 parent feature 全 5 scenario/56 step 绿；typecheck:e2e 0 错。",
   "gates": {
-    "consistency": "PASSED (e2e tsc 0 错; 无 app/server 源码改动; 全栈契约未变)",
-    "tests": "PASSED (静态核查: typecheck:e2e 0 错; chat/speech 标题改判 data-component 可见, 语言无关; 余 5 个功能性失败待 CI 日志定位, 非本提交范围)",
-    "review": "PASSED (纯测试层断言修正, 零生产逻辑改动, 无裸 console)",
+    "consistency": "PASSED (e2e tsc 0 错; 生产改动仅 RoleGuard.tsx 角色重定向分支; 全栈契约未变)",
+    "tests": "PASSED (本地 E2E 复跑 e2e/features/{parent,parent-provider-config,parent-report}.feature 全 5 scenario / 56 step 绿; typecheck:e2e 0 错; 无 locale-bound 断言残留)",
+    "review": "PASSED (生产改动仅删 RoleGuard 重定向分支; POM 增加 Node 侧 cssEscape 兜底; 删除历史会话遗留 TEMP DEBUG dump 与 [browser:resp] 监听; 无裸 console)",
     "optimization": "PASSED (零新依赖)"
   }
 }
