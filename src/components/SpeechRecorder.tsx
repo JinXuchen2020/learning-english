@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertCircle, CheckCircle2, Mic, RotateCcw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { logger } from "@/lib/logger";
 import {
   buildRecordingResult,
@@ -31,15 +32,13 @@ export interface SpeechRecorderProps {
   className?: string;
 }
 
-/** 分级友好错误文案（儿童友好、可操作）。 */
-const ERROR_MESSAGES: Record<RecordingErrorKind, string> = {
-  "permission-denied":
-    "We need your microphone to hear you speak. Please allow mic access in your browser settings, then try again.",
-  "no-microphone": "No microphone found. Please connect a microphone and try again.",
-  "not-supported": "Recording isn't supported on this browser. Try Chrome or Safari.",
-  "insecure-context":
-    "Recording needs a secure (https) connection. Open the app from the secure link.",
-  unknown: "Something went wrong while recording. Please try again.",
+/** 分级友好错误文案 key（儿童友好、可操作）；文案由 i18n 提供。 */
+const ERROR_MESSAGE_KEYS: Record<RecordingErrorKind, string> = {
+  "permission-denied": "permissionDenied",
+  "no-microphone": "noMicrophone",
+  "not-supported": "notSupported",
+  "insecure-context": "insecureContext",
+  unknown: "unknown",
 };
 
 function useSpeechRecorder(opts: {
@@ -247,6 +246,7 @@ export default function SpeechRecorder({
   disabled = false,
   className = "",
 }: SpeechRecorderProps) {
+  const t = useTranslations("SpeechRecorder");
   const { status, elapsedMs, errorKind, result, isIosFallback, start, stop, reset } =
     useSpeechRecorder({ maxDurationMs, onRecordingComplete, onError, onReset });
 
@@ -264,15 +264,15 @@ export default function SpeechRecorder({
           onClick={() => start()}
           disabled={disabled}
           size="lg"
-          aria-label="Tap to record"
+          aria-label={t("tapToRecord")}
         >
-          <Mic className="mr-2" /> Tap to record
+          <Mic className="mr-2" /> {t("tapToRecord")}
         </Button>
       )}
 
       {status === "requesting" && (
         <Button size="lg" disabled aria-busy="true">
-          <span className="mr-2 animate-pulse">…</span> Requesting microphone…
+          <span className="mr-2 animate-pulse">…</span> {t("requestingMic")}
         </Button>
       )}
 
@@ -283,10 +283,10 @@ export default function SpeechRecorder({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-kids-pink opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-kids-pink" />
             </span>
-            Recording… {seconds}s / {maxSeconds}s
+            {t("recording", { seconds, maxSeconds })}
           </div>
-          <Button variant="secondary" onClick={() => stop()} aria-label="Stop recording">
-            <Square className="mr-2" /> Stop
+          <Button variant="secondary" onClick={() => stop()} aria-label={t("stopRecordingLabel")}>
+            <Square className="mr-2" /> {t("stop")}
           </Button>
         </div>
       )}
@@ -294,13 +294,13 @@ export default function SpeechRecorder({
       {status === "recorded" && result && (
         <div className="flex flex-col items-center gap-3 w-full" aria-live="polite">
           <div className="flex items-center gap-2 text-[var(--color-success)] font-bold">
-            <CheckCircle2 className="mr-1" /> Got it!
+            <CheckCircle2 className="mr-1" /> {t("gotIt")}
           </div>
           {result.url && (
             <audio controls src={result.url} className="w-full max-w-xs" />
           )}
-          <Button variant="soft" onClick={() => reset()} aria-label="Try again">
-            <RotateCcw className="mr-2" /> Try again
+          <Button variant="soft" onClick={() => reset()} aria-label={t("tryAgain")}>
+            <RotateCcw className="mr-2" /> {t("tryAgain")}
           </Button>
         </div>
       )}
@@ -313,16 +313,16 @@ export default function SpeechRecorder({
         >
           <div className="flex flex-col items-center gap-1 font-bold text-kids-pink">
             <span className="flex items-center gap-1">
-              <AlertCircle className="mr-1" /> {ERROR_MESSAGES[errorKind]}
+              <AlertCircle className="mr-1" /> {t(ERROR_MESSAGE_KEYS[errorKind])}
             </span>
             {isIosFallback && errorKind !== "permission-denied" && (
               <span className="text-xs font-normal text-kids-muted">
-                (recorded as audio/mp4 on this device)
+                {t("iosFallbackNote")}
               </span>
             )}
           </div>
-          <Button variant="soft" onClick={() => reset()} aria-label="Try again">
-            <RotateCcw className="mr-2" /> Try again
+          <Button variant="soft" onClick={() => reset()} aria-label={t("tryAgain")}>
+            <RotateCcw className="mr-2" /> {t("tryAgain")}
           </Button>
         </div>
       )}

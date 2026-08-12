@@ -48,11 +48,17 @@ import { AiTranscribeService } from './ai-transcribe.service';
 import { AiPronunciationScorerService } from './ai-pronunciation-scorer.service';
 import { AiSpeechFeedbackService } from './ai-speech-feedback.service';
 import { RewardsModule } from '../rewards/rewards.module';
+import { JwtModule } from '@nestjs/jwt';
 import {
   createLoggedProvider,
   AI_MODULE_TAG_RESOLVER_TOKEN,
   ModuleTagResolver,
 } from './logged-ai-provider';
+import { ProviderConfigModule } from './provider-config/provider-config.module';
+import { ProviderConfigService } from './provider-config/provider-config.service';
+import { AiProviderRouter } from './ai-provider.router';
+import { AiProviderContextInterceptor } from './ai-provider-context.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 /**
  * 构造「重试 + 每日配额」链的最内层 provider（不含配额外壳）。
@@ -143,7 +149,7 @@ export function createAuditedProvider(
  */
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, PictureBook, Course, Lesson, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence]), RewardsModule],
+  imports: [TypeOrmModule.forFeature([AiUsage, AiCallLog, AiSpeechAttempt, AiReport, AiParentEmailLog, MascotStory, PictureBook, Course, Lesson, TaskCompletion, WordProgress, LessonProgress, User, Word, Sentence]), RewardsModule, ProviderConfigModule, JwtModule.register({ secret: process.env.JWT_SECRET || 'fox-english-kids-secret', signOptions: { expiresIn: '15m' } })],
   controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController, PictureBookController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
@@ -165,14 +171,37 @@ export function createAuditedProvider(
     { provide: EMAIL_SENDER_TOKEN, useClass: LogEmailSender },
     {
       provide: AI_PROVIDER_TOKEN,
-      useFactory: createAuditedProvider,
+      useFactory: (
+        config: ConfigService,
+        usage: AiUsageLimitService,
+        resolveUserId: UserIdResolver,
+        resolveModuleTag: ModuleTagResolver,
+        callLog: AiCallLogService,
+        providerConfigService: ProviderConfigService,
+      ) => {
+        // env `AI_PROVIDER` 单例（已套 重试/配额/日志 链）作为回退基准。
+        const defaultProvider = createAuditedProvider(
+          config,
+          usage,
+          resolveUserId,
+          resolveModuleTag,
+          callLog,
+        );
+        // 运行时路由代理：命中家长默认配置则走自定义 provider，否则回退基准。
+        return new AiProviderRouter(defaultProvider, providerConfigService);
+      },
       inject: [
         ConfigService,
         AiUsageLimitService,
         USER_ID_RESOLVER_TOKEN,
         AI_MODULE_TAG_RESOLVER_TOKEN,
         AiCallLogService,
+        ProviderConfigService,
       ],
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AiProviderContextInterceptor,
     },
   ],
   exports: [

@@ -1,6 +1,7 @@
-// Page object for the auth screen (src/app/login/page.tsx).
+// Page object for the auth screen (src/app/[locale]/login/page.tsx).
 // Selectors target real DOM: data-component="LoginPage", #username/#password/#nickname,
-// the mode-toggle buttons ("Sign In"/"Sign Up"), and the form submit button.
+// the mode/role toggle buttons (by data-testid, NOT text — UI is i18n-localized),
+// and the form submit button.
 import { Locator, Page } from "@playwright/test";
 
 export default class LoginPage {
@@ -18,15 +19,24 @@ export default class LoginPage {
   }
 
   async switchToSignUp(): Promise<void> {
-    // The mode toggle is a <button aria-pressed> (not the form submit button).
-    const toggle: Locator = this.page.locator('button[aria-pressed]', { hasText: "Sign Up" });
+    // Mode toggle uses data-testid (text is i18n-localized, not "Sign Up").
+    const toggle: Locator = this.page.locator('[data-testid="login-mode-signup"]');
     if ((await toggle.getAttribute("aria-pressed")) !== "true") {
       await toggle.click();
     }
   }
 
   async switchToSignIn(): Promise<void> {
-    const toggle: Locator = this.page.locator('button[aria-pressed]', { hasText: "Sign In" });
+    const toggle: Locator = this.page.locator('[data-testid="login-mode-signin"]');
+    if ((await toggle.getAttribute("aria-pressed")) !== "true") {
+      await toggle.click();
+    }
+  }
+
+  /** 注册模式下选择角色（默认 child）。仅在 register 模式可见。 */
+  async selectRole(role: "child" | "parent"): Promise<void> {
+    const testid = role === "child" ? "login-role-child" : "login-role-parent";
+    const toggle: Locator = this.page.locator(`[data-testid="${testid}"]`);
     if ((await toggle.getAttribute("aria-pressed")) !== "true") {
       await toggle.click();
     }
@@ -50,8 +60,14 @@ export default class LoginPage {
     await this.page.locator("form button[type=submit]").click();
   }
 
-  async register(username: string, password: string, nickname: string): Promise<void> {
+  async register(
+    username: string,
+    password: string,
+    nickname?: string,
+    role: "child" | "parent" = "child",
+  ): Promise<void> {
     await this.switchToSignUp();
+    await this.selectRole(role);
     await this.fillUsername(username);
     await this.fillPassword(password);
     if (nickname) await this.fillNickname(nickname);
@@ -79,7 +95,10 @@ export default class LoginPage {
       // (e.g. the backend accepted the credentials) instead of failing — that
       // is a real bug, surface it clearly rather than a cryptic "null".
       const onHome = await this.page
-        .evaluate(() => location.pathname === "/")
+        .evaluate(() => {
+          const p = location.pathname;
+          return !p.includes("/login") && /^\/(zh|en)(\/|$)/.test(p);
+        })
         .catch(() => false);
       if (onHome) {
         throw new Error(

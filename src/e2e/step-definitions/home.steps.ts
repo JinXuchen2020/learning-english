@@ -42,9 +42,9 @@ Then(
   async function (this: E2EWorld, done: string, totalAtLeast: string) {
     const home = new HomePage(this.page, this.baseUrl);
     const text = await home.planProgressText();
-    const match = text?.match(/已完成\s*(\d+)\s*\/\s*(\d+)\s*天/);
+    const match = text?.match(/(\d+)\s*\/\s*(\d+)/);
     if (!match) {
-      throw new Error(`Expected plan progress text like "已完成 X/Y 天" but got: "${text}"`);
+      throw new Error(`Expected plan progress text like "X/Y" but got: "${text}"`);
     }
     const doneDays = Number(match[1]);
     const totalDays = Number(match[2]);

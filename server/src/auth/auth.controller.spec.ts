@@ -24,7 +24,9 @@ describe('AuthController', () => {
   it('register forwards dto to service', async () => {
     const dto = { username: 'a', password: 'b', nickname: 'c' };
     await controller.register(dto as any);
-    expect(authService.register).toHaveBeenCalledWith('a', 'b', 'c');
+    // RegisterDto 含可选 role 字段，controller 会透传（缺省为 undefined），
+    // 故实际调用为 4 个参数；service.register 的 role 参数本就可选，undefined 等价不传。
+    expect(authService.register).toHaveBeenCalledWith('a', 'b', 'c', undefined);
   });
 
   it('login forwards dto to service', async () => {

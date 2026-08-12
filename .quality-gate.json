@@ -1,14 +1,14 @@
 {
-  "phase": "ai-704",
+  "phase": "fix",
   "stack": "node-ts",
-  "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0 错误; 后端 tsc --noEmit 0 错误; next build 成功; 后端 jest 789/789 绿; 前端 vitest 119/119 绿; E2E 2 scenarios / 10 steps 绿; 前后端 MakeupQueue 契约对齐: wordId/wordText/meaning/mastery/lastPracticedAt + planDayId/title/date)",
-    "tests": "PASSED (unit: makeup.util.spec.ts 15 tests + progress.service.spec.ts 含 9 AI-704 用例(整体 27/27); e2e/bdd: makeup.feature 2 scenarios / 10 steps 跑通)",
-    "review": "PASSED (0 open; completeMakeupTask 越权校验仅归属当前用户、越权返回 false; getMakeupQueue 排除 AI-605 due-review wordId 去重; 实时视图无新实体/无迁移; best-effort 幂等; 无裸 console)",
-    "optimization": "PASSED (0 open; 无 stub/占位; 错误处理统一 getMakeupQueue 内部 try/catch 失败回落空队列; 无调试残留)"
-  },
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-704-gate.md",
-  "notes": "AI-704 逾期/补学循环：ProgressModule 新增 GET /api/progress/makeup（实时视图，由 word_progress + study_plan_days 现有表计算，无新实体/无迁移）与 POST /api/progress/makeup/task/:planDayId/complete（标记 isDone + 补学拿分，幂等 best-effort）；弱词口径 mastery<60 且 lastPracticedAt∈昨日 UTC 窗口，未完成计划日 date=昨日 isDone=false；与 AI-605 到期复习靠排除 due-review wordId 去重不重复；前端 Home MakeupCard 弱词深链 /practice?focusWord=<词>（复用练习计分/掌握度回写）、未完成计划日「标记完成」乐观移除+失败回滚；E2E 覆盖弱词补学与未完成计划日标记完成两条用户旅程；种子脚本 server/src/scripts/seed-makeup.ts 直写昨日数据供 E2E。"
+  "reportRef": "docs/quality/ci-e2e-locale-gate.md",
+  "notes": "CI E2E 28→7→5 收尾（增量-3）：前两轮语言无关化把失败压到 5 个功能性场景（parent.feature S1/S2、parent-provider-config.feature S1/S2、parent-report.feature S1）。本提交全修：根因① RoleGuard.tsx（AI-707）把 isChild 在 PARENT_ONLY=[/parent,/parent-report] 时 router.replace('/')，破坏 AI-702 孩子经 PIN 解锁的家长模式 → 孩子一进家长页就被弹回首页，ParentPanel 整体 unmount；改为 PARENT_MODE 双开、PARENT_ONLY 置空。根因② parent.ts 的 POM 方法在 Node 上下文直接调用浏览器全局 CSS.escape() → ReferenceError（此前被 RoleGuard 弹走掩盖，从未触发）；改为 Node 侧 cssEscape 兜底 + 浏览器回调仍用 CSS.escape。本地复跑 3 个 parent feature 全 5 scenario/56 step 绿；typecheck:e2e 0 错。",
+  "gates": {
+    "consistency": "PASSED (e2e tsc 0 错; 生产改动仅 RoleGuard.tsx 角色重定向分支; 全栈契约未变)",
+    "tests": "PASSED (本地 E2E 复跑 e2e/features/{parent,parent-provider-config,parent-report}.feature 全 5 scenario / 56 step 绿; typecheck:e2e 0 错; 无 locale-bound 断言残留)",
+    "review": "PASSED (生产改动仅删 RoleGuard 重定向分支; POM 增加 Node 侧 cssEscape 兜底; 删除历史会话遗留 TEMP DEBUG dump 与 [browser:resp] 监听; 无裸 console)",
+    "optimization": "PASSED (零新依赖)"
+  }
 }

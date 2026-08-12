@@ -8,7 +8,7 @@ Feature: Authentication
     When I switch to "Sign Up" mode
     And I register with a unique username and password "Passw0rd!23"
     Then I should be redirected to the home page
-    And I should see the greeting "I'm Foxy!"
+    And I should see the greeting "Foxy"
 
   Scenario: A registered child can sign in again
     Given I am on the login page
@@ -17,7 +17,7 @@ Feature: Authentication
     When I go to the login page
     And I log in with the registered user
     Then I should be redirected to the home page
-    And I should see the greeting "I'm Foxy!"
+    And I should see the greeting "Foxy"
 
   Scenario: Wrong password shows a friendly error
     Given I am on the login page

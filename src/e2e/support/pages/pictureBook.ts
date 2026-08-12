@@ -18,12 +18,11 @@ export default class PictureBookPage {
   }
 
   /**
-   * 经 TabNav 客户端导航到 /picture-book（保留 SPA auth，避免整页跳转清空 token）。
-   * 点击 Next.js <Link> 触发路由切换可能让旧节点卸载 → 用 force:true 跳过稳定性检查。
+   * /picture-book 是孤儿页（无导航入口），直接整页 goto。
+   * JWT 已镜像到 localStorage，登录态保留；middleware 重定向到默认 locale 前缀。
    */
   async navigateToSection(): Promise<void> {
-    const tab = this.page.locator('a[href="/picture-book"]').first();
-    await tab.click({ force: true });
+    await this.page.goto(`${this.baseUrl}/picture-book`);
     await this.waitForSection();
   }
 

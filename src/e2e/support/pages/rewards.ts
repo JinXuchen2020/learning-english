@@ -26,7 +26,8 @@ export default class RewardsPage {
   }
 
   async open(): Promise<void> {
-    // 经 TabNav 客户端导航，保内存 token 存活（整页 goto 会被 AuthGate 弹回 /login）。
+    // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；优先点 TabNav 链接，
+    // 找不到（i18n 下 href 带 locale 前缀）则走 goto 兜底。
     const link = this.page.locator(`nav a[href="${REWARDS_PATH}"]`);
     if (await link.count()) {
       await link.first().click();

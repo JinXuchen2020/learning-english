@@ -1,7 +1,7 @@
 # AI 集成功能 Backlog
 
 > 来源: `docs/ai-integration.md`
-> 更新: 2026-08-08
+> 更新: 2026-08-10
 > 说明: 按实施阶段(M1-M6)细分为可独立验收的 feature。每个 feature 有唯一 ID、优先级、依赖、验收标准。
 
 ## 状态图例
@@ -31,6 +31,8 @@
 | TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | done | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
 | TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | done | 4 features / 6 scenarios / 27 steps 全绿 (浏览器复用本机 Edge, 免 Chromium 下载); 覆盖现有 4 页面核心旅程; plan/speech/report 旅程留待对应 feature 建页时自带 |
 | LOG-101 | **统一日志基建 (Logger + 日志文件)** — 移除应用代码生产路径中的裸 `console.error/console.log/...` 调用, 统一接入 Logger; 后端 `Logger` 写入 `server/logs/app-YYYY-MM-DD.log` (级别 error/warn/info/debug, 异步 append + 镜像 console), 并提供 `POST /api/log` 接口接收前端日志、汇总进同一文件; 前端 `Logger` 封装 console 并 best-effort `POST ${API_BASE}/log`; **约定: 之后所有新 feature 仅允许用 Logger (禁用裸 console)**; 顺带修复 `src/lib/api.ts` 的 `let body: any = null` 为精确类型; E2E 测试夹具 (`src/e2e/**`) 的 console 输出属测试基础设施, 不在本次范围 | P0 | — | done | 应用生产代码 (`src/app`、`src/lib`、`server/src` 除 `seed.ts`/`main.ts` 启动横幅) 无裸 console.*; 后端日志文件可检索且含前端转发的错误; jest 单测覆盖 Logger 纯函数 (serializeMeta/formatLine/文件写入/级别过滤) ≥90%; 前端 Logger 有单测 (fetch 失败静默不抛); 通过 CI 四门 + 质量门 (E2E console 沿用测试豁免) |
+| AI-708 | **前端响应式加固（移动端 P1/P2）** — `globals.css` 根字号 / `h1`/`h2`/`h3` 由写死尺寸改 `clamp()` 流式排版；`LocaleSwitcher` 窄屏缩小占位；首页问候横幅（`ml-auto` 推右侧 streak/star 徽标）与登录卡片在窄屏避让固定的浮动语言器，消除顶栏重叠与横向溢出 | P2 | AI-707 | done | 320/375/390px 视口 `document.documentElement.scrollWidth <= window.innerWidth` 无横向溢出；`html` 根字号窄屏 ≤18px 随视口收缩、宽屏封顶 18px；`h1/h2/h3` 窄屏流式收缩宽屏封顶；`LocaleSwitcher` 在 375px 下 `visible` 且不压首页问候文字；首页问候横幅 ≤640px 纵向堆叠 |
+| AI-709 | **儿童端第 5 个「更多」Tab + 卡片网格抽屉** — `TabNav` 新增第 5 个 `more` 按钮 Tab；新建 `MoreDrawer` bottom-sheet 卡片网格（`z-[70]`）收纳 AI-707 后成为孤儿页的 `/chat` `/plan` `/word-cards` `/speech`（此前全站无任何入口）；child-only 渲染，家长端不受影响；图标 + 标签面向 5-10 岁用户；Esc/遮罩/路由变更三路关闭；i18n 补齐 `TabNav.more` + `MoreDrawer` 6 键 | P1 | AI-707 | done | child 端底栏出现「更多」Tab；点击打开卡片网格抽屉显示 4 张二级页卡；点卡进入对应页且抽屉关闭；`/chat` `/plan` `/word-cards` `/speech` 经抽屉可达；家长端仍为 3 栏无更多 Tab；前端 tsc 0 + i18n spec 2/2 + e2e tsc 0 |
 
 ---
 
@@ -134,6 +136,8 @@
 | AI-702 | **家长模式骨架（PIN 锁 + 控制面板）** — 家长入口 4 位 PIN(按 child 哈希存储, 非明文); 控制面板含奖励审批(AI-701 兑换) + 未来 M5 报告入口; 儿童模式默认无审批权限; PIN 修改入口 | P0 | 现有 AuthModule (child), AI-701 | done | PIN 锁可挡儿童进入家长区; PIN 哈希存储不落明文; 面板可批准/驳回兑换; 未来 M5 报告入口预留 |
 | AI-703 | **测验变体扩展（听音选图 + 组词）** — 给 `Word` 加 `category`/`color` 属性; `/practice` 新增「听音选图」(音频优先, 隐藏文字) 与「组词」(颜色+物品组合) 两种模式; 纯前端出题/判定逻辑 + 单测 | P1 | 现有 WordsModule, /practice | done | 两种新模式可切换出题; 听音选图正确判定; 组词组合合法; 出题/判定函数有单测覆盖 |
 | AI-704 | **逾期 / 补学循环** — 昨日未掌握/未完成任务进入「补学队列」并可补学拿分; 与 AI-605 间隔复习协同(补学队列是 AI-605 的当日触发源之一), 不重复计分; 补学完成回写完成态 | P1 | AI-209 (planDay.isDone 跟踪), AI-605 | done | 未完成词/任务次日进补学队列; 补学完成计分给分; 与 AI-605 不重复; 完成态回写 |
+| AI-705 | **AI 提供商配置（家长页面）** — 家长页新增「AI 提供商」配置区: 可自由增/删/改 AI provider(优先 OpenAI 兼容类: 智谱/OpenAI/DeepSeek/Qwen 等, 统一通用适配器覆盖 chat/多模态/STT/TTS; 发音评测不支持则回退或标注不可用)、配置默认 provider; 配置按**每家长账号隔离**; 密钥服务端 AES 加密落库、前端掩码展示; 后端改为**运行时解析器**(改完即时生效, 无需重启 `AI_PROVIDER` 单例); 接口仅家长 PIN 可访问 | P1 | AI-702 (ParentGuard), AI-101/AI-102 (AiProvider 接口) | done | 家长可增删改 provider 列表; 可设默认; 密钥掩码展示; 改完即时生效; 越权/儿童不可访问 |
+| AI-706 | **多语言化（国际化 i18n）** — 前端引入 i18n 方案(next-intl / react-i18next 二选一; 当前仓库**无任何 i18n 依赖**, UI 文案为硬编码中文, 需从零抽取); 抽出全站中文 UI 文案为语言包(JSON/TS); 支持 **中文 / 英文** 切换(语言选择器 + 偏好持久化: localStorage 或账号级); **默认语言中文**; 覆盖全站页面与组件(登录/练习/计划/家长/奖励/聊天/首页等); **单词与学习内容保持英文原样不动**(仅 UI chrome 翻译); 后端错误码与提示文案同步抽取(可选, 后续迭代); 儿童模式与家长模式均双语可用 | P1 | 现有 Next.js 前端(React 18) | done | 全站 UI 文案可中/英切换; 切换即时生效并持久化; 默认中文; 关键页面完整双语无遗漏; 单词/学习内容不被误译; 不引入运行时报错/布局错乱 |
 
 ---
 
@@ -148,6 +152,6 @@
 | **Milestone 4** (W5) | AI-401 ~ AI-409 | `/chat` 页场景对话 + TTS + 跟读闭环 |
 | **Milestone 5** (W6) | AI-501 ~ AI-507 | Home 每日 AI 小结 + 家长周报 |
 | **Milestone 6** (W7+) | AI-601 ~ AI-606 | 自适应与内容生成增强 |
-| **Milestone 7** (W7+) | AI-701 ~ AI-704 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 |
+| **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 
 > 每里程碑独立可交付, 验收通过 `lsp_diagnostics` 零错误 + `next build` 成功 + 真机演示。

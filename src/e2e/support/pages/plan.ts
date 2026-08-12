@@ -14,15 +14,9 @@ export default class PlanPage {
   }
 
   async open(): Promise<void> {
-    // Navigate via the TabNav "Plan" link (client-side) so the in-memory auth
-    // token survives. A full page.goto('/plan') would reset module memory and
-    // bounce to /login via AuthGate, so the wizard never mounts.
-    const planLink = this.page.locator('nav a[href="/plan"]');
-    if (await planLink.count()) {
-      await planLink.first().click();
-    } else {
-      await this.page.goto(`${this.baseUrl}/plan`);
-    }
+    // /plan 已移入「更多」抽屉，无 TabNav 直链；直接整页 goto。
+    // JWT 已镜像到 localStorage，整页 goto 保留登录态（middleware 重定向到默认 locale 前缀）。
+    await this.page.goto(`${this.baseUrl}/plan`);
     await this.page.waitForSelector('[data-component="PlanWizard"]');
   }
 
@@ -121,7 +115,12 @@ export default class PlanPage {
 
   /** After applying, wait until we land back on Home with its daily tasks rendered. */
   async waitHomeWithTasks(): Promise<void> {
-    await this.page.waitForFunction(() => location.pathname === "/", undefined, { timeout: 30000 });
+    // 接受任意 locale 前缀（/zh、/zh/、/en、/en/），与语言无关。
+    await this.page.waitForFunction(
+      () => /^\/(zh|en)(\/|$)/.test(location.pathname),
+      undefined,
+      { timeout: 30000 },
+    );
     await this.page.waitForSelector('[data-component="Home"]');
     await this.page.waitForFunction(
       () => document.querySelectorAll('[data-component="DailyTasks"] button').length >= 1,

@@ -53,6 +53,23 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   parentPinHash: string | null;
 
+  /**
+   * 家长归属（AI-705）。儿童 → 家长 `User.id`，用于把儿童发起的 AI 请求
+   * 解析到其家长的默认 provider；向前兼容：初始全 null（解析器遇 null 回退 env 默认）。
+   * 家庭绑定 UX（家长认领儿童）超出 AI-705 范围。
+   */
+  @Column({ type: 'uuid', nullable: true })
+  parentId: string | null;
+
+  /**
+   * 账号角色（AI-707 角色化导航）。
+   * 'child' = 孩子端（学习功能）；'parent' = 家长端（周报 / 家长中心）。
+   * 注册时由客户端选择并落库；登录 JWT 携带 `role` 供前端分流，
+   * 同时驱动 AI provider 上下文路由（child → 解析 parentId 到家长默认 provider）。
+   */
+  @Column({ type: 'varchar', default: 'child' })
+  role: 'child' | 'parent';
+
   @CreateDateColumn()
   createdAt: Date;
 

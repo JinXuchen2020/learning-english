@@ -40,6 +40,10 @@ import type {
   RewardsSummary,
   RedemptionStatus,
   MakeupQueue,
+  ProviderConfigView,
+  CreateProviderConfigDto,
+  UpdateProviderConfigDto,
+  ProviderTestResult,
 } from "./types";
 
 /**
@@ -51,18 +55,65 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 /**
- * The JWT is held in module memory only (no localStorage/sessionStorage),
- * which suits this prototype. The trade-off: a hard refresh clears the
- * session and the user signs in again.
+ * Session persistence.
+ *
+ * The JWT is cached in module memory (primary) AND mirrored to localStorage so
+ * a hard refresh keeps the user signed in. The backend JWT TTL is 7d
+ * (JWT_EXPIRES_IN), so a refresh within that window restores the session
+ * transparently. The lightweight `user` object is persisted alongside the
+ * token so the auth context can rehydrate without an extra /auth/me round-trip.
+ *
+ * All storage access is guarded for `typeof window === 'undefined'`, making
+ * this module safe to import during SSR (Next.js) — on the server storage is a
+ * no-op and the session simply stays memory-only.
  */
-let accessToken: string | null = null;
+const TOKEN_KEY = "le_auth_token";
+const USER_KEY = "le_auth_user";
+
+function storageGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable (private mode / quota) — degrade to memory only */
+  }
+}
+
+let accessToken: string | null = storageGet(TOKEN_KEY);
 
 export function setToken(token: string | null) {
   accessToken = token;
+  storageSet(TOKEN_KEY, token);
 }
 
 export function getToken(): string | null {
-  return accessToken;
+  return accessToken ?? storageGet(TOKEN_KEY);
+}
+
+/** Persist the lightweight auth user object so the context rehydrates on refresh. */
+export function setStoredUser(user: AuthUser | null) {
+  storageSet(USER_KEY, user ? JSON.stringify(user) : null);
+}
+
+/** Read the persisted auth user, or null if absent/corrupt. */
+export function getStoredUser(): AuthUser | null {
+  const raw = storageGet(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
 export class ApiError extends Error {
@@ -125,6 +176,7 @@ export interface AuthUser {
   nickname: string;
   totalStars: number;
   streakDays: number;
+  role: 'child' | 'parent';
 }
 
 export interface AuthResponse {
@@ -132,11 +184,19 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
-export function register(username: string, password: string, nickname?: string) {
+export function register(
+  username: string,
+  password: string,
+  nickname?: string,
+  role?: 'child' | 'parent',
+) {
   return request<AuthResponse>(
     "/auth/register",
-    { method: "POST", body: JSON.stringify({ username, password, nickname }) },
-    false
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password, nickname, role }),
+    },
+    false,
   );
 }
 
@@ -791,6 +851,82 @@ export function rejectRedemption(id: string, reason?: string): Promise<RewardRed
   return request<RewardRedemption>(
     `/rewards/redemptions/${encodeURIComponent(id)}/reject`,
     { method: "POST", body: JSON.stringify(reason != null ? { reason } : {}) },
+    true,
+    getParentToken(),
+  );
+}
+
+/* ----------------------- AI Provider Config (AI-705) ----------------------- */
+
+/**
+ * 列出当前家长账号下全部 provider 配置（掩码视图）。`GET /api/provider-config`，需家长会话令牌。
+ * ownerUserId 由后端从 ParentGuard JWT 解析，前端不传。
+ */
+export function listProviderConfigs(): Promise<ProviderConfigView[]> {
+  return request<ProviderConfigView[]>("/provider-config", {}, true, getParentToken());
+}
+
+/**
+ * 新增一条 provider 配置（明文 apiKey 由后端加密落库）。`POST /api/provider-config`。
+ */
+export function createProviderConfig(
+  dto: CreateProviderConfigDto
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>("/provider-config", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  }, true, getParentToken());
+}
+
+/**
+ * 修改一条 provider 配置；省略的字段（如 apiKey）不改动原值。`PUT /api/provider-config/:id`。
+ */
+export function updateProviderConfig(
+  id: string,
+  dto: UpdateProviderConfigDto
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>(
+    `/provider-config/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(dto) },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 删除一条 provider 配置（越权/不存在后端抛 403/404）。`DELETE /api/provider-config/:id`。
+ */
+export function deleteProviderConfig(id: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(
+    `/provider-config/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 设为当前账号默认（同账号互斥）。`POST /api/provider-config/:id/default`。
+ */
+export function setDefaultProviderConfig(
+  id: string
+): Promise<ProviderConfigView> {
+  return request<ProviderConfigView>(
+    `/provider-config/${encodeURIComponent(id)}/default`,
+    { method: "POST" },
+    true,
+    getParentToken(),
+  );
+}
+
+/**
+ * 轻量连通性探测（按该配置构建 provider 并发一个极小 chat 请求）。
+ * `POST /api/provider-config/:id/test`，返回 `{ ok, message }`。
+ */
+export function testProviderConfig(id: string): Promise<ProviderTestResult> {
+  return request<ProviderTestResult>(
+    `/provider-config/${encodeURIComponent(id)}/test`,
+    { method: "POST" },
     true,
     getParentToken(),
   );

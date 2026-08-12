@@ -11,8 +11,10 @@ Given("I open the plan wizard", async function (this: E2EWorld) {
 Then("I should see the plan wizard heading", async function (this: E2EWorld) {
   const page = new PlanPage(this.page, this.baseUrl);
   const text = await page.headingText();
-  if (!text || !text.includes("学习计划")) {
-    throw new Error(`Expected plan wizard heading but got: "${text}"`);
+  // 标题文案随语言变化，改用稳定的 PlanTitle 组件是否存在来判定向导已渲染。
+  const count = await this.page.locator('[data-component="PlanTitle"]').count();
+  if (count === 0) {
+    throw new Error(`Expected the plan wizard heading (data-component=PlanTitle) to be visible but got: "${text}"`);
   }
 });
 

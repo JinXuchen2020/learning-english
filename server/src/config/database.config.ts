@@ -21,6 +21,7 @@ import { AiChatMessage } from '../chat/ai-chat-message.entity';
 import { AiWordCard } from '../word-card/ai-word-card.entity';
 import { MascotStory } from '../ai/mascot-story.entity';
 import { PictureBook } from '../ai/picture-book.entity';
+import { ProviderConfig } from '../ai/provider-config/provider-config.entity';
 import { ScannedWord } from '../entities/scanned-word.entity';
 import { UserPoints } from '../rewards/user-points.entity';
 import { Reward } from '../rewards/reward.entity';
@@ -52,6 +53,7 @@ export const appEntities = [
   AiWordCard,
   MascotStory,
   PictureBook,
+  ProviderConfig,
   ScannedWord,
   UserPoints,
   Reward,

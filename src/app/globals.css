@@ -43,7 +43,7 @@
   }
 
   html {
-    font-size: 18px;
+    font-size: clamp(15px, 4.2vw, 18px);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -67,16 +67,16 @@
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 4.5vw, 2rem);
     letter-spacing: -0.02em;
   }
 
   h2 {
-    font-size: 1.5rem;
+    font-size: clamp(1.25rem, 3.5vw, 1.5rem);
   }
 
   h3 {
-    font-size: 1.15rem;
+    font-size: clamp(1.05rem, 2.5vw, 1.15rem);
     font-weight: 700;
   }
 }

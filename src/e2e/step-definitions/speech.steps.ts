@@ -29,11 +29,12 @@ When("I open the speech practice page", async function (this: E2EWorld) {
 Then(
   "I should see the speech practice heading",
   async function (this: E2EWorld) {
-    const page = new SpeechPage(this.page, this.baseUrl);
-    const text = await page.headingText();
-    if (!text || !text.includes("Speak with Foxy")) {
-      throw new Error(`Expected speech practice heading but got: "${text}"`);
-    }
+    // 语言无关：标题文案随 locale 变化（zh「和小狐狸一起说！」/ en「Speak with Foxy!」），
+    // 不判文案，只断言标题容器可见（data-component 稳定）。
+    await this.page
+      .locator('[data-component="SpeechTitle"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 15000 });
   },
 );
 

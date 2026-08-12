@@ -20,10 +20,11 @@ export default class ScanPage {
     this.baseUrl = baseUrl;
   }
 
-  /** 经 TabNav 客户端导航到 /scan（token 仅内存，禁止整页 reload）。 */
+  /** /scan 是无导航入口的孤儿页，无法经 TabNav 客户端导航；直接整页 goto。
+   *  JWT 已镜像到 localStorage，整页导航保留登录态；middleware 把裸 /scan
+   *  重定向到默认 locale 前缀（如 /zh/scan）。 */
   async navigate(): Promise<void> {
-    const link = this.page.locator('[data-component="TabNav"] a[href="/scan"]');
-    await link.click({ force: true });
+    await this.page.goto(`${this.baseUrl}/scan`);
     await this.page.waitForSelector('[data-component="ScanPage"]', {
       timeout: 15000,
     });
