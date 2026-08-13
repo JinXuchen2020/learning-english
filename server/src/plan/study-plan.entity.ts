@@ -46,7 +46,7 @@ export class StudyPlan {
   user: User;
 
   @Index()
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'uuid' })
   userId: string;
 
   @Column({ type: 'varchar', length: 16 })

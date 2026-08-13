@@ -19,9 +19,9 @@ export class StudyPlanDay {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** 归属计划 ID（显式列 + 外键，保证 sqlite/postgres 双驱动兼容）。 */
+  /** 归属计划 ID（显式列 + 外键，与 StudyPlan.id 同为 uuid）。 */
   @Index()
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'uuid' })
   planId: string;
 
   @ManyToOne(() => StudyPlan, (plan) => plan.days, { onDelete: 'CASCADE' })
