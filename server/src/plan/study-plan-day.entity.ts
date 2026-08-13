@@ -19,13 +19,14 @@ export class StudyPlanDay {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => StudyPlan, (plan) => plan.days, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'planId' })
-  plan: StudyPlan;
-
+  /** 归属计划 ID（显式列 + 外键，保证 sqlite/postgres 双驱动兼容）。 */
   @Index()
   @Column({ type: 'varchar', length: 255 })
   planId: string;
+
+  @ManyToOne(() => StudyPlan, (plan) => plan.days, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'planId' })
+  plan: StudyPlan;
 
   /** 计划内第几天（从 0 或 1 起由业务约定，默认 0）。 */
   @Column({ type: 'int', default: 0 })
