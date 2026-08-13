@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
 } from 'typeorm';
+import { dateColumnType } from '../config/date-column-type';
 
 /** 单词卡片审核状态。 */
 export type WordCardStatus = 'pending' | 'approved' | 'rejected';
@@ -61,7 +62,9 @@ export class AiWordCard {
   @CreateDateColumn()
   createdAt: Date;
 
-  /** 批准时间（驳回为 null）。 */
-  @Column({ type: 'datetime', nullable: true })
+  /** 批准时间（驳回为 null）。
+   *  type 按驱动切换：sqlite→datetime / postgres→timestamp。
+   */
+  @Column({ type: dateColumnType(), nullable: true })
   approvedAt: Date | null;
 }

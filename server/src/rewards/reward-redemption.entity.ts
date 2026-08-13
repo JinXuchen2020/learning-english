@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
 } from 'typeorm';
+import { dateColumnType } from '../config/date-column-type';
 
 /** 兑换单状态机：孩子申请 → 家长批准/驳回。 */
 export type RedemptionStatus = 'pending' | 'approved' | 'rejected';
@@ -39,8 +40,10 @@ export class RewardRedemption {
   @Column({ type: 'varchar', nullable: true })
   rejectReason: string | null;
 
-  /** 审批时间（approved/rejected 时写入）。 */
-  @Column({ type: 'datetime', nullable: true })
+  /** 审批时间（approved/rejected 时写入）。
+   *  type 按驱动切换：sqlite→datetime / postgres→timestamp。
+   */
+  @Column({ type: dateColumnType(), nullable: true })
   decidedAt: Date | null;
 
   @CreateDateColumn()

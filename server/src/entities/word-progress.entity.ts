@@ -1,6 +1,7 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, UpdateDateColumn,
 } from 'typeorm';
+import { dateColumnType } from '../config/date-column-type';
 import { User } from './user.entity';
 import { Word } from './word.entity';
 
@@ -53,8 +54,10 @@ export class WordProgress {
   @Column({ type: 'int', default: 0 })
   reviewCount: number;
 
-  /** 下一次复习到期日；null = 尚未纳入复习计划（AI-605）。 */
-  @Column({ type: 'datetime', nullable: true })
+  /** 下一次复习到期日；null = 尚未纳入复习计划（AI-605）。
+   *  type 按驱动切换：sqlite→datetime / postgres→timestamp。
+   */
+  @Column({ type: dateColumnType(), nullable: true })
   dueDate: Date | null;
 
   @UpdateDateColumn({ nullable: true })

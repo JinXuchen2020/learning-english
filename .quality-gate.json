@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "README.md#deployment",
-  "notes": "Vercel 部署修复（本批）：① server/api/index.ts 移除对 @vercel/node 的外部类型依赖，改用 Node 内置 http.IncomingMessage/ServerResponse，消除 Vercel 编译 serverless function 时的 TS2307 报错，零新依赖；api/index.ts 单文件 tsc 已验证通过。② server/src/config/database.config.ts 的 postgres 分支改为优先读 DATABASE_URL（池化连接串）→ 回退 POSTGRES_URL → 回退 DB_*/PG*/POSTGRES_* 拆分变量，并自动开启 TLS（ssl.rejectUnauthorized:false，DB_SSL=false 可关），以支持 Neon/Vercel Postgres 托管连接；新增 cleanPostgresUrl 过滤 URL 中的 sslmode/channel_binding（pg 对这两个 URL 参数支持不完整，易冲突/误报）；补 database.config.spec 8 条（DATABASE_URL 优先+TLS+URL 清洗、POSTGRES_URL 回退、DB_SSL=false 关 TLS、cleanPostgresUrl 4 分支）。③ 前端修复：src/next.config.mjs 显式设置 NEXT_PUBLIC_API_URL，Vercel 构建默认走 https://learning-english-api.vercel.app/api，本地开发仍 fallback localhost:4000/api，避免 Vercel 未读到 src/vercel.json 时请求 localhost 导致 CORS/404。④ 设计文档 features/ai-710.md 落档「注册入口仅家长」（方案A，仅设计未实现）+ features/backlog.md 备注。⑤ 网站图标（本批）：新增 src/app/icon.svg（Foxy 小狐狸脸 + mint 圆角磁贴，纯静态 SVG，Vercel 零 Satori 风险）作 favicon；新增 src/app/apple-icon.tsx（next/og ImageResponse，用 base64 SVG data-URI 内嵌同一 Foxy 脸，Satori 安全路径）作 iOS 主屏图标（180x180）；src/app/[locale]/layout.tsx 加 appleWebApp 元数据 + viewport.themeColor=#19C8B9 让移动端浏览器栏跟随品牌色。验证：前端 tsc --noEmit 0 错；后端 tsc 0 错；后端 jest 93 suites/822 tests 全绿。",
+  "notes": "Vercel 部署运行时修复（本批）：① 后端 API 发布到 Vercel(Postgres) 后运行时报错 DataTypeNotSupportedError：Data type \"datetime\" in \"WordProgress.dueDate\" is not supported by \"postgres\"。根因：3 个实体的普通 Date 列硬写 type:'datetime'（仅 SQLite 支持），切到 Postgres 后不被支持。修复：新增 server/src/config/date-column-type.ts 辅助函数 dateColumnType()，按 DB_TYPE 在 sqlite→'datetime' / postgres→'timestamp' 间切换；WordProgress.dueDate、AiWordCard.approvedAt、RewardRedemption.decidedAt 三个 @Column 改用 type:dateColumnType()（避免反向 import database.config 造成循环依赖）。② 注意踩坑：去掉 type 让 TypeORM 自动推断在 better-sqlite3 下会反射为 Object 报错（需 reflect-metadata 显式 type），故必须显式切换。验证：后端 tsc 0 错；后端 jest 93 suites/822 tests 全绿；npm run seed（sqlite）成功建表（3 courses/6 lessons/10 words/36 sentences/3 daily tasks）。前序批次：Vercel @vercel/node TS2307 修复、DATABASE_URL/SSL 支持、cleanPostgresUrl、前端 NEXT_PUBLIC_API_URL 兜底、图标、ai-710 设计落档。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; api/index.ts 单文件 tsc 0 错; data-component 契约未变; icon.svg 与 apple-icon.tsx 共用同一 Foxy 几何与 cozy-kids token; next.config.mjs 显式设置 NEXT_PUBLIC_API_URL)",
-    "tests": "PASSED (后端 jest 93 suites/822 tests 全绿; database.config.spec 18/18; 前端 tsc 0 错)",
-    "review": "PASSED (icon.svg 静态 SVG 规避 Satori 构建风险; apple-icon.tsx 用 img data-URI 而非内联 svg 子元素，规避 Satori 对原生 svg 子节点支持不全; appleWebApp/themeColor 仅加元数据无逻辑副作用)",
-    "optimization": "PASSED (零新依赖; icon.svg 矢量可无限缩放; Foxy 几何与 Mascot 组件同源保持品牌一致)"
+    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; 3 个 Date 列统一用 dateColumnType() 切换而非硬编码 datetime; 新增辅助文件不引入循环依赖)",
+    "tests": "PASSED (后端 jest 93 suites/822 tests 全绿; npm run seed sqlite 建表成功验证类型映射)",
+    "review": "PASSED (dateColumnType 显式切换避免 better-sqlite3 反射为 Object; 不反向 import database.config 规避循环依赖; Postgres timestamp 为原生支持类型)",
+    "optimization": "PASSED (零新依赖; 单一 dateColumnType 辅助函数集中管理跨库 Date 类型策略)"
   }
 }
