@@ -25,6 +25,16 @@ export const metadata: Metadata = {
   title: "Fox English — Learn with Foxy!",
   description:
     "A fun English learning app for kids aged 5-10. Learn words, practice pronunciation, and earn stars with your fox friend!",
+  applicationName: "Fox English",
+  appleWebApp: {
+    capable: true,
+    title: "Fox English",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport = {
+  themeColor: "#19C8B9",
 };
 
 export default async function LocaleLayout({
