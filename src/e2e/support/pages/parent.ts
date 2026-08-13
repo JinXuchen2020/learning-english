@@ -108,9 +108,24 @@ export default class ParentPage {
       .locator('[data-component="ProviderNameInput"]')
       .fill(opts.name);
     if (opts.type) {
-      await this.page
-        .locator('[data-component="ProviderTypeSelect"]')
-        .selectOption(opts.type);
+      // 自定义 Select 原语：trigger 是 <button>，选项为 [data-component="SelectOption"][data-value=...]。
+      // 原生 selectOption() 不可用，改为「点开 → 点选项」。
+      const trigger = this.page.locator('[data-component="ProviderTypeSelect"]');
+      await trigger.click();
+      const option = this.page.locator(
+        `[data-component="SelectOption"][data-value="${opts.type}"]`,
+      );
+      await option.waitFor({ state: "visible", timeout: 5000 });
+      await option.click();
+      // 选项点击后下拉应关闭；等待 trigger 不再 aria-expanded，确保选择已落定。
+      await this.page.waitForFunction(
+        () => {
+          const t = document.querySelector('[data-component="ProviderTypeSelect"]');
+          return t && t.getAttribute("aria-expanded") === "false";
+        },
+        undefined,
+        { timeout: 5000 },
+      );
     }
     if (opts.baseUrl !== undefined) {
       await this.page

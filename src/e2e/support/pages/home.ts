@@ -34,7 +34,17 @@ export default class HomePage {
   }
 
   async completedCountText(): Promise<string | undefined> {
-    return (await this.page.locator('[data-component="DailyTasks"] h2 span').first().textContent())?.trim();
+    // 计数在 SectionTitle 的 Badge（第二个 <span>）里；遍历 h2 下所有 span 取含 X/Y 的那个，
+    // 避免用 .first() 误抓标题 span。
+    return this.page.evaluate(() => {
+      const spans = document.querySelectorAll('[data-component="DailyTasks"] h2 span');
+      for (const span of Array.from(spans)) {
+        if (/(\d+)\s*\/\s*(\d+)/.test(span.textContent || "")) {
+          return (span.textContent || "").trim();
+        }
+      }
+      return undefined;
+    });
   }
 
   async clickFirstCourse(): Promise<void> {

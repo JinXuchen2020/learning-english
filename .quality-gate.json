@@ -1,14 +1,14 @@
 {
-  "phase": "refactor",
+  "phase": "deploy",
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/design-system.md",
-  "notes": "三主题合并提交：① 设计系统原语升级（Card/Badge/Input/ProgressRing/SectionTitle/Select + docs/design-system.md + tailwind/globals token 同步 + TabNav/chat UI 修复）；② 家长 PIN 全栈移除（删 parentPinHash 字段、verify/setup/change-pin 端点与 DTO、前端 parentToken 机制与 PIN gate UI/i18n、E2E 改写为家长账号直接进面板）；③ provider-config 清理（bigmodel 合并进 openai-compatible、类型/能力标签补 t() 翻译、Base URL/API Key 加 autoComplete 防误填、类型下拉改用 Select 原语）。验证：前端 tsc 0 错、后端 tsc 0 错、后端 jest 93 suites/814 tests 全绿（含 parent.service.spec/parent.guard.spec）、e2e tsc 0 错。注：完整 Cucumber E2E 未在本机复跑（本地 next dev 受 safe-delete 守卫限制无法起 .next，需临时 distDir 或推 CI 验证）；E2E 改动仅为 PIN 链路删除/场景重写，已通过 e2e tsc 与后端 jest 间接校验。",
+  "reportRef": "README.md#deployment",
+  "notes": "Vercel 前后端双项目部署 + E2E 修复 + README。① 部署：后端抽 vercel-entry.ts（createNestServer 含 api 前缀/CORS/ValidationPipe），main.ts 复用之；新增 server/api/index.ts 薄函数 require 预编译 dist/vercel-entry.js（规避 Vercel esbuild 装饰器元数据丢失），server/vercel.json rewrite 全部路径到 /api/index；next.config.mjs 回退纯配置（撤 GitHub Pages 静态导出 hack）；删除 GH Pages 产物（deploy.yml/public/.nojekyll/index.html）。② E2E 修复：parent.ts fillProviderForm 自定义 Select 改用「点开→点 SelectOption[data-value]→等 aria-expanded=false」；task.steps.ts 与 home.ts 完成度计数改为遍历 h2 下所有 span 取含 X/Y 者（语言无关，不依赖 DOM 位置）。③ README 新增 Vercel 部署章节。验证：前端/后端/e2e tsc 0 错；后端 jest 93 suites/814 tests 全绿；nest build 实测产出 dist/vercel-entry.js。注：真机 Vercel 部署 + Postgres 连接需建项目后实测；完整 Cucumber E2E 本机受 safe-delete 守卫无法起 .next 未复跑，改动经类型检查 + DOM 结构审查确认。",
   "gates": {
-    "consistency": "PASSED (前后端 tsc 0 错; data-component 契约未变; 设计 token 双轨同步 CSS 变量与 tailwind 主题)",
-    "tests": "PASSED (后端 jest 93 suites/814 tests 全绿; e2e tsc 0 错; 前端 tsc 0 错; PIN 移除后 parent.spec 重写且通过)",
-    "review": "PASSED (生产改动仅删家长 PIN 链路与合并 bigmodel 类型; 无裸 console; 类型下拉改用受控 Select 原语)",
-    "optimization": "PASSED (零新依赖; Select 复用 Input 触觉风格与已有 shadow/z-index token)"
+    "consistency": "PASSED (前后端 e2e 三套 tsc 0 错; data-component 契约未变; vercel-entry 与 main.ts 复用同一 bootstrap)",
+    "tests": "PASSED (后端 jest 93 suites/814 tests 全绿; e2e tsc 0 错; 前端 tsc 0 错; nest build 实测产出 dist/vercel-entry.js)",
+    "review": "PASSED (serverless 改用预编译 require 导入规避 esbuild 装饰器元数据坑; 移除 GH Pages 静态导出 hack 保持 next.config 纯配置)",
+    "optimization": "PASSED (零新依赖; vercel-entry 复用已有 createNestServer; E2E 改为语言无关计数断言减少 locale 脆弱性)"
   }
 }
