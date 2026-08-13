@@ -3,6 +3,7 @@ import {
   buildDataSourceOptions,
   buildTypeOrmModuleOptions,
   appEntities,
+  cleanPostgresUrl,
 } from './database.config';
 
 describe('database.config', () => {
@@ -69,14 +70,22 @@ describe('database.config', () => {
       process.env.DB_SYNCHRONIZE = 'false';
       expect((buildDataSourceOptions() as any).synchronize).toBe(false);
     });
-    it('prefers DATABASE_URL (Neon connection string) and enables TLS', () => {
+    it('prefers DATABASE_URL (Neon connection string), strips sslmode, and enables TLS', () => {
       process.env.DB_TYPE = 'postgres';
       process.env.DATABASE_URL = 'postgresql://u:p@host/neondb?sslmode=require';
       const opt = buildDataSourceOptions() as any;
       expect(opt.type).toBe('postgres');
-      expect(opt.url).toBe('postgresql://u:p@host/neondb?sslmode=require');
+      expect(opt.url).toBe('postgresql://u:p@host/neondb');
       expect(opt.ssl).toEqual({ rejectUnauthorized: false });
       expect(opt.host).toBeUndefined(); // url path must not also set host
+      delete process.env.DATABASE_URL;
+    });
+    it('strips channel_binding from DATABASE_URL (Neon-specific param pg ignores)', () => {
+      process.env.DB_TYPE = 'postgres';
+      process.env.DATABASE_URL =
+        'postgresql://u:p@host/neondb?channel_binding=require&sslmode=require';
+      const opt = buildDataSourceOptions() as any;
+      expect(opt.url).toBe('postgresql://u:p@host/neondb');
       delete process.env.DATABASE_URL;
     });
     it('falls back to POSTGRES_URL when DATABASE_URL is absent', () => {
@@ -94,6 +103,27 @@ describe('database.config', () => {
       expect(opt.ssl).toBeUndefined();
       delete process.env.DATABASE_URL;
       delete process.env.DB_SSL;
+    });
+  });
+
+  describe('cleanPostgresUrl', () => {
+    it('removes sslmode query parameter', () => {
+      expect(cleanPostgresUrl('postgresql://u:p@host/db?sslmode=require')).toBe(
+        'postgresql://u:p@host/db',
+      );
+    });
+    it('removes channel_binding query parameter', () => {
+      expect(
+        cleanPostgresUrl('postgresql://u:p@host/db?channel_binding=require'),
+      ).toBe('postgresql://u:p@host/db');
+    });
+    it('preserves unrelated query parameters', () => {
+      expect(
+        cleanPostgresUrl('postgresql://u:p@host/db?connect_timeout=15&sslmode=require'),
+      ).toBe('postgresql://u:p@host/db?connect_timeout=15');
+    });
+    it('returns the original string when parsing fails', () => {
+      expect(cleanPostgresUrl('not-a-url')).toBe('not-a-url');
     });
   });
 

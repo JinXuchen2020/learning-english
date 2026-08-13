@@ -63,6 +63,24 @@ export const appEntities = [
 export type DbType = 'sqlite' | 'postgres';
 
 /**
+ * Strips Postgres SSL-related query parameters from a connection URL.
+ * pg>=8 warns about / can mis-parse `sslmode` in the URL when an explicit
+ * `ssl` option is also provided. Neon also appends `channel_binding`, which
+ * pg does not understand. We remove both and enforce SSL via the `ssl`
+ * TypeORM option instead.
+ */
+export function cleanPostgresUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('sslmode');
+    parsed.searchParams.delete('channel_binding');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Reads DB_TYPE from the environment. Defaults to sqlite so the dev
  * experience is zero-config (no database server required). Set
  * DB_TYPE=postgres to switch seamlessly to PostgreSQL.
@@ -91,7 +109,7 @@ export function buildDataSourceOptions(): DataSourceOptions {
     if (url) {
       return {
         type: 'postgres',
-        url,
+        url: cleanPostgresUrl(url),
         ssl,
         entities: appEntities,
         synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production

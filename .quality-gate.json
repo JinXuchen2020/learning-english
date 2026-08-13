@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "README.md#deployment",
-  "notes": "Vercel 部署修复（本批）：① server/api/index.ts 移除对 @vercel/node 的外部类型依赖，改用 Node 内置 http.IncomingMessage/ServerResponse，消除 Vercel 编译 serverless function 时的 TS2307 报错，零新依赖；api/index.ts 单文件 tsc 已验证通过。② server/src/config/database.config.ts 的 postgres 分支改为优先读 DATABASE_URL（池化连接串）→ 回退 POSTGRES_URL → 回退 DB_*/PG*/POSTGRES_* 拆分变量，并自动开启 TLS（ssl.rejectUnauthorized:false，DB_SSL=false 可关），以支持 Neon/Vercel Postgres 托管连接；补 database.config.spec 3 条（DATABASE_URL 优先+TLS、POSTGRES_URL 回退、DB_SSL=false 关 TLS）。③ 前端修复：src/next.config.mjs 显式设置 NEXT_PUBLIC_API_URL，Vercel 构建默认走 https://learning-english-api.vercel.app/api，本地开发仍 fallback localhost:4000/api，避免 Vercel 未读到 src/vercel.json 时请求 localhost 导致 CORS/404。④ 设计文档 features/ai-710.md 落档「注册入口仅家长」（方案A，仅设计未实现）+ features/backlog.md 备注。验证：后端 tsc 0 错；后端 jest 93 suites/817 tests 全绿（原814+新3）；前端 tsc 0 错；api/index.ts 单文件 tsc 0 错。",
+  "notes": "Vercel 部署修复（本批）：① server/api/index.ts 移除对 @vercel/node 的外部类型依赖，改用 Node 内置 http.IncomingMessage/ServerResponse，消除 Vercel 编译 serverless function 时的 TS2307 报错，零新依赖；api/index.ts 单文件 tsc 已验证通过。② server/src/config/database.config.ts 的 postgres 分支改为优先读 DATABASE_URL（池化连接串）→ 回退 POSTGRES_URL → 回退 DB_*/PG*/POSTGRES_* 拆分变量，并自动开启 TLS（ssl.rejectUnauthorized:false，DB_SSL=false 可关），以支持 Neon/Vercel Postgres 托管连接；新增 cleanPostgresUrl 过滤 URL 中的 sslmode/channel_binding（pg 对这两个 URL 参数支持不完整，易冲突/误报）；补 database.config.spec 8 条（DATABASE_URL 优先+TLS+URL 清洗、POSTGRES_URL 回退、DB_SSL=false 关 TLS、cleanPostgresUrl 4 分支）。③ 前端修复：src/next.config.mjs 显式设置 NEXT_PUBLIC_API_URL，Vercel 构建默认走 https://learning-english-api.vercel.app/api，本地开发仍 fallback localhost:4000/api，避免 Vercel 未读到 src/vercel.json 时请求 localhost 导致 CORS/404。④ 设计文档 features/ai-710.md 落档「注册入口仅家长」（方案A，仅设计未实现）+ features/backlog.md 备注。验证：后端 tsc 0 错；后端 jest 93 suites/822 tests 全绿（原814+新8）；前端 tsc 0 错；api/index.ts 单文件 tsc 0 错。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; api/index.ts 单文件 tsc 0 错; data-component 契约未变; next.config.mjs 显式设置 NEXT_PUBLIC_API_URL)",
-    "tests": "PASSED (后端 jest 93 suites/817 tests 全绿; database.config.spec 13/13; 前端 tsc 0 错)",
-    "review": "PASSED (api/index.ts 去除外部 @vercel/node 依赖改用内置 http 类型; postgres 自动 TLS 显式配置; 设计文档与代码分离未实现; next.config.mjs 的 Vercel 分支兜底避免 localhost 泄露到生产)",
-    "optimization": "PASSED (零新依赖; DATABASE_URL 优先避免逐字段拆分配置; 单测覆盖新分支; next.config.mjs 与 src/vercel.json 双保险减少部署配置依赖)"
+    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; api/index.ts 单文件 tsc 0 错; data-component 契约未变; next.config.mjs 显式设置 NEXT_PUBLIC_API_URL; database.config URL 清洗不改变非 SSL 参数)",
+    "tests": "PASSED (后端 jest 93 suites/822 tests 全绿; database.config.spec 18/18; 前端 tsc 0 错)",
+    "review": "PASSED (api/index.ts 去除外部 @vercel/node 依赖改用内置 http 类型; postgres 自动 TLS 显式配置; cleanPostgresUrl 剥离 pg 不支持的 sslmode/channel_binding; 设计文档与代码分离未实现; next.config.mjs 的 Vercel 分支兜底避免 localhost 泄露到生产)",
+    "optimization": "PASSED (零新依赖; DATABASE_URL 优先+URL 清洗避免逐字段拆分配置; 单测覆盖新分支; next.config.mjs 与 src/vercel.json 双保险减少部署配置依赖)"
   }
 }
