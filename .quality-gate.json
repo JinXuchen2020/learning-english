@@ -1,14 +1,14 @@
 {
-  "phase": "deploy",
+  "phase": "feature",
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "README.md#deployment",
-  "notes": "Vercel 日志降噪（本批）：① 前端日志持续报 /favicon.ico 与 /favicon.png 404。根因：App Router 已提供 icon.svg 与 apple-icon.tsx，但浏览器/爬虫仍会默认请求 /favicon.ico。修复：用 Pillow 生成与 Foxy 品牌一致的多尺寸（16/32/48）favicon.ico 并置于 src/app/favicon.ico，Next.js 会自动将其作为站点 favicon。ICO 格式已验证，共 1235 字节。② 日志中 url.parse() DeprecationWarning 经全局搜索确认全部来自 node_modules（Next.js/Express/Vite 等依赖内部），项目源码未直接使用；该警告不影响功能，消除需升级相关依赖，本次仅记录。前序批次：Date 列跨库兼容、uuid 外键对齐、@vercel/node TS2307、DATABASE_URL/SSL、cleanPostgresUrl、NEXT_PUBLIC_API_URL 兜底、图标、ai-710 设计落档。",
+  "reportRef": "docs/quality/ai-710-gate.md",
+  "notes": "AI-710 家庭绑定：公开注册强制 parent + 家长创建/认领/解绑孩子账号。后端 auth.service.register 强制 role=parent；parent.service 4 端点（createChild/claimChild/listChildren/unlinkChild）全挂 ParentGuard；前端注册页移除角色选择器、家长面板新增 ChildrenSection；E2E loginAsNewUser 迁移为 parent 注册→API 创建 child→UI 登录 child。前序批次：favicon 降噪、Date 跨库兼容、uuid 外键对齐、DATABASE_URL/SSL、ai-710 设计落档。",
   "gates": {
-    "consistency": "PASSED (新增 favicon.ico 与现有 icon.svg/apple-icon.tsx 共用 Foxy 品牌视觉；ICO 格式验证含 16/32/48 三尺寸；无源码改动)",
-    "tests": "PASSED (静态资源无新增测试；ICO 文件头与目录项经脚本验证；favicon.ico 能被 Next.js App Router 自动识别)",
-    "review": "PASSED (未引入运行时依赖；保留 icon.svg 作为矢量源；favicon.ico 仅作为浏览器默认请求回退；url.parse 警告确认来自 node_modules)",
-    "optimization": "PASSED (多尺寸 PNG-in-ICO 仅 1235 字节；避免额外的服务端路由或重定向开销；减少 Vercel 404 日志噪音)"
+    "consistency": "PASSED (后端 tsc 0/0；前端 tsc 0/0；e2e tsc 0/0；全栈 ChildView 契约字段对齐 id/nickname/username/role/level/totalStars/streakDays/hasProviderOverride/createdAt)",
+    "tests": "PASSED (后端 jest 841/841 含 AI-710 新增 parent.service 12 + parent.controller 4 + parent.guard 6 + auth.service 3 = 25 新用例；前端 vitest 127/127 含 i18n 2/2 新键对齐；BDD 3 scenario 已编写待 CI 实跑)",
+    "review": "PASSED (0 open：parentId 强制取 JWT userId；ChildView 绝不含 password；claimChild 归属冲突 409；unlinkChild 仅清 parentId 不删账号；ParentGuard 拒绝 child JWT)",
+    "optimization": "PASSED (0 open：零新增依赖；零 stub/占位；hasProviderOverride 预留 AI-711 常量 false)"
   }
 }

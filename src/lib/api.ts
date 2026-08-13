@@ -44,6 +44,9 @@ import type {
   CreateProviderConfigDto,
   UpdateProviderConfigDto,
   ProviderTestResult,
+  ChildView,
+  CreateChildDto as CreateChildApiDto,
+  ClaimChildDto as ClaimChildApiDto,
 } from "./types";
 
 /**
@@ -857,5 +860,50 @@ export function testProviderConfig(id: string): Promise<ProviderTestResult> {
   return request<ProviderTestResult>(
     `/provider-config/${encodeURIComponent(id)}/test`,
     { method: "POST" },
+  );
+}
+
+/* ----------------------- Family Binding (AI-710) ----------------------- */
+
+/**
+ * 列出当前家长名下全部孩子。`GET /api/parent/children`，需家长登录 JWT。
+ */
+export function listChildren(): Promise<ChildView[]> {
+  return request<ChildView[]>("/parent/children");
+}
+
+/**
+ * 家长创建孩子账号。`POST /api/parent/children`，需家长登录 JWT。
+ * @param dto { nickname, username, password, ageRange? }
+ */
+export function createChild(
+  dto: CreateChildApiDto,
+): Promise<ChildView> {
+  return request<ChildView>("/parent/children", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 家长认领已有孩子（密码校验）。`POST /api/parent/children/claim`，需家长登录 JWT。
+ * @param dto { username, password }
+ */
+export function claimChild(
+  dto: ClaimChildApiDto,
+): Promise<ChildView> {
+  return request<ChildView>("/parent/children/claim", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 解除归属（仅清 parentId，不删账号）。`DELETE /api/parent/children/:childId`。
+ */
+export function unlinkChild(childId: string): Promise<void> {
+  return request<void>(
+    `/parent/children/${encodeURIComponent(childId)}`,
+    { method: "DELETE" },
   );
 }

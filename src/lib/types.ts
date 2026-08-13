@@ -753,3 +753,33 @@ export interface ProviderTestResult {
   ok: boolean;
   message: string;
 }
+
+/* ----------------------- Family Binding (AI-710) ----------------------- */
+
+/** 孩子账号视图（与后端 `ChildView` 对齐，绝不包含 password）。 */
+export interface ChildView {
+  id: string;
+  nickname: string;
+  username: string;
+  role: 'child';
+  level: number;
+  totalStars: number;
+  streakDays: number;
+  /** AI-711 预留：孩子是否有独立 provider 覆盖。 */
+  hasProviderOverride: boolean;
+  createdAt: string;
+}
+
+/** `POST /api/parent/children` 请求体（与后端 `CreateChildDto` 对齐）。 */
+export interface CreateChildDto {
+  nickname: string;
+  username: string;
+  password: string;
+  ageRange?: string;
+}
+
+/** `POST /api/parent/children/claim` 请求体（与后端 `ClaimChildDto` 对齐）。 */
+export interface ClaimChildDto {
+  username: string;
+  password: string;
+}

@@ -13,11 +13,18 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  /**
+   * 公开注册（AI-710 后仅限家长账号）。
+   *
+   * `role` 参数被忽略——公开注册**一律**落库 `role:'parent'`。
+   * 孩子账号的唯一创建入口是 `POST /parent/children`（受 `ParentGuard` 保护）。
+   * 保留 `role` 参数签名仅为向后兼容旧客户端，不影响行为。
+   */
   async register(
     username: string,
     password: string,
     nickname?: string,
-    role?: 'child' | 'parent',
+    _role?: 'child' | 'parent',
   ) {
     const existing = await this.usersRepo.findOne({ where: { username } });
     if (existing) {
@@ -29,7 +36,7 @@ export class AuthService {
       username,
       password: hashed,
       nickname: nickname || username,
-      role: role && role === 'parent' ? 'parent' : 'child',
+      role: 'parent',
     });
     const saved = await this.usersRepo.save(user);
 

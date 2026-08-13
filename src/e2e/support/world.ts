@@ -24,6 +24,8 @@ export default class E2EWorld extends World {
   // AI-704: 补学种子写入的弱词文本 / 未完成计划日 id，跨 step 共享。
   makeupWordText: string | null = null;
   makeupPlanDayId: string | null = null;
+  // AI-710: family-binding step 创建的孩子凭据（供 claim 场景跨 step 使用）。
+  childCredentials: TestUser | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

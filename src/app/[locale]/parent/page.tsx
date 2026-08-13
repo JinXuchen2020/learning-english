@@ -17,8 +17,9 @@ import type {
   ProviderTestResult,
   ProviderType,
   ProviderCapability,
+  ChildView,
 } from "@/lib/types";
-import { Check, X, ShieldCheck, BarChart3 } from "lucide-react";
+import { Check, X, ShieldCheck, BarChart3, UserPlus } from "lucide-react";
 import { Select } from "@/components/ui/select";
 
 /** 兑换状态徽章（与 /rewards 同口径）。标签走 i18n，仅保留配色。 */
@@ -238,6 +239,8 @@ function ParentInner() {
 
       {/* 家长设置区（TabNav 「家长/设置」tab 经 /parent#settings 锚定） */}
       <div id="settings" className="space-y-6">
+        {/* 我的孩子（AI-710 家庭绑定） */}
+        <ChildrenSection />
         {/* AI 提供商配置（AI-705） */}
         <ProviderConfigSection />
       </div>
@@ -661,6 +664,287 @@ function ProviderConfigSection() {
             </button>
             <button
               data-component="CancelProviderBtn"
+              disabled={busy}
+              onClick={() => resetForm()}
+              className="rounded-control border border-kids-border px-4 py-2 font-bold text-kids-title hover:opacity-90 disabled:opacity-50"
+            >
+              {t("cancel")}
+            </button>
+          </div>
+        </section>
+      )}
+    </section>
+  );
+}
+
+/* ----------------------- Family Binding (AI-710) ----------------------- */
+
+/**
+ * 家长「我的孩子」管理区块。
+ * 列出名下孩子（昵称/用户名/等级/星星），支持创建/认领/解除绑定。
+ */
+function ChildrenSection() {
+  const t = useTranslations("Parent");
+  const [children, setChildren] = useState<ChildView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // 表单状态
+  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "claim">("create");
+  const [formNickname, setFormNickname] = useState("");
+  const [formUsername, setFormUsername] = useState("");
+  const [formPassword, setFormPassword] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await api.listChildren();
+      setChildren(list);
+    } catch (e) {
+      logger.error("load children", e);
+      setError(t("createChildFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const resetForm = useCallback(() => {
+    setShowForm(false);
+    setFormMode("create");
+    setFormNickname("");
+    setFormUsername("");
+    setFormPassword("");
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (busy) return;
+    if (!formUsername.trim() || !formPassword.trim()) return;
+    if (formMode === "create" && !formNickname.trim()) return;
+
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      if (formMode === "create") {
+        await api.createChild({
+          nickname: formNickname.trim(),
+          username: formUsername.trim(),
+          password: formPassword,
+        });
+        setSuccess(t("childCreated"));
+      } else {
+        await api.claimChild({
+          username: formUsername.trim(),
+          password: formPassword,
+        });
+        setSuccess(t("childClaimed"));
+      }
+      resetForm();
+      await load();
+    } catch (e) {
+      if (e instanceof api.ApiError) {
+        if (e.status === 409) {
+          setError(formMode === "create" ? t("childUsernameTaken") : t("childClaimConflict"));
+        } else if (e.status === 401) {
+          setError(t("claimChildFailed"));
+        } else {
+          setError(e.message);
+        }
+      } else {
+        setError(formMode === "create" ? t("createChildFailed") : t("claimChildFailed"));
+      }
+      logger.error("submit child form", e);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, formMode, formNickname, formUsername, formPassword, resetForm, load, t]);
+
+  const handleUnlink = useCallback(
+    async (childId: string) => {
+      if (busy) return;
+      if (!window.confirm(t("unlinkConfirm"))) return;
+      setBusy(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        await api.unlinkChild(childId);
+        await load();
+      } catch (e) {
+        setError(t("unlinkFailed"));
+        logger.error("unlink child", e);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, load, t],
+  );
+
+  return (
+    <section className="space-y-3" data-component="ChildrenSection">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-extrabold text-kids-title">{t("myChildren")}</h2>
+        {!showForm && (
+          <button
+            data-component="AddChildBtn"
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1 rounded-control bg-[var(--seed-primary)] text-white px-3 py-2 text-sm font-bold shadow-button hover:opacity-90"
+          >
+            <UserPlus size={16} /> {t("addChild")}
+          </button>
+        )}
+      </div>
+
+      {success && (
+        <p
+          className="text-sm font-bold text-[var(--color-success)] bg-[var(--color-success)]/10 rounded-control px-4 py-2.5"
+          role="status"
+          data-component="ChildSuccess"
+        >
+          {success}
+        </p>
+      )}
+
+      {error && (
+        <p
+          className="text-sm font-bold text-[var(--color-danger)] bg-[var(--color-danger)]/10 rounded-control px-4 py-2.5"
+          role="alert"
+          data-component="ChildError"
+        >
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="card-kids text-center text-kids-muted py-8" data-component="ChildrenLoading">
+          {t("childrenLoading")}
+        </p>
+      ) : children.length === 0 && !showForm ? (
+        <div className="card-kids text-center py-8 space-y-2" data-component="ChildrenEmpty">
+          <Mascot expression="encouraging" size="medium" />
+          <p className="font-bold text-kids-title">{t("noChildren")}</p>
+          <p className="text-sm text-kids-muted">{t("noChildrenHint")}</p>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-2" data-component="ChildrenList">
+          {children.map((child) => (
+            <li
+              key={child.id}
+              data-component="ChildItem"
+              data-child-id={child.id}
+              data-child-username={child.username}
+              className="card-kids flex items-center gap-3"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-kids-title truncate">{child.nickname}</p>
+                <p className="text-sm text-kids-muted">@{child.username}</p>
+              </div>
+              <span className="text-xs font-semibold text-kids-muted whitespace-nowrap">
+                {t("childLevel")} {child.level}
+              </span>
+              <span className="text-xs font-semibold text-kids-sun whitespace-nowrap">
+                ★ {child.totalStars}
+              </span>
+              <button
+                data-component="UnlinkChildBtn"
+                data-child-id={child.id}
+                disabled={busy}
+                onClick={() => void handleUnlink(child.id)}
+                className="rounded-control bg-kids-sun/20 px-3 py-1.5 text-sm font-bold text-kids-orange hover:opacity-90 disabled:opacity-50"
+              >
+                {t("unlink")}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showForm && (
+        <section className="card-kids space-y-3" data-component="AddChildForm">
+          {/* Tab switch: create / claim */}
+          <div className="grid grid-cols-2 gap-2 bg-kids-secondary rounded-control p-1.5">
+            <button
+              type="button"
+              data-testid="add-child-tab-create"
+              onClick={() => setFormMode("create")}
+              className={`rounded-control py-2.5 font-bold transition-all touch-target ${
+                formMode === "create"
+                  ? "bg-white text-[var(--seed-primary)] shadow-sm"
+                  : "text-kids-muted"
+              }`}
+              aria-pressed={formMode === "create"}
+            >
+              {t("createChildTab")}
+            </button>
+            <button
+              type="button"
+              data-testid="add-child-tab-claim"
+              onClick={() => setFormMode("claim")}
+              className={`rounded-control py-2.5 font-bold transition-all touch-target ${
+                formMode === "claim"
+                  ? "bg-white text-[var(--seed-primary)] shadow-sm"
+                  : "text-kids-muted"
+              }`}
+              aria-pressed={formMode === "claim"}
+            >
+              {t("claimChildTab")}
+            </button>
+          </div>
+
+          {formMode === "create" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-semibold text-kids-title">{t("childNicknameLabel")}</label>
+              <input
+                data-component="ChildNicknameInput"
+                value={formNickname}
+                onChange={(e) => setFormNickname(e.target.value)}
+                autoComplete="off"
+                className="rounded-control border border-kids-border px-3 py-2"
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold text-kids-title">{t("childUsernameLabel")}</label>
+            <input
+              data-component="ChildUsernameInput"
+              value={formUsername}
+              onChange={(e) => setFormUsername(e.target.value)}
+              autoComplete="off"
+              className="rounded-control border border-kids-border px-3 py-2"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold text-kids-title">{t("childPasswordLabel")}</label>
+            <input
+              data-component="ChildPasswordInput"
+              type="password"
+              value={formPassword}
+              onChange={(e) => setFormPassword(e.target.value)}
+              autoComplete={formMode === "create" ? "new-password" : "current-password"}
+              className="rounded-control border border-kids-border px-3 py-2"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              data-component="SubmitChildBtn"
+              disabled={busy}
+              onClick={() => void handleSubmit()}
+              className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? t("saving") : t("addChild")}
+            </button>
+            <button
+              data-component="CancelChildBtn"
               disabled={busy}
               onClick={() => resetForm()}
               className="rounded-control border border-kids-border px-4 py-2 font-bold text-kids-title hover:opacity-90 disabled:opacity-50"

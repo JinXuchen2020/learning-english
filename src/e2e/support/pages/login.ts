@@ -33,15 +33,6 @@ export default class LoginPage {
     }
   }
 
-  /** 注册模式下选择角色（默认 child）。仅在 register 模式可见。 */
-  async selectRole(role: "child" | "parent"): Promise<void> {
-    const testid = role === "child" ? "login-role-child" : "login-role-parent";
-    const toggle: Locator = this.page.locator(`[data-testid="${testid}"]`);
-    if ((await toggle.getAttribute("aria-pressed")) !== "true") {
-      await toggle.click();
-    }
-  }
-
   async fillUsername(value: string): Promise<void> {
     await this.page.fill("#username", value);
   }
@@ -60,14 +51,14 @@ export default class LoginPage {
     await this.page.locator("form button[type=submit]").click();
   }
 
+  // AI-710: Public registration is parent-only; the role selector has been
+  // removed from the UI. register() simply fills the sign-up form and submits.
   async register(
     username: string,
     password: string,
     nickname?: string,
-    role: "child" | "parent" = "child",
   ): Promise<void> {
     await this.switchToSignUp();
-    await this.selectRole(role);
     await this.fillUsername(username);
     await this.fillPassword(password);
     if (nickname) await this.fillNickname(nickname);

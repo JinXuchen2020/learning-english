@@ -242,4 +242,112 @@ export default class ParentPage {
       { timeout },
     );
   }
+
+  /* ---------------------- Children Management (AI-710) ---------------------- */
+
+  /** 等待「我的孩子」区块出现。 */
+  async waitForChildrenSection(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.querySelector('[data-component="ChildrenSection"]'),
+      undefined,
+      { timeout },
+    );
+  }
+
+  /** 点击「添加孩子」按钮，等待表单出现。 */
+  async clickAddChild(): Promise<void> {
+    await this.page.locator('[data-component="AddChildBtn"]').click();
+    await this.page.waitForSelector('[data-component="AddChildForm"]');
+  }
+
+  /** 切换到「新建账号」Tab。 */
+  async clickCreateTab(): Promise<void> {
+    await this.page.locator('[data-testid="add-child-tab-create"]').click();
+  }
+
+  /** 切换到「认领已有」Tab。 */
+  async clickClaimTab(): Promise<void> {
+    await this.page.locator('[data-testid="add-child-tab-claim"]').click();
+  }
+
+  /** 填充创建孩子表单（昵称/用户名/密码）。 */
+  async fillCreateChildForm(
+    nickname: string,
+    username: string,
+    password: string,
+  ): Promise<void> {
+    await this.page.locator('[data-component="ChildNicknameInput"]').fill(nickname);
+    await this.page.locator('[data-component="ChildUsernameInput"]').fill(username);
+    await this.page.locator('[data-component="ChildPasswordInput"]').fill(password);
+  }
+
+  /** 填充认领孩子表单（用户名/密码，无昵称字段）。 */
+  async fillClaimChildForm(username: string, password: string): Promise<void> {
+    await this.page.locator('[data-component="ChildUsernameInput"]').fill(username);
+    await this.page.locator('[data-component="ChildPasswordInput"]').fill(password);
+  }
+
+  /** 点击提交按钮并等待表单关闭（成功后表单卸载）。 */
+  async submitChildForm(): Promise<void> {
+    await this.page.locator('[data-component="SubmitChildBtn"]').click();
+    await this.page.waitForFunction(
+      () => !document.querySelector('[data-component="AddChildForm"]'),
+      undefined,
+      { timeout: 15000 },
+    );
+  }
+
+  /**
+   * 等待指定昵称的孩子项出现。ChildItem 的昵称是文本内容（非 data 属性），
+   * 所以用 evaluate 在所有 ChildItem 中按文本匹配。
+   */
+  async waitForChildItem(nickname: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        return Array.from(items).some(
+          (el) => (el.textContent || "").includes(nick),
+        );
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /** 等待指定昵称的孩子项消失（解除绑定后）。 */
+  async waitForChildItemGone(nickname: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        return !Array.from(items).some(
+          (el) => (el.textContent || "").includes(nick),
+        );
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /**
+   * 解除指定昵称孩子的绑定。先找到匹配的 ChildItem，再在其中点击
+   * UnlinkChildBtn（按钮有 data-child-id 属性）。
+   */
+  async unlinkChild(nickname: string): Promise<void> {
+    // 找到匹配昵称的 ChildItem 的 data-child-id
+    const childId = await this.page.evaluate((nick: string) => {
+      const items = document.querySelectorAll('[data-component="ChildItem"]');
+      const found = Array.from(items).find(
+        (el) => (el.textContent || "").includes(nick),
+      );
+      return found ? found.getAttribute("data-child-id") : null;
+    }, nickname);
+    if (!childId) {
+      throw new Error(`Child item with nickname "${nickname}" not found`);
+    }
+    await this.page
+      .locator(
+        `[data-component="UnlinkChildBtn"][data-child-id="${childId}"]`,
+      )
+      .click();
+  }
 }
