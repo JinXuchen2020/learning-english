@@ -82,13 +82,41 @@ export function buildDataSourceOptions(): DataSourceOptions {
   const type = getDbType();
 
   if (type === 'postgres') {
+    // Neon / Vercel / Supabase hand out a single connection string; prefer it.
+    const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    // Managed Postgres always forces TLS — honor it (set DB_SSL=false to opt out,
+    // e.g. for a local Postgres without SSL).
+    const ssl = process.env.DB_SSL === 'false' ? undefined : { rejectUnauthorized: false };
+
+    if (url) {
+      return {
+        type: 'postgres',
+        url,
+        ssl,
+        entities: appEntities,
+        synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production
+      };
+    }
+
+    // Fallback: individual PG* / POSTGRES_* / DB_* vars (e.g. local Postgres).
     return {
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_DATABASE || 'kids_english',
+      host:
+        process.env.DB_HOST || process.env.PGHOST || process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || process.env.PGPORT || '5432', 10),
+      username:
+        process.env.DB_USERNAME || process.env.PGUSER || process.env.POSTGRES_USER || 'postgres',
+      password:
+        process.env.DB_PASSWORD ||
+        process.env.PGPASSWORD ||
+        process.env.POSTGRES_PASSWORD ||
+        'postgres',
+      database:
+        process.env.DB_DATABASE ||
+        process.env.PGDATABASE ||
+        process.env.POSTGRES_DATABASE ||
+        'kids_english',
+      ssl,
       entities: appEntities,
       synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production
     };

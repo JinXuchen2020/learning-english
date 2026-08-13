@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "README.md#deployment",
-  "notes": "Vercel 前后端双项目部署 + E2E 修复 + README + Vercel 后端部署报错修复。① 部署：后端抽 vercel-entry.ts（createNestServer 含 api 前缀/CORS/ValidationPipe），main.ts 复用之；新增 server/api/index.ts 薄函数 require 预编译 dist/vercel-entry.js（规避 Vercel esbuild 装饰器元数据丢失），server/vercel.json rewrite 全部路径到 /api/index；next.config.mjs 回退纯配置（撤 GitHub Pages 静态导出 hack）；删除 GH Pages 产物。② E2E 修复（上一 commit）：parent.ts 自定义 Select 交互 + task/home 计数语言无关断言。③ README 新增 Vercel 部署章节。④ Vercel 后端报错修复（本批）：server/vercel.json 加 \"framework\": null 关闭零配置框架检测（解决 'No entrypoint found which imports nestjs'）；新增 src/vercel.json 写入前端 NEXT_PUBLIC_API_URL 免 Dashboard 手填；server/vercel.json 加 outputDirectory:'public' 并创建 server/public/.gitkeep 空目录（解决 'No Output Directory named public found'）。验证：前后端/e2e tsc 0 错；后端 jest 93 suites/814 tests 全绿；JSON 均合法。注：真机 Vercel 部署 + Postgres 连接需建项目后实测。",
+  "notes": "Vercel 部署修复（本批）：① server/api/index.ts 移除对 @vercel/node 的外部类型依赖，改用 Node 内置 http.IncomingMessage/ServerResponse，消除 Vercel 编译 serverless function 时的 TS2307 报错，零新依赖；api/index.ts 单文件 tsc 已验证通过。② server/src/config/database.config.ts 的 postgres 分支改为优先读 DATABASE_URL（池化连接串）→ 回退 POSTGRES_URL → 回退 DB_*/PG*/POSTGRES_* 拆分变量，并自动开启 TLS（ssl.rejectUnauthorized:false，DB_SSL=false 可关），以支持 Neon/Vercel Postgres 托管连接；补 database.config.spec 3 条（DATABASE_URL 优先+TLS、POSTGRES_URL 回退、DB_SSL=false 关 TLS）。③ 设计文档 features/ai-710.md 落档「注册入口仅家长」（方案A，仅设计未实现）+ features/backlog.md 备注。验证：后端 tsc 0 错；后端 jest 93 suites/817 tests 全绿（原814+新3）；前端 tsc 0 错；api/index.ts 单文件 tsc 0 错。",
   "gates": {
-    "consistency": "PASSED (前后端 e2e 三套 tsc 0 错; data-component 契约未变; vercel-entry 与 main.ts 复用同一 bootstrap)",
-    "tests": "PASSED (后端 jest 93 suites/814 tests 全绿; e2e tsc 0 错; 前端 tsc 0 错; nest build 实测产出 dist/vercel-entry.js)",
-    "review": "PASSED (serverless 改用预编译 require 导入规避 esbuild 装饰器元数据坑; 移除 GH Pages 静态导出 hack 保持 next.config 纯配置)",
-    "optimization": "PASSED (零新依赖; vercel-entry 复用已有 createNestServer; E2E 改为语言无关计数断言减少 locale 脆弱性)"
+    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; api/index.ts 单文件 tsc 0 错; data-component 契约未变)",
+    "tests": "PASSED (后端 jest 93 suites/817 tests 全绿; database.config.spec 13/13; 前端 tsc 0 错)",
+    "review": "PASSED (api/index.ts 去除外部 @vercel/node 依赖改用内置 http 类型; postgres 自动 TLS 显式配置; 设计文档与代码分离未实现)",
+    "optimization": "PASSED (零新依赖; DATABASE_URL 优先避免逐字段拆分配置; 单测覆盖新分支)"
   }
 }

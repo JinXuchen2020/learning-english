@@ -69,6 +69,32 @@ describe('database.config', () => {
       process.env.DB_SYNCHRONIZE = 'false';
       expect((buildDataSourceOptions() as any).synchronize).toBe(false);
     });
+    it('prefers DATABASE_URL (Neon connection string) and enables TLS', () => {
+      process.env.DB_TYPE = 'postgres';
+      process.env.DATABASE_URL = 'postgresql://u:p@host/neondb?sslmode=require';
+      const opt = buildDataSourceOptions() as any;
+      expect(opt.type).toBe('postgres');
+      expect(opt.url).toBe('postgresql://u:p@host/neondb?sslmode=require');
+      expect(opt.ssl).toEqual({ rejectUnauthorized: false });
+      expect(opt.host).toBeUndefined(); // url path must not also set host
+      delete process.env.DATABASE_URL;
+    });
+    it('falls back to POSTGRES_URL when DATABASE_URL is absent', () => {
+      process.env.DB_TYPE = 'postgres';
+      process.env.POSTGRES_URL = 'postgresql://u:p@host/neondb';
+      const opt = buildDataSourceOptions() as any;
+      expect(opt.url).toBe('postgresql://u:p@host/neondb');
+      delete process.env.POSTGRES_URL;
+    });
+    it('allows opting out of SSL via DB_SSL=false (local Postgres)', () => {
+      process.env.DB_TYPE = 'postgres';
+      process.env.DATABASE_URL = 'postgresql://u:p@localhost/kids';
+      process.env.DB_SSL = 'false';
+      const opt = buildDataSourceOptions() as any;
+      expect(opt.ssl).toBeUndefined();
+      delete process.env.DATABASE_URL;
+      delete process.env.DB_SSL;
+    });
   });
 
   describe('buildTypeOrmModuleOptions', () => {
