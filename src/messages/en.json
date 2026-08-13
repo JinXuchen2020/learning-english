@@ -370,7 +370,13 @@
     "childStars": "Stars",
     "childrenLoading": "Loading…",
     "childUsernameTaken": "That username is already taken. Try claiming it or use a different name.",
-    "childClaimConflict": "This child already belongs to another parent. Please unlink first."
+    "childClaimConflict": "This child already belongs to another parent. Please unlink first.",
+    "childProviderLabel": "AI Provider",
+    "useParentDefault": "Use parent default",
+    "providerOverrideBadge": "Custom provider",
+    "providerDefaultBadge": "Parent default",
+    "childProviderUpdated": "Child's AI provider updated.",
+    "childProviderUpdateFailed": "Failed to update child's AI provider."
   },
   "Report": {
     "reportTitle": "Parent Report",

@@ -47,6 +47,7 @@ import type {
   ChildView,
   CreateChildDto as CreateChildApiDto,
   ClaimChildDto as ClaimChildApiDto,
+  SetChildProviderDto as SetChildProviderApiDto,
 } from "./types";
 
 /**
@@ -905,5 +906,36 @@ export function unlinkChild(childId: string): Promise<void> {
   return request<void>(
     `/parent/children/${encodeURIComponent(childId)}`,
     { method: "DELETE" },
+  );
+}
+
+/* ----------------------- AI-711: per-child provider override ----------------------- */
+
+/**
+ * 设置 / 清除孩子的 provider 覆盖。`PUT /api/parent/children/:childId/provider`，需家长登录 JWT。
+ * `providerConfigId` 为 null / 省略 → 清除覆盖，孩子回退家长默认；非 null 必须是家长名下配置。
+ * @param childId 孩子 id
+ * @param dto { providerConfigId?: string | null }
+ */
+export function setChildProvider(
+  childId: string,
+  dto: SetChildProviderApiDto,
+): Promise<ChildView> {
+  return request<ChildView>(
+    `/parent/children/${encodeURIComponent(childId)}/provider`,
+    { method: "PUT", body: JSON.stringify(dto) },
+  );
+}
+
+/**
+ * 列出家长名下可选 provider（供孩子下拉）。`GET /api/parent/children/:childId/provider-options`，需家长登录 JWT。
+ * 同时校验孩子归属；返回与 AI-705 同口径的掩码 `ProviderConfigView[]`。
+ * @param childId 孩子 id
+ */
+export function getChildProviderOptions(
+  childId: string,
+): Promise<ProviderConfigView[]> {
+  return request<ProviderConfigView[]>(
+    `/parent/children/${encodeURIComponent(childId)}/provider-options`,
   );
 }

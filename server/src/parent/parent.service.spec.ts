@@ -3,18 +3,21 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ParentService } from './parent.service';
 import { User } from '../entities/user.entity';
+import { ProviderConfig } from '../ai/provider-config/provider-config.entity';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn(), compare: jest.fn() }));
 
-describe('ParentService (AI-710)', () => {
+describe('ParentService (AI-710 + AI-711)', () => {
   let service: ParentService;
   let usersRepo: any;
+  let providerConfigRepo: any;
   let jwtService: { sign: jest.Mock };
 
   const mockUser = (over: Partial<User> = {}): User =>
@@ -32,6 +35,22 @@ describe('ParentService (AI-710)', () => {
       ...over,
     } as User);
 
+  const mockConfig = (over: Partial<ProviderConfig> = {}): ProviderConfig =>
+    ({
+      id: 'cfg-1',
+      ownerUserId: 'parent-1',
+      name: 'My OpenAI',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKeyEnc: null,
+      modelsJson: JSON.stringify({ chat: 'gpt-4o', vision: 'gpt-4o', tts: 'tts-1' }),
+      capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
+      isDefault: true,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      ...over,
+    } as ProviderConfig);
+
   beforeEach(async () => {
     jwtService = { sign: jest.fn().mockReturnValue('tok') };
     usersRepo = {
@@ -41,10 +60,15 @@ describe('ParentService (AI-710)', () => {
       // save 模拟数据库回写：补全 DB 生成的字段（id/level/totalStars/streakDays/createdAt）
       save: jest.fn(async (e) => ({ ...mockUser(), ...e }) as User),
     };
+    providerConfigRepo = {
+      findOne: jest.fn(),
+      find: jest.fn(),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         ParentService,
         { provide: getRepositoryToken(User), useValue: usersRepo },
+        { provide: getRepositoryToken(ProviderConfig), useValue: providerConfigRepo },
         { provide: JwtService, useValue: jwtService },
       ],
     }).compile();
@@ -196,6 +220,93 @@ describe('ParentService (AI-710)', () => {
     );
     await expect(
       service.unlinkChild('parent-1', 'child-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  /* ---------- AI-711: setChildProvider ---------- */
+
+  it('setChildProvider: sets childProviderConfigId to an owned config', async () => {
+    const child = mockUser({ parentId: 'parent-1', childProviderConfigId: null });
+    usersRepo.findOne.mockResolvedValue(child);
+    providerConfigRepo.findOne.mockResolvedValue(mockConfig({ id: 'cfg-1' }));
+    const res = await service.setChildProvider('parent-1', 'child-1', {
+      providerConfigId: 'cfg-1',
+    });
+    expect(providerConfigRepo.findOne).toHaveBeenCalledWith({
+      where: { id: 'cfg-1', ownerUserId: 'parent-1' },
+    });
+    expect(child.childProviderConfigId).toBe('cfg-1');
+    expect(usersRepo.save).toHaveBeenCalledWith(child);
+    expect(res.hasProviderOverride).toBe(true);
+  });
+
+  it('setChildProvider: null providerConfigId clears the override', async () => {
+    const child = mockUser({ parentId: 'parent-1', childProviderConfigId: 'cfg-1' });
+    usersRepo.findOne.mockResolvedValue(child);
+    const res = await service.setChildProvider('parent-1', 'child-1', {
+      providerConfigId: null,
+    });
+    expect(providerConfigRepo.findOne).not.toHaveBeenCalled();
+    expect(child.childProviderConfigId).toBeNull();
+    expect(res.hasProviderOverride).toBe(false);
+  });
+
+  it('setChildProvider: throws NotFound when child not found', async () => {
+    usersRepo.findOne.mockResolvedValue(null);
+    await expect(
+      service.setChildProvider('parent-1', 'ghost', { providerConfigId: 'cfg-1' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('setChildProvider: throws NotFound when child belongs to another parent', async () => {
+    usersRepo.findOne.mockResolvedValue(mockUser({ parentId: 'other-parent' }));
+    await expect(
+      service.setChildProvider('parent-1', 'child-1', { providerConfigId: 'cfg-1' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('setChildProvider: throws Forbidden when config does not belong to parent', async () => {
+    const child = mockUser({ parentId: 'parent-1' });
+    usersRepo.findOne.mockResolvedValue(child);
+    // 配置归属他人 → 校验失败
+    providerConfigRepo.findOne.mockResolvedValue(null);
+    await expect(
+      service.setChildProvider('parent-1', 'child-1', { providerConfigId: 'cfg-evil' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    // 不应写入指针
+    expect(child.childProviderConfigId).toBeUndefined();
+  });
+
+  /* ---------- AI-711: getChildProviderOptions ---------- */
+
+  it('getChildProviderOptions: lists parent-owned configs as masked views', async () => {
+    usersRepo.findOne.mockResolvedValue(mockUser({ parentId: 'parent-1' }));
+    const cfg = mockConfig({ id: 'cfg-1', isDefault: true, apiKeyEnc: null });
+    providerConfigRepo.find.mockResolvedValue([cfg]);
+    const res = await service.getChildProviderOptions('parent-1', 'child-1');
+    expect(providerConfigRepo.find).toHaveBeenCalledWith({
+      where: { ownerUserId: 'parent-1' },
+    });
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe('cfg-1');
+    expect(res[0].isDefault).toBe(true);
+    expect(res[0].models.chat).toBe('gpt-4o');
+    expect(res[0].capabilities).toEqual(['chat', 'vision', 'tts']);
+    expect((res[0] as any).apiKeyEnc).toBeUndefined();
+    expect((res[0] as any).password).toBeUndefined();
+  });
+
+  it('getChildProviderOptions: returns empty array when parent has no configs', async () => {
+    usersRepo.findOne.mockResolvedValue(mockUser({ parentId: 'parent-1' }));
+    providerConfigRepo.find.mockResolvedValue([]);
+    const res = await service.getChildProviderOptions('parent-1', 'child-1');
+    expect(res).toEqual([]);
+  });
+
+  it('getChildProviderOptions: throws NotFound when child not found', async () => {
+    usersRepo.findOne.mockResolvedValue(null);
+    await expect(
+      service.getChildProviderOptions('parent-1', 'ghost'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

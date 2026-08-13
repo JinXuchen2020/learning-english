@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Delete,
   Body,
   Param,
@@ -14,6 +15,7 @@ import { ParentService } from './parent.service';
 import { ParentGuard } from './parent.guard';
 import { CreateChildDto } from './dto/create-child.dto';
 import { ClaimChildDto } from './dto/claim-child.dto';
+import { SetChildProviderDto } from './dto/set-child-provider.dto';
 
 /**
  * 家长域控制器（AI-710 家庭绑定）。
@@ -49,5 +51,21 @@ export class ParentController {
   @HttpCode(HttpStatus.NO_CONTENT)
   unlinkChild(@Request() req: any, @Param('childId') childId: string) {
     return this.parentService.unlinkChild(req.user.userId, childId);
+  }
+
+  /** AI-711：设置 / 清除孩子的 provider 覆盖。 */
+  @Put('children/:childId/provider')
+  setChildProvider(
+    @Request() req: any,
+    @Param('childId') childId: string,
+    @Body() dto: SetChildProviderDto,
+  ) {
+    return this.parentService.setChildProvider(req.user.userId, childId, dto);
+  }
+
+  /** AI-711：列出家长名下可选 provider（供孩子下拉）。 */
+  @Get('children/:childId/provider-options')
+  getChildProviderOptions(@Request() req: any, @Param('childId') childId: string) {
+    return this.parentService.getChildProviderOptions(req.user.userId, childId);
   }
 }

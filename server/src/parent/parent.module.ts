@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { User } from '../entities/user.entity';
+import { ProviderConfig } from '../ai/provider-config/provider-config.entity';
 import { ParentService } from './parent.service';
 import { ParentController } from './parent.controller';
 import { ParentGuard } from './parent.guard';
@@ -14,7 +15,7 @@ import { ParentGuard } from './parent.guard';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, ProviderConfig]),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'fox-english-kids-secret',
       signOptions: { expiresIn: '15m' },

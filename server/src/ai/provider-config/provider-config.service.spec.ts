@@ -142,6 +142,69 @@ describe('ProviderConfigService (AI-705)', () => {
     expect(await svc.resolveEffectiveParentId(undefined, 'parent')).toBeUndefined();
   });
 
+  /* ---------- AI-711: resolveForChild ---------- */
+
+  const childEntity = (parentId: string | null, childProviderConfigId: string | null) => ({
+    id: 'child-1', parentId, childProviderConfigId, role: 'child',
+  });
+  const overrideCfg = (): ProviderConfig => ({
+    id: 'cfg-override', ownerUserId: 'p1', name: 'Override', type: 'openai-compatible',
+    baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+    isDefault: false, createdAt: new Date(), updatedAt: new Date(),
+  });
+  const parentDefaultCfg = (): ProviderConfig => ({
+    id: 'cfg-default', ownerUserId: 'p1', name: 'Parent Default', type: 'mock',
+    baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+    isDefault: true, createdAt: new Date(), updatedAt: new Date(),
+  });
+
+  it('resolveForChild: 命中归属家长的覆盖配置 → 返回覆盖', async () => {
+    usersRepo.findOne.mockResolvedValue(childEntity('p1', 'cfg-override'));
+    repo.findOne.mockResolvedValue(overrideCfg());
+    const res = await svc.resolveForChild('child-1');
+    expect(res?.id).toBe('cfg-override');
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: { id: 'cfg-override', ownerUserId: 'p1' },
+    });
+  });
+
+  it('resolveForChild: 覆盖配置已删/不归属 → 回退家长默认', async () => {
+    usersRepo.findOne.mockResolvedValue(childEntity('p1', 'cfg-override'));
+    // 第一次（覆盖查）返回 null，第二次（默认查）返回家长默认
+    repo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(parentDefaultCfg());
+    const res = await svc.resolveForChild('child-1');
+    expect(res?.id).toBe('cfg-default');
+  });
+
+  it('resolveForChild: 无覆盖 → 直接家长默认', async () => {
+    usersRepo.findOne.mockResolvedValue(childEntity('p1', null));
+    repo.findOne.mockResolvedValue(parentDefaultCfg());
+    const res = await svc.resolveForChild('child-1');
+    expect(res?.id).toBe('cfg-default');
+    // 不应查覆盖
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { ownerUserId: 'p1', isDefault: true } });
+  });
+
+  it('resolveForChild: 孤儿（无 parentId） → null', async () => {
+    usersRepo.findOne.mockResolvedValue(childEntity(null, 'cfg-override'));
+    const res = await svc.resolveForChild('child-1');
+    expect(res).toBeNull();
+    expect(repo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('resolveForChild: 孩子不存在 → null', async () => {
+    usersRepo.findOne.mockResolvedValue(null);
+    const res = await svc.resolveForChild('ghost');
+    expect(res).toBeNull();
+  });
+
+  it('resolveForChild: 空 userId → null', async () => {
+    expect(await svc.resolveForChild('')).toBeNull();
+    expect(await svc.resolveForChild(undefined as any)).toBeNull();
+  });
+
   it('testConnection 成功/失败路径', async () => {
     const cfg: ProviderConfig = {
       id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',

@@ -101,6 +101,42 @@ export class ProviderConfigService {
     return this.repo.findOne({ where: { ownerUserId, isDefault: true } });
   }
 
+  /**
+   * 解析孩子的生效 provider 配置（AI-711）。
+   *
+   * 优先级：child.childProviderConfigId 覆盖 → 家长 `resolveDefault`（回退基准）。
+   * 多层安全降级：
+   * - 孩子无 parentId（孤儿）→ null（上层回退 env 默认）；
+   * - 覆盖配置不存在 / 不归属孩子的家长 → 忽略覆盖，回退家长默认；
+   * - 任何异常 → null（绝不抛错，调用方回退 env 默认）。
+   */
+  async resolveForChild(childUserId: string): Promise<ProviderConfig | null> {
+    if (!childUserId) return null;
+    try {
+      const child = await this.usersRepo.findOne({
+        where: { id: childUserId, role: 'child' },
+      });
+      if (!child || !child.parentId) return null;
+
+      // 孩子有 provider 覆盖，且配置归属孩子的家长 → 直接用该配置
+      if (child.childProviderConfigId) {
+        const override = await this.repo.findOne({
+          where: {
+            id: child.childProviderConfigId,
+            ownerUserId: child.parentId,
+          },
+        });
+        if (override) return override;
+        // 配置已删 / 不归属 → 忽略覆盖，落入下方家长默认回退
+      }
+
+      // 回退：家长默认配置
+      return this.resolveDefault(child.parentId);
+    } catch {
+      return null;
+    }
+  }
+
   /** 从配置构建运行时 provider（解密 key）。解密失败抛错交由上层回退。 */
   buildProvider(config: ProviderConfig): AiProvider {
     const models = this.parseModels(config.modelsJson);

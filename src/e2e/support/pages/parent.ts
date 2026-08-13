@@ -350,4 +350,92 @@ export default class ParentPage {
       )
       .click();
   }
+
+  /* ---------------------- Per-child provider (AI-711) ---------------------- */
+
+  /** 等待指定昵称孩子项内出现 provider 下拉区。 */
+  async waitForChildProviderSelect(
+    nickname: string,
+    timeout = 15000,
+  ): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        const found = Array.from(items).find(
+          (el) => (el.textContent || "").includes(nick),
+        );
+        return !!found && !!found.querySelector('[data-component="ChildProviderSelectWrap"]');
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /**
+   * 在指定昵称孩子项的下拉中选择某个 provider（按 value=configId；"" 表示沿用家长默认）。
+   * 点击自定义 Select 的 trigger → 点对应 data-value 的 SelectOption →
+   * 等待 ChildItem 的 data-child-override 同步为该 value。
+   */
+  async selectChildProviderByValue(
+    nickname: string,
+    value: string,
+  ): Promise<void> {
+    const childId = await this.page.evaluate((nick: string) => {
+      const items = document.querySelectorAll('[data-component="ChildItem"]');
+      const found = Array.from(items).find(
+        (el) => (el.textContent || "").includes(nick),
+      );
+      return found ? found.getAttribute("data-child-id") : null;
+    }, nickname);
+    if (!childId) {
+      throw new Error(`Child item with nickname "${nickname}" not found`);
+    }
+    const trigger = this.page.locator(
+      `[data-component="ChildItem"][data-child-id="${childId}"] [data-component="ChildProviderSelect"]`,
+    );
+    await trigger.click();
+    const option = this.page.locator(
+      `[data-component="ChildItem"][data-child-id="${childId}"] [data-component="SelectOption"][data-value="${value}"]`,
+    );
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
+    // 等待 data-child-override 同步为新值（"" = 沿用默认）
+    await this.page.waitForFunction(
+      (args: { id: string; val: string }) => {
+        const el = document.querySelector(
+          `[data-component="ChildItem"][data-child-id="${args.id}"]`,
+        );
+        return !!el && (el.getAttribute("data-child-override") || "") === args.val;
+      },
+      { id: childId, val: value },
+      { timeout: 15000 },
+    );
+  }
+
+  /**
+   * 断言指定昵称孩子项的 data-child-override 等于期望 value（"" = 沿用家长默认）。
+   * 语言无关：直接比对 child provider config id 属性。
+   */
+  async expectChildOverride(
+    nickname: string,
+    value: string,
+    timeout = 15000,
+  ): Promise<void> {
+    await this.page.waitForFunction(
+      (args: { nick: string; val: string }) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        const found = Array.from(items).find(
+          (el) => (el.textContent || "").includes(args.nick),
+        );
+        if (!found) return false;
+        const override = found.getAttribute("data-child-override") || "";
+        if (args.val === "") {
+          return override === "";
+        }
+        return override === args.val;
+      },
+      { nick: nickname, val: value },
+      { timeout },
+    );
+  }
 }

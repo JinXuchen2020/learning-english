@@ -3,12 +3,12 @@
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-710-gate.md",
-  "notes": "AI-710 家庭绑定：公开注册强制 parent + 家长创建/认领/解绑孩子账号。后端 auth.service.register 强制 role=parent；parent.service 4 端点（createChild/claimChild/listChildren/unlinkChild）全挂 ParentGuard；前端注册页移除角色选择器、家长面板新增 ChildrenSection；E2E loginAsNewUser 迁移为 parent 注册→API 创建 child→UI 登录 child。前序批次：favicon 降噪、Date 跨库兼容、uuid 外键对齐、DATABASE_URL/SSL、ai-710 设计落档。",
+  "reportRef": "docs/quality/ai-711-gate.md",
+  "notes": "AI-711 每孩独立 AI provider 覆盖：User 新增 childProviderConfigId；ProviderConfigService.resolveForChild + AiProviderRouter 按 role 分流（child→覆盖/parent→默认）+ 多层降级（child→家长默认→env）；后端新增 PUT /parent/children/:childId/provider 与 GET /parent/children/:childId/provider-options（均挂 ParentGuard，校验归属 403）；前端 ChildrenSection 每行 provider 下拉 + override 徽标；E2E 3 scenario 已编写待 CI。本次以真实 HTTP 冒烟测试（21 断言全绿）补足运行时验证。前序批次：ai-710 家庭绑定、favicon 降噪、Date 跨库兼容、uuid 外键对齐、DATABASE_URL/SSL。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0/0；前端 tsc 0/0；e2e tsc 0/0；全栈 ChildView 契约字段对齐 id/nickname/username/role/level/totalStars/streakDays/hasProviderOverride/createdAt)",
-    "tests": "PASSED (后端 jest 841/841 含 AI-710 新增 parent.service 12 + parent.controller 4 + parent.guard 6 + auth.service 3 = 25 新用例；前端 vitest 127/127 含 i18n 2/2 新键对齐；BDD 3 scenario 已编写待 CI 实跑)",
-    "review": "PASSED (0 open：parentId 强制取 JWT userId；ChildView 绝不含 password；claimChild 归属冲突 409；unlinkChild 仅清 parentId 不删账号；ParentGuard 拒绝 child JWT)",
-    "optimization": "PASSED (0 open：零新增依赖；零 stub/占位；hasProviderOverride 预留 AI-711 常量 false)"
+    "consistency": "PASSED (后端 tsc 0/0 且 nest build 通过；前端 tsc 0/0；e2e tsc 0/0；全栈 ChildView 契约字段对齐含 providerConfigId；SetChildProviderDto 前后端一致)",
+    "tests": "PASSED (后端 jest 859/859 含 AI-711 跨 4 spec 共 25 新用例：provider-config.service.resolveForChild 6 + ai-provider.router 7 + parent.service 10 + parent.controller 2；前端 vitest 127/127 含 i18n 2/2 新键对齐；HTTP 冒烟 21/21 断言通过；BDD 3 scenario 已编写待 CI 实跑)",
+    "review": "PASSED (0 open：setChildProvider 校验 parentId 404 + ownerUserId 403；providerConfigId ?? null 空安全；resolveForChild 悬空/孤儿/userId-null 安全回退；provider-options 仅返回 masked 不明文 apiKey；避免与 ProviderConfigModule 循环依赖)",
+    "optimization": "PASSED (0 open：零新增依赖；零 stub/占位；ChildrenSection 移除未用 providerBusy state 且分配后同步刷新徽标；smoke-test.mjs 验证脚本不纳入提交)"
   }
 }

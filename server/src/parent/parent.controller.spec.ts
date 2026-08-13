@@ -7,6 +7,8 @@ describe('ParentController (AI-710)', () => {
     claimChild: jest.fn().mockResolvedValue({ id: 'c1' }),
     listChildren: jest.fn().mockResolvedValue([]),
     unlinkChild: jest.fn().mockResolvedValue(undefined),
+    setChildProvider: jest.fn().mockResolvedValue({ id: 'c1', hasProviderOverride: true }),
+    getChildProviderOptions: jest.fn().mockResolvedValue([]),
   } as unknown as jest.Mocked<ParentService>;
   const ctrl = new ParentController(parentService);
   // @UseGuards(ParentGuard) 在类上声明，但这里直接实例化绕过 DI；
@@ -37,5 +39,16 @@ describe('ParentController (AI-710)', () => {
   it('unlinkChild forwards parentId + childId to service', async () => {
     await ctrl.unlinkChild(parentReq, 'child-1');
     expect(parentService.unlinkChild).toHaveBeenCalledWith('parent-1', 'child-1');
+  });
+
+  it('setChildProvider forwards parentId + childId + dto to service', async () => {
+    const dto = { providerConfigId: 'cfg-1' };
+    await ctrl.setChildProvider(parentReq, 'child-1', dto as any);
+    expect(parentService.setChildProvider).toHaveBeenCalledWith('parent-1', 'child-1', dto);
+  });
+
+  it('getChildProviderOptions forwards parentId + childId to service', async () => {
+    await ctrl.getChildProviderOptions(parentReq, 'child-1');
+    expect(parentService.getChildProviderOptions).toHaveBeenCalledWith('parent-1', 'child-1');
   });
 });

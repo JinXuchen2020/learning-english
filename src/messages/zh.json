@@ -370,7 +370,13 @@
     "childStars": "星星",
     "childrenLoading": "加载中…",
     "childUsernameTaken": "该用户名已被占用，请认领或直接换名",
-    "childClaimConflict": "该孩子已归属其他家长，请先解除"
+    "childClaimConflict": "该孩子已归属其他家长，请先解除",
+    "childProviderLabel": "AI 配置",
+    "useParentDefault": "沿用家长默认",
+    "providerOverrideBadge": "独立配置",
+    "providerDefaultBadge": "沿用默认",
+    "childProviderUpdated": "已更新孩子的 AI 配置。",
+    "childProviderUpdateFailed": "更新孩子的 AI 配置失败。"
   },
   "Report": {
     "reportTitle": "家长报告",

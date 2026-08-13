@@ -767,7 +767,15 @@ export interface ChildView {
   streakDays: number;
   /** AI-711 预留：孩子是否有独立 provider 覆盖。 */
   hasProviderOverride: boolean;
+  /** AI-711：孩子当前 provider 覆盖配置 id（null = 沿用家长默认）。 */
+  providerConfigId: string | null;
   createdAt: string;
+}
+
+/** `PUT /api/parent/children/:childId/provider` 请求体（与后端 `SetChildProviderDto` 对齐）。 */
+export interface SetChildProviderDto {
+  /** 覆盖配置 id；null / 省略 → 清除覆盖，回退家长默认。 */
+  providerConfigId?: string | null;
 }
 
 /** `POST /api/parent/children` 请求体（与后端 `CreateChildDto` 对齐）。 */

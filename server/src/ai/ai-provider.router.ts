@@ -39,18 +39,24 @@ export class AiProviderRouter implements AiProvider {
     return this.defaultProvider.name;
   }
 
-  /** 解析当前请求应使用的 provider（默认优先，自定义次之，异常回退）。 */
+  /**
+   * 解析当前请求应使用的 provider（多层降级）：
+   * - child 角色：先查 `resolveForChild`（自身覆盖 → 家长默认）；
+   * - parent 角色：自身 `resolveDefault`；
+   * - 无上下文 / 未配置 / 任何异常 → 回退构造时传入的 env `AI_PROVIDER` 单例。
+   */
   private async resolve(): Promise<AiProvider> {
     const ctx = aiContextStorage.getStore();
     const userId = ctx?.userId;
     if (userId) {
       try {
-        const parentId = await this.providerConfigService.resolveEffectiveParentId(
-          userId,
-          ctx?.role,
-        );
-        if (parentId) {
-          const config = await this.providerConfigService.resolveDefault(parentId);
+        if (ctx?.role !== 'parent') {
+          // child：优先自身覆盖，否则 resolveForChild 内含家长默认回退
+          const childConfig = await this.providerConfigService.resolveForChild(userId);
+          if (childConfig) return this.providerConfigService.buildProvider(childConfig);
+        } else {
+          // parent：自身默认配置
+          const config = await this.providerConfigService.resolveDefault(userId);
           if (config) return this.providerConfigService.buildProvider(config);
         }
       } catch {

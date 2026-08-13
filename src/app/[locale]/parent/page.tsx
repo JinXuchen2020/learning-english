@@ -691,6 +691,10 @@ function ChildrenSection() {
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // AI-711：每孩 provider 覆盖下拉
+  const [providerOptions, setProviderOptions] = useState<ProviderConfigView[] | null>(null);
+  const [childOverrides, setChildOverrides] = useState<Record<string, string | null>>({});
+
   // 表单状态
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "claim">("create");
@@ -704,6 +708,24 @@ function ChildrenSection() {
     try {
       const list = await api.listChildren();
       setChildren(list);
+      // AI-711：用任一孩子 id 拉取家长名下可选项（同父同集合），并初始化各孩覆盖值
+      if (list.length > 0) {
+        const init: Record<string, string | null> = {};
+        list.forEach((c) => {
+          init[c.id] = c.providerConfigId ?? null;
+        });
+        setChildOverrides(init);
+        try {
+          const opts = await api.getChildProviderOptions(list[0].id);
+          setProviderOptions(opts);
+        } catch (e) {
+          logger.error("load child provider options", e);
+          setProviderOptions([]);
+        }
+      } else {
+        setProviderOptions(null);
+        setChildOverrides({});
+      }
     } catch (e) {
       logger.error("load children", e);
       setError(t("createChildFailed"));
@@ -787,6 +809,34 @@ function ChildrenSection() {
     [busy, load, t],
   );
 
+  const handleChildProviderChange = useCallback(
+    async (childId: string, value: string) => {
+      if (busy) return;
+      setBusy(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        await api.setChildProvider(childId, { providerConfigId: value || null });
+        // 同步刷新 children 状态，使徽标 / data-child-override 立即反映新值
+        setChildren((prev) =>
+          prev.map((c) =>
+            c.id === childId
+              ? { ...c, providerConfigId: value || null, hasProviderOverride: !!value }
+              : c,
+          ),
+        );
+        setChildOverrides((prev) => ({ ...prev, [childId]: value || null }));
+        setSuccess(t("childProviderUpdated"));
+      } catch (e) {
+        setError(t("childProviderUpdateFailed"));
+        logger.error("set child provider", e);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, t],
+  );
+
   return (
     <section className="space-y-3" data-component="ChildrenSection">
       <div className="flex items-center justify-between">
@@ -840,18 +890,51 @@ function ChildrenSection() {
               data-component="ChildItem"
               data-child-id={child.id}
               data-child-username={child.username}
-              className="card-kids flex items-center gap-3"
+              data-child-override={child.providerConfigId ?? ""}
+              className="card-kids flex flex-col gap-3 sm:flex-row sm:items-center"
             >
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-kids-title truncate">{child.nickname}</p>
                 <p className="text-sm text-kids-muted">@{child.username}</p>
+                {child.providerConfigId ? (
+                  <span className="inline-block mt-1 rounded-control bg-[var(--seed-primary)]/15 text-[var(--seed-primary)] px-2 py-0.5 text-xs font-bold">
+                    {t("providerOverrideBadge")}
+                  </span>
+                ) : (
+                  <span className="inline-block mt-1 rounded-control bg-kids-secondary px-2 py-0.5 text-xs font-bold text-kids-muted">
+                    {t("providerDefaultBadge")}
+                  </span>
+                )}
               </div>
-              <span className="text-xs font-semibold text-kids-muted whitespace-nowrap">
-                {t("childLevel")} {child.level}
-              </span>
-              <span className="text-xs font-semibold text-kids-sun whitespace-nowrap">
-                ★ {child.totalStars}
-              </span>
+              <div className="flex items-center gap-3 whitespace-nowrap">
+                <span className="text-xs font-semibold text-kids-muted">
+                  {t("childLevel")} {child.level}
+                </span>
+                <span className="text-xs font-semibold text-kids-sun">
+                  ★ {child.totalStars}
+                </span>
+              </div>
+              {providerOptions && providerOptions.length > 0 && (
+                <div className="flex flex-col gap-1 w-full sm:w-56" data-component="ChildProviderSelectWrap">
+                  <label className="text-xs font-semibold text-kids-muted">
+                    {t("childProviderLabel")}
+                  </label>
+                  <Select
+                    data-component="ChildProviderSelect"
+                    data-child-id={child.id}
+                    value={childOverrides[child.id] ?? child.providerConfigId ?? ""}
+                    disabled={busy}
+                    onChange={(v) => void handleChildProviderChange(child.id, v)}
+                    options={[
+                      { value: "", label: t("useParentDefault") },
+                      ...providerOptions.map((c) => ({
+                        value: c.id,
+                        label: c.masked ? `${c.name} · ${c.masked}` : c.name,
+                      })),
+                    ]}
+                  />
+                </div>
+              )}
               <button
                 data-component="UnlinkChildBtn"
                 data-child-id={child.id}

@@ -10,8 +10,12 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User } from '../entities/user.entity';
+import { ProviderConfig, ProviderModels, ProviderCapability } from '../ai/provider-config/provider-config.entity';
+import type { ProviderConfigView } from '../ai/provider-config/provider-config.service';
+import { decryptSecret, maskSecret } from '../ai/provider-config/crypto.util';
 import { CreateChildDto } from './dto/create-child.dto';
 import { ClaimChildDto } from './dto/claim-child.dto';
+import { SetChildProviderDto } from './dto/set-child-provider.dto';
 
 /**
  * 孩子账号视图（AI-710）。绝不包含 password。
@@ -25,25 +29,33 @@ export interface ChildView {
   totalStars: number;
   streakDays: number;
   hasProviderOverride: boolean;
+  // AI-711：当前 provider 覆盖配置 id（null = 沿用家长默认），供前端下拉预选
+  providerConfigId: string | null;
   createdAt: Date;
 }
 
 /**
- * 家长域服务（AI-710 家庭绑定）。
+ * 家长域服务（AI-710 家庭绑定 + AI-711 每孩 provider 覆盖）。
  *
  * 职责：
  * - createChild：家长创建孩子账号（role:'child' + parentId=家长.id）
  * - claimChild：家长认领已有孩子（密码校验后写 parentId）
  * - listChildren：列出本人名下孩子
  * - unlinkChild：解除归属（仅清 parentId，不删账号）
+ * - setChildProvider：设置/清除孩子的 provider 覆盖（AI-711）
+ * - getChildProviderOptions：列出家长名下可选 provider（供前端下拉）
  *
  * parentId 一律取 JWT 的 userId，禁止客户端传入。
+ * 为避免与 `ProviderConfigModule`（已 import ParentModule）形成循环依赖，
+ * 本服务直接注入 `ProviderConfig` 仓库并复用 crypto 工具做掩码，不跨模块注入 `ProviderConfigService`。
  */
 @Injectable()
 export class ParentService {
   constructor(
     @InjectRepository(User)
     private usersRepo: Repository<User>,
+    @InjectRepository(ProviderConfig)
+    private providerConfigRepo: Repository<ProviderConfig>,
     private jwtService: JwtService,
   ) {}
 
@@ -131,6 +143,106 @@ export class ParentService {
     await this.usersRepo.save(child);
   }
 
+  /**
+   * 设置 / 清除孩子的 provider 覆盖（AI-711）。
+   * @throws NotFoundException 孩子不存在或不归属该家长
+   * @throws ForbiddenException providerConfigId 不归属该家长（禁止把孩子指到他人配置）
+   */
+  async setChildProvider(
+    parentId: string,
+    childId: string,
+    dto: SetChildProviderDto,
+  ): Promise<ChildView> {
+    const child = await this.usersRepo.findOne({
+      where: { id: childId, role: 'child' },
+    });
+    if (!child || child.parentId !== parentId) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const providerConfigId = dto.providerConfigId ?? null;
+    if (providerConfigId) {
+      // 校验配置归属该家长（禁止把孩子指到他人配置）
+      const config = await this.providerConfigRepo.findOne({
+        where: { id: providerConfigId, ownerUserId: parentId },
+      });
+      if (!config) {
+        throw new ForbiddenException('Provider config does not belong to you');
+      }
+      child.childProviderConfigId = providerConfigId;
+    } else {
+      // 清除覆盖 → 孩子回退家长默认
+      child.childProviderConfigId = null;
+    }
+
+    const saved = await this.usersRepo.save(child);
+    return this.toChildView(saved);
+  }
+
+  /**
+   * 列出家长名下可选 provider（供前端下拉）。同时校验孩子归属。
+   * @throws NotFoundException 孩子不存在或不归属该家长
+   */
+  async getChildProviderOptions(
+    parentId: string,
+    childId: string,
+  ): Promise<ProviderConfigView[]> {
+    const child = await this.usersRepo.findOne({
+      where: { id: childId, role: 'child' },
+    });
+    if (!child || child.parentId !== parentId) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const configs = await this.providerConfigRepo.find({
+      where: { ownerUserId: parentId },
+    });
+    return configs.map((c) => this.toProviderOptionView(c));
+  }
+
+  private toProviderOptionView(config: ProviderConfig): ProviderConfigView {
+    let masked = '';
+    if (config.apiKeyEnc) {
+      try {
+        masked = maskSecret(decryptSecret(config.apiKeyEnc));
+      } catch {
+        masked = '****'; // 密钥不可读（key 轮换后）
+      }
+    }
+    return {
+      id: config.id,
+      ownerUserId: config.ownerUserId,
+      name: config.name,
+      type: config.type,
+      baseUrl: config.baseUrl,
+      models: this.parseModels(config.modelsJson),
+      capabilities: this.parseCapabilities(config.capabilitiesJson),
+      isDefault: config.isDefault,
+      hasKey: !!config.apiKeyEnc,
+      masked,
+      createdAt: config.createdAt,
+      updatedAt: config.updatedAt,
+    };
+  }
+
+  private parseModels(json?: string | null): ProviderModels {
+    if (!json) return {};
+    try {
+      return JSON.parse(json) as ProviderModels;
+    } catch {
+      return {};
+    }
+  }
+
+  private parseCapabilities(json?: string | null): ProviderCapability[] {
+    if (!json) return [];
+    try {
+      return JSON.parse(json) as ProviderCapability[];
+    } catch {
+      return [];
+    }
+  }
+
   private toChildView(user: User): ChildView {
     return {
       id: user.id,
@@ -140,8 +252,10 @@ export class ParentService {
       level: user.level,
       totalStars: user.totalStars,
       streakDays: user.streakDays,
-      // AI-711 预留：childProviderConfigId 非空时为 true
-      hasProviderOverride: false,
+      // AI-711：孩子有独立 provider 覆盖时为 true
+      hasProviderOverride: !!user.childProviderConfigId,
+      // AI-711：暴露当前覆盖配置 id（null = 沿用家长默认），供前端下拉预选
+      providerConfigId: user.childProviderConfigId ?? null,
       createdAt: user.createdAt,
     };
   }
