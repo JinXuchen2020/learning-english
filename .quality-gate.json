@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "README.md#deployment",
-  "notes": "Vercel 部署运行时修复（本批）：① 后端 API 发布到 Vercel(Postgres) 后运行时报错 DataTypeNotSupportedError：Data type \"datetime\" in \"WordProgress.dueDate\" is not supported by \"postgres\"。根因：3 个实体的普通 Date 列硬写 type:'datetime'（仅 SQLite 支持），切到 Postgres 后不被支持。修复：新增 server/src/config/date-column-type.ts 辅助函数 dateColumnType()，按 DB_TYPE 在 sqlite→'datetime' / postgres→'timestamp' 间切换；WordProgress.dueDate、AiWordCard.approvedAt、RewardRedemption.decidedAt 三个 @Column 改用 type:dateColumnType()。② 后端 API 运行时反复报错 TypeORMError: Column planId of Entity StudyPlanDay does not support length property。根因：StudyPlanDay.planId 与 StudyPlan.userId 等外键列声明为 @Column({type:'varchar',length:255})，但目标主键 StudyPlan.id / User.id 是 uuid；Postgres 下 TypeORM 将外键列识别为 uuid 类型，uuid 不支持 length 属性。修复：StudyPlanDay.planId 与 StudyPlan.userId 改为 @Column({type:'uuid'})，与目标主键类型对齐；SQLite 下 uuid 仍映射为 varchar，不影响现有数据与 seed。③ 注意踩坑：仅调整装饰器顺序无法解决 Postgres uuid length 冲突；@RelationId 不能用于 where 查询，必须保留标量列。验证：后端 tsc 0 错；后端 jest 93 suites/822 tests 全绿；plan 模块 92 tests 全绿；npm run seed（sqlite）成功建表。前序批次：Vercel @vercel/node TS2307 修复、DATABASE_URL/SSL 支持、cleanPostgresUrl、前端 NEXT_PUBLIC_API_URL 兜底、图标、ai-710 设计落档。",
+  "notes": "Vercel 日志降噪（本批）：① 前端日志持续报 /favicon.ico 与 /favicon.png 404。根因：App Router 已提供 icon.svg 与 apple-icon.tsx，但浏览器/爬虫仍会默认请求 /favicon.ico。修复：用 Pillow 生成与 Foxy 品牌一致的多尺寸（16/32/48）favicon.ico 并置于 src/app/favicon.ico，Next.js 会自动将其作为站点 favicon。ICO 格式已验证，共 1235 字节。② 日志中 url.parse() DeprecationWarning 经全局搜索确认全部来自 node_modules（Next.js/Express/Vite 等依赖内部），项目源码未直接使用；该警告不影响功能，消除需升级相关依赖，本次仅记录。前序批次：Date 列跨库兼容、uuid 外键对齐、@vercel/node TS2307、DATABASE_URL/SSL、cleanPostgresUrl、NEXT_PUBLIC_API_URL 兜底、图标、ai-710 设计落档。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0 错; 前端 tsc 0 错; Date 列统一用 dateColumnType() 切换; StudyPlanDay.planId 与 StudyPlan.userId 显式 type:uuid 与目标主键对齐)",
-    "tests": "PASSED (后端 jest 93 suites/822 tests 全绿; plan 模块 92 tests 全绿; npm run seed sqlite 建表成功验证 uuid 外键列映射)",
-    "review": "PASSED (dateColumnType 显式切换避免 better-sqlite3 反射为 Object; uuid 外键列与目标主键类型一致; 保留标量 planId/userId 列与级联删除; 不反向 import database.config 规避循环依赖)",
-    "optimization": "PASSED (零新依赖; dateColumnType 集中管理跨库 Date 类型; 外键列类型与主键对齐避免未来类似报错)"
+    "consistency": "PASSED (新增 favicon.ico 与现有 icon.svg/apple-icon.tsx 共用 Foxy 品牌视觉；ICO 格式验证含 16/32/48 三尺寸；无源码改动)",
+    "tests": "PASSED (静态资源无新增测试；ICO 文件头与目录项经脚本验证；favicon.ico 能被 Next.js App Router 自动识别)",
+    "review": "PASSED (未引入运行时依赖；保留 icon.svg 作为矢量源；favicon.ico 仅作为浏览器默认请求回退；url.parse 警告确认来自 node_modules)",
+    "optimization": "PASSED (多尺寸 PNG-in-ICO 仅 1235 字节；避免额外的服务端路由或重定向开销；减少 Vercel 404 日志噪音)"
   }
 }
