@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-/** Provider 类型：开放兼容优先，bigmodel/mock 复用既有实现。 */
+/** Provider 类型：开放兼容优先；mock 为演示。bigmodel 为历史存量（智谱走 openai-compatible），新配置不再可选。 */
 export type ProviderType = 'openai-compatible' | 'bigmodel' | 'mock';
 
 /** 能力枚举（与 AiProvider 五方法对齐，pronunciation 通用 OpenAI 不提供）。 */

@@ -1,9 +1,9 @@
 import { ParentGuard } from './parent.guard';
 
 /**
- * ParentGuard 单元测试（AI-702，取代 AI-701 明文 token 门禁）。
+ * ParentGuard 单元测试（AI-702 之后）。
  * 校验：缺 Authorization / 非 Bearer / child token / 过期篡改 → 拒；
- * 家长 JWT（role==='parent'） → 放行且设置 req.user。
+ * 家长登录 JWT（role==='parent'） → 放行且设置 req.user。
  */
 describe('ParentGuard (AI-702)', () => {
   let jwtService: any;

@@ -1,14 +1,14 @@
 {
-  "phase": "fix",
+  "phase": "refactor",
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ci-e2e-locale-gate.md",
-  "notes": "CI E2E 28→7→5 收尾（增量-3）：前两轮语言无关化把失败压到 5 个功能性场景（parent.feature S1/S2、parent-provider-config.feature S1/S2、parent-report.feature S1）。本提交全修：根因① RoleGuard.tsx（AI-707）把 isChild 在 PARENT_ONLY=[/parent,/parent-report] 时 router.replace('/')，破坏 AI-702 孩子经 PIN 解锁的家长模式 → 孩子一进家长页就被弹回首页，ParentPanel 整体 unmount；改为 PARENT_MODE 双开、PARENT_ONLY 置空。根因② parent.ts 的 POM 方法在 Node 上下文直接调用浏览器全局 CSS.escape() → ReferenceError（此前被 RoleGuard 弹走掩盖，从未触发）；改为 Node 侧 cssEscape 兜底 + 浏览器回调仍用 CSS.escape。本地复跑 3 个 parent feature 全 5 scenario/56 step 绿；typecheck:e2e 0 错。",
+  "reportRef": "docs/design-system.md",
+  "notes": "三主题合并提交：① 设计系统原语升级（Card/Badge/Input/ProgressRing/SectionTitle/Select + docs/design-system.md + tailwind/globals token 同步 + TabNav/chat UI 修复）；② 家长 PIN 全栈移除（删 parentPinHash 字段、verify/setup/change-pin 端点与 DTO、前端 parentToken 机制与 PIN gate UI/i18n、E2E 改写为家长账号直接进面板）；③ provider-config 清理（bigmodel 合并进 openai-compatible、类型/能力标签补 t() 翻译、Base URL/API Key 加 autoComplete 防误填、类型下拉改用 Select 原语）。验证：前端 tsc 0 错、后端 tsc 0 错、后端 jest 93 suites/814 tests 全绿（含 parent.service.spec/parent.guard.spec）、e2e tsc 0 错。注：完整 Cucumber E2E 未在本机复跑（本地 next dev 受 safe-delete 守卫限制无法起 .next，需临时 distDir 或推 CI 验证）；E2E 改动仅为 PIN 链路删除/场景重写，已通过 e2e tsc 与后端 jest 间接校验。",
   "gates": {
-    "consistency": "PASSED (e2e tsc 0 错; 生产改动仅 RoleGuard.tsx 角色重定向分支; 全栈契约未变)",
-    "tests": "PASSED (本地 E2E 复跑 e2e/features/{parent,parent-provider-config,parent-report}.feature 全 5 scenario / 56 step 绿; typecheck:e2e 0 错; 无 locale-bound 断言残留)",
-    "review": "PASSED (生产改动仅删 RoleGuard 重定向分支; POM 增加 Node 侧 cssEscape 兜底; 删除历史会话遗留 TEMP DEBUG dump 与 [browser:resp] 监听; 无裸 console)",
-    "optimization": "PASSED (零新依赖)"
+    "consistency": "PASSED (前后端 tsc 0 错; data-component 契约未变; 设计 token 双轨同步 CSS 变量与 tailwind 主题)",
+    "tests": "PASSED (后端 jest 93 suites/814 tests 全绿; e2e tsc 0 错; 前端 tsc 0 错; PIN 移除后 parent.spec 重写且通过)",
+    "review": "PASSED (生产改动仅删家长 PIN 链路与合并 bigmodel 类型; 无裸 console; 类型下拉改用受控 Select 原语)",
+    "optimization": "PASSED (零新依赖; Select 复用 Input 触觉风格与已有 shadow/z-index token)"
   }
 }

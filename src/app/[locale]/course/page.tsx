@@ -8,6 +8,8 @@ import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Card } from "@/components/ui/card";
+import { SectionTitle } from "@/components/ui/section-title";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { Lock, CheckCircle2, PlayCircle, Clock, BookOpen, ArrowLeft } from "lucide-react";
@@ -70,7 +72,7 @@ function CourseList() {
           <Link
             key={course.id}
             href={`/course?id=${course.id}`}
-            className="card-kids flex items-center gap-4 hover:shadow-card-hover group"
+            className="rounded-panel bg-kids-card shadow-card p-6 flex items-center gap-4 hover:shadow-card-hover group"
           >
             <div
               className="w-16 h-16 rounded-panel flex items-center justify-center text-3xl shrink-0"
@@ -140,7 +142,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
       </Link>
 
       {/* Course Header */}
-      <section className="card-kids flex items-center gap-6" data-component="CourseHeader">
+      <Card className="flex items-center gap-6" data-component="CourseHeader">
         <div
           className="w-20 h-20 rounded-panel flex items-center justify-center text-4xl shrink-0"
           style={{ backgroundColor: `${course.color}33` }}
@@ -175,11 +177,11 @@ function CourseDetail({ courseId }: { courseId: string }) {
             {t("lessonsProgress", { done: course.completedLessons, total: course.totalLessons })}
           </p>
         </div>
-      </section>
+      </Card>
 
       {/* Lesson List */}
       <section data-component="LessonList">
-        <h2 className="mb-4">{t("lessonsHeading")}</h2>
+        <SectionTitle title={t("lessonsHeading")} />
         <div className="space-y-3">
           {course.lessons.map((lesson, index) => {
             const config = stateConfig[lesson.state];
@@ -226,7 +228,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
                 <Link
                   key={lesson.id}
                   href={`/practice?lessonId=${lesson.id}&courseId=${course.id}`}
-                  className={`card-kids flex items-center gap-4 !py-4 ${config.bg} hover:shadow-card-hover focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--seed-accent)]`}
+                  className={`rounded-panel bg-kids-card shadow-card p-6 flex items-center gap-4 !py-4 ${config.bg} hover:shadow-card-hover focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--seed-accent)]`}
                   aria-label={`${lesson.title} — ${stateLabel}`}
                 >
                   {content}
@@ -237,7 +239,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
             return (
               <div
                 key={lesson.id}
-                className={`card-kids flex items-center gap-4 !py-4 ${config.bg} opacity-70`}
+                className={`rounded-panel bg-kids-card shadow-card p-6 flex items-center gap-4 !py-4 ${config.bg} opacity-70`}
                 aria-disabled="true"
               >
                 {content}
@@ -249,8 +251,8 @@ function CourseDetail({ courseId }: { courseId: string }) {
 
       {/* CTA + Mascot Tip */}
       {nextLesson && (
-        <section
-          className="flex items-center gap-6 card-kids bg-gradient-to-r from-[var(--color-primary-wash)] to-[var(--seed-surface)]"
+        <Card
+          className="flex items-center gap-6 bg-gradient-to-r from-[var(--color-primary-wash)] to-[var(--seed-surface)]"
           data-component="CourseCTA"
         >
           <Mascot expression="encouraging" size="medium" />
@@ -268,7 +270,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
               {t("continueLearning")}
             </Link>
           </Button>
-        </section>
+        </Card>
       )}
     </div>
   );

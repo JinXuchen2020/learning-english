@@ -18,7 +18,8 @@ import type {
   ProviderType,
   ProviderCapability,
 } from "@/lib/types";
-import { Check, X, ShieldCheck, LogOut, BarChart3 } from "lucide-react";
+import { Check, X, ShieldCheck, BarChart3 } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 /** 兑换状态徽章（与 /rewards 同口径）。标签走 i18n，仅保留配色。 */
 const STATUS_BADGE: Record<RedemptionStatus, { className: string }> = {
@@ -34,23 +35,13 @@ const STATUS_LABEL_KEY: Record<RedemptionStatus, string> = {
   rejected: "statusRejected",
 };
 
-type View = "loading" | "gate" | "panel";
-
 function ParentInner() {
   const { user } = useAuth();
   const t = useTranslations("Parent");
-  const [view, setView] = useState<View>("loading");
-  const [hasPin, setHasPin] = useState(false);
-
-  // PIN 门禁输入
-  const [pin, setPin] = useState("");
-  const [pinError, setPinError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // 审批区
   const [approvals, setApprovals] = useState<RewardRedemption[]>([]);
-  // PIN 管理
-  const [oldPinInput, setOldPinInput] = useState("");
-  const [newPinInput, setNewPinInput] = useState("");
   // 通用错误 / busy
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,62 +51,16 @@ function ParentInner() {
     setApprovals(list);
   }, []);
 
-  // 初始判定：持家长 token → 直接进面板；否则查 hasPin 决定门禁文案。
   useEffect(() => {
-    if (api.getParentToken()) {
-      setView("panel");
-      void loadApprovals().catch((e) => logger.error("load approvals", e));
+    if (user?.role !== "parent") {
+      setLoading(false);
       return;
     }
-    api
-      .getParentStatus()
-      .then((r) => {
-        setHasPin(r.hasPin);
-        setView("gate");
-      })
-      .catch((e) => {
-        logger.error("get parent status", e);
-        setError(t("loadParentFailed"));
-        setView("gate");
-      });
-  }, [loadApprovals]);
-
-  const handlePinSubmit = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
-    setPinError(null);
-    setError(null);
-    try {
-      const res = hasPin
-        ? await api.verifyParentPin(pin)
-        : await api.setupParentPin(pin);
-      api.setParentToken(res.parentToken);
-      setView("panel");
-      await loadApprovals();
-    } catch (err) {
-      setPinError(
-        err instanceof api.ApiError ? err.message : t("actionFailed"),
-      );
-      logger.error("parent pin submit", err);
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, hasPin, pin, loadApprovals]);
-
-  const handleExit = useCallback(async () => {
-    api.clearParentToken();
-    setPin("");
-    setOldPinInput("");
-    setNewPinInput("");
-    setError(null);
-    try {
-      const r = await api.getParentStatus();
-      setHasPin(r.hasPin);
-    } catch (e) {
-      logger.error("get parent status", e);
-    }
-    setView("gate");
-  }, []);
+    setLoading(true);
+    void loadApprovals()
+      .catch((e) => logger.error("load approvals", e))
+      .finally(() => setLoading(false));
+  }, [loadApprovals, user?.role]);
 
   const handleApprove = useCallback(
     async (id: string) => {
@@ -132,7 +77,7 @@ function ParentInner() {
         setBusy(false);
       }
     },
-    [busy, loadApprovals],
+    [busy, loadApprovals, t],
   );
 
   const handleReject = useCallback(
@@ -150,30 +95,29 @@ function ParentInner() {
         setBusy(false);
       }
     },
-    [busy, loadApprovals],
+    [busy, loadApprovals, t],
   );
 
-  const handleChangePin = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.changeParentPin(oldPinInput, newPinInput);
-      if (res.parentToken) api.setParentToken(res.parentToken);
-      setOldPinInput("");
-      setNewPinInput("");
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof api.ApiError ? err.message : t("changePinFailed"),
-      );
-      logger.error("change pin", err);
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, oldPinInput, newPinInput]);
+  if (user?.role !== "parent") {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4" data-component="ParentUnauthorized">
+        <Mascot expression="encouraging" size="large" />
+        <h1 className="text-xl font-extrabold text-kids-title">{t("parentOnly")}</h1>
+        <p className="text-kids-muted text-center max-w-md">
+          {t("parentOnlyHint")}
+        </p>
+        <Link
+          href="/"
+          className="rounded-control bg-[var(--seed-primary)] text-white px-5 py-2.5 font-bold shadow-button hover:opacity-90"
+          data-component="BackHomeBtn"
+        >
+          {t("backHome")}
+        </Link>
+      </div>
+    );
+  }
 
-  if (view === "loading") {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3" data-component="ParentLoading">
         <Mascot expression="thinking" size="medium" />
@@ -182,61 +126,6 @@ function ParentInner() {
     );
   }
 
-  if (view === "gate") {
-    return (
-      <div className="space-y-6" data-component="ParentPanel">
-        <section
-          className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
-          data-component="ParentHeader"
-        >
-          <Mascot expression="happy" size="large" level={undefined} />
-          <div className="flex-1">
-            <h1 className="text-2xl font-extrabold text-kids-title">{t("parentMode")}</h1>
-            <p className="text-kids-muted">{t("pinGateSubtitle")}</p>
-          </div>
-        </section>
-
-        <section className="card-kids space-y-4" data-component="ParentPinGate">
-          <h2 className="font-bold text-kids-title">
-            {hasPin ? t("enterPinTitle") : t("setupPinTitle")}
-          </h2>
-          <p className="text-sm text-kids-muted">
-            {hasPin
-              ? t("enterPinHint")
-              : t("setupPinHint")}
-          </p>
-          <div className="flex items-center gap-3">
-            <input
-              data-component="PinInput"
-              type="text"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
-              placeholder="••••"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              className="rounded-control border border-kids-border px-4 py-2 text-center text-2xl tracking-[0.5em] w-40"
-            />
-            <button
-              data-component="PinSubmit"
-              disabled={busy || pin.length !== 4}
-              onClick={() => void handlePinSubmit()}
-              className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
-            >
-              {busy ? t("processing") : hasPin ? t("enter") : t("setup")}
-            </button>
-          </div>
-          {pinError && (
-            <p className="text-kids-orange text-sm font-semibold" data-component="PinError">
-              {pinError}
-            </p>
-          )}
-        </section>
-      </div>
-    );
-  }
-
-  // view === "panel"
   return (
     <div className="space-y-6" data-component="ParentPanel">
       {/* 家长首页概览（TabNav 「首页/概览」tab 对应 /parent 顶部） */}
@@ -284,13 +173,6 @@ function ParentInner() {
           <h1 className="text-2xl font-extrabold text-kids-title">{t("controlPanelTitle")}</h1>
           <p className="text-kids-muted">{t("controlPanelSubtitle")}</p>
         </div>
-        <button
-          data-component="ExitParentBtn"
-          onClick={() => void handleExit()}
-          className="flex items-center gap-1 rounded-control bg-kids-secondary px-3 py-2 text-sm font-bold text-kids-title hover:opacity-90"
-        >
-          <LogOut size={16} /> {t("exitParentMode")}
-        </button>
       </section>
 
       {error && (
@@ -358,43 +240,6 @@ function ParentInner() {
       <div id="settings" className="space-y-6">
         {/* AI 提供商配置（AI-705） */}
         <ProviderConfigSection />
-
-        {/* PIN 管理区 */}
-        <section className="space-y-3 card-kids" data-component="PinManage">
-        <h2 className="text-lg font-extrabold text-kids-title">{t("changePinTitle")}</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            data-component="OldPinInput"
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            autoComplete="off"
-            placeholder={t("oldPinPlaceholder")}
-            value={oldPinInput}
-            onChange={(e) => setOldPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            className="rounded-control border border-kids-border px-3 py-2 text-center text-xl tracking-[0.3em] w-28"
-          />
-          <input
-            data-component="NewPinInput"
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            autoComplete="off"
-            placeholder={t("newPinPlaceholder")}
-            value={newPinInput}
-            onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            className="rounded-control border border-kids-border px-3 py-2 text-center text-xl tracking-[0.3em] w-28"
-          />
-          <button
-            data-component="ChangePinBtn"
-            disabled={busy || oldPinInput.length !== 4 || newPinInput.length !== 4}
-            onClick={() => void handleChangePin()}
-            className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
-          >
-            {t("changePinBtn")}
-          </button>
-        </div>
-      </section>
       </div>
 
       {/* 未来 M5 报告入口预留 */}
@@ -416,7 +261,7 @@ function ParentInner() {
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
-const PROVIDER_TYPE_LABEL_KEY: Record<ProviderType, string> = {
+const PROVIDER_TYPE_LABEL_KEY: Record<string, string> = {
   "openai-compatible": "provOpenaiCompatible",
   bigmodel: "provBigModel",
   mock: "provMock",
@@ -440,8 +285,8 @@ const CAPABILITY_LABEL_KEY: Record<ProviderCapability, string> = {
 /**
  * 家长 AI 提供商配置管理（AI-705）。
  * 列出本账号全部 provider（掩码），支持增删改、设为默认、连通性探测。
- * 所有请求经家长会话令牌（ParentGuard）。明文 apiKey 仅在前端输入框短暂存在，
- * 后端加密落库、视图永不回显明文（仅掩码）。
+ * 家长账号登录 JWT 本身 role==='parent'，可直接过 ParentGuard；
+ * 明文 apiKey 仅在前端输入框短暂存在，后端加密落库、视图永不回显明文（仅掩码）。
  */
 function ProviderConfigSection() {
   const t = useTranslations("Parent");
@@ -477,7 +322,7 @@ function ProviderConfigSection() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -548,7 +393,7 @@ function ProviderConfigSection() {
     } finally {
       setBusy(false);
     }
-  }, [busy, formName, formType, formBaseUrl, formApiKey, formCapabilities, editingId, resetForm, load]);
+  }, [busy, formName, formType, formBaseUrl, formApiKey, formCapabilities, editingId, resetForm, load, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -565,7 +410,7 @@ function ProviderConfigSection() {
         setBusy(false);
       }
     },
-    [busy, load],
+    [busy, load, t],
   );
 
   const handleSetDefault = useCallback(
@@ -583,7 +428,7 @@ function ProviderConfigSection() {
         setBusy(false);
       }
     },
-    [busy, load],
+    [busy, load, t],
   );
 
   const handleTest = useCallback(
@@ -602,7 +447,7 @@ function ProviderConfigSection() {
         setBusy(false);
       }
     },
-    [busy],
+    [busy, t],
   );
 
   return (
@@ -651,7 +496,7 @@ function ProviderConfigSection() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="font-bold text-kids-title">{c.name}</span>
                   <span className="rounded-control bg-kids-secondary px-2 py-0.5 text-xs font-bold text-kids-text">
-                    {PROVIDER_TYPE_LABEL_KEY[c.type]}
+                    {t(PROVIDER_TYPE_LABEL_KEY[c.type] ?? c.type)}
                   </span>
                   {c.isDefault && (
                     <span className="rounded-control bg-[var(--color-success)] px-2 py-0.5 text-xs font-bold text-white">
@@ -671,7 +516,7 @@ function ProviderConfigSection() {
                         key={cap}
                         className="rounded-full bg-kids-secondary/60 px-2 py-0.5 text-xs text-kids-muted"
                       >
-                        {CAPABILITY_LABEL_KEY[cap]}
+                        {t(CAPABILITY_LABEL_KEY[cap])}
                       </span>
                     ))}
                   </div>
@@ -744,39 +589,38 @@ function ProviderConfigSection() {
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               placeholder={t("namePlaceholder")}
+              autoComplete="off"
               className="rounded-control border border-kids-border px-3 py-2"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">{t("typeLabel")}</label>
-            <select
+            <Select
               data-component="ProviderTypeSelect"
               value={formType}
-              onChange={(e) => setFormType(e.target.value as ProviderType)}
-              className="rounded-control border border-kids-border px-3 py-2"
-            >
-              {(["openai-compatible", "bigmodel", "mock"] as ProviderType[]).map((t) => (
-                <option key={t} value={t}>
-                  {PROVIDER_TYPE_LABEL_KEY[t]}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFormType(v as ProviderType)}
+              options={(["openai-compatible", "mock"] as ProviderType[]).map((typeVal) => ({
+                value: typeVal,
+                label: t(PROVIDER_TYPE_LABEL_KEY[typeVal]),
+              }))}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">
-              Base URL{formType === "mock" ? t("optional") : t("required")}
+              {t("baseUrlLabel")}{formType === "mock" ? t("optional") : t("required")}
             </label>
             <input
               data-component="ProviderBaseUrlInput"
               value={formBaseUrl}
               onChange={(e) => setFormBaseUrl(e.target.value)}
               placeholder="https://api.example.com/v1"
+              autoComplete="off"
               className="rounded-control border border-kids-border px-3 py-2"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">
-              API Key{formType === "mock" ? t("optional") : editingId ? t("apiKeyEditHint") : t("required")}
+              {t("apiKeyLabel")}{formType === "mock" ? t("optional") : editingId ? t("apiKeyEditHint") : t("required")}
             </label>
             <input
               data-component="ProviderApiKeyInput"
@@ -784,6 +628,7 @@ function ProviderConfigSection() {
               value={formApiKey}
               onChange={(e) => setFormApiKey(e.target.value)}
               placeholder={editingId ? t("apiKeyPlaceholderEdit") : t("apiKeyPlaceholderNew")}
+              autoComplete="new-password"
               className="rounded-control border border-kids-border px-3 py-2"
             />
           </div>
@@ -800,7 +645,7 @@ function ProviderConfigSection() {
                     onChange={() => toggleCapability(cap)}
                     className="rounded-control"
                   />
-                  {CAPABILITY_LABEL_KEY[cap]}
+                  {t(CAPABILITY_LABEL_KEY[cap])}
                 </label>
               ))}
             </div>

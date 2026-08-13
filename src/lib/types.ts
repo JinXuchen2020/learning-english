@@ -696,8 +696,8 @@ export interface RewardsSummary {
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
-/** Provider 类型（与后端 `ProviderType` 对齐）。 */
-export type ProviderType = "openai-compatible" | "bigmodel" | "mock";
+/** Provider 类型（与后端 `ProviderType` 对齐）。bigmodel 已并入 openai-compatible。 */
+export type ProviderType = "openai-compatible" | "mock";
 
 /** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";

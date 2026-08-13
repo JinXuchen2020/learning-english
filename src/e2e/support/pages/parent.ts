@@ -1,25 +1,20 @@
-// Page object for the parent control panel (src/app/parent/page.tsx, AuthGate wrapped).
+// Page object for the parent control panel (src/app/[locale]/parent/page.tsx,
+// AuthGuard wrapped; role==='parent' renders the panel directly — no PIN gate).
 //
 // Regions & hooks:
-//   [data-component="ParentPanel"]        根容器（gate 与 panel 视图共用外层）
-//   [data-component="ParentPinGate"]      PIN 门禁（未持家长 token 时显示）
-//     [data-component="PinInput"]         4 位 PIN 输入
-//     [data-component="PinSubmit"]        提交（设置 / 进入）
-//     [data-component="PinError"]         PIN 错误提示
-//   [data-component="ExitParentBtn"]      退出家长模式（仅 panel 视图有 → 用作「已进入面板」判定）
-//   [data-component="ParentApprovals"]    审批区（仅 panel 视图）
+//   [data-component="ParentPanel"]        根容器（家长账号直接渲染）
+//   [data-component="ParentUnauthorized"] 非家长账号的拒绝视图
+//   [data-component="ParentApprovals"]    审批区
 //     [data-component="ApprovalItem"]     待审批项（data-redemption-id / data-redemption-status）
 //       [data-component="ApproveBtn"] / [data-component="RejectBtn"]
-//   [data-component="PinManage"] / [data-component="ChangePinBtn"]
-//   [data-component="ReportPlaceholder"]  M5 报告预留
+//   [data-component="ProviderConfigSection"]  AI 提供商配置区（AI-705）
 //
 // 断言全部用 waitForFunction 等异步渲染，禁止 locator.count() 即时计数。
 import { Page } from "@playwright/test";
 
 // CSS.escape is a *browser* global. These page-object methods run in the Node
 // harness, where `CSS` is undefined — so calling CSS.escape() here throws
-// "ReferenceError: CSS is not defined" (as seen after the RoleGuard fix let the
-// provider-config scenarios reach this code). Polyfill the subset we need so
+// "ReferenceError: CSS is not defined". Polyfill the subset we need so
 // attribute selectors with CJK / special characters build safely in both
 // contexts (browser waitForFunction still hits the real CSS.escape branch).
 function cssEscape(value: string): string {
@@ -43,67 +38,19 @@ export default class ParentPage {
   }
 
   async open(): Promise<void> {
-    // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；优先点 TabNav 链接，
-    // 找不到（/parent 不在 TabNav）则走 goto 兜底（middleware 重定向到默认 locale 前缀）。
-    const link = this.page.locator(`nav a[href="${PARENT_PATH}"]`);
-    if (await link.count()) {
-      await link.first().click();
-    } else {
-      await this.page.goto(`${this.baseUrl}${PARENT_PATH}`);
-    }
+    // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；/parent 不在 TabNav，
+    // 走 goto 兜底（middleware 重定向到默认 locale 前缀）。
+    await this.page.goto(`${this.baseUrl}${PARENT_PATH}`);
     await this.page.waitForSelector('[data-component="ParentPanel"]');
   }
 
-  /** 等待 PIN 门禁出现（未持家长 token）。 */
-  async waitForGate(timeout = 15000): Promise<void> {
-    await this.page.waitForFunction(
-      () => !!document.querySelector('[data-component="ParentPinGate"]'),
-      undefined,
-      { timeout },
-    );
-  }
-
-  /** 等待进入面板（ExitParentBtn 仅 panel 视图渲染，作为「已进入」判定）。 */
+  /** 等待进入面板（ParentPanel 仅家长账号渲染，作为「已进入」判定）。 */
   async waitForPanel(timeout = 15000): Promise<void> {
     await this.page.waitForFunction(
-      () => !!document.querySelector('[data-component="ExitParentBtn"]'),
+      () => !!document.querySelector('[data-component="ParentPanel"]'),
       undefined,
       { timeout },
     );
-  }
-
-  /** 设置 PIN（首次，hasPin=false 时）：填 PIN → 提交 → 等进入面板。 */
-  async setPin(pin: string): Promise<void> {
-    await this.page
-      .locator('[data-component="PinInput"]')
-      .fill(pin);
-    await this.page.locator('[data-component="PinSubmit"]').click();
-    await this.waitForPanel();
-  }
-
-  /** 输入 PIN（验证模式）：填 PIN → 提交，不假设成功（调用方自行判定 error/panel）。 */
-  async enterPin(pin: string): Promise<void> {
-    await this.page
-      .locator('[data-component="PinInput"]')
-      .fill(pin);
-    await this.page.locator('[data-component="PinSubmit"]').click();
-  }
-
-  /** 等待 PIN 错误提示出现。 */
-  async waitForPinError(timeout = 15000): Promise<void> {
-    await this.page.waitForFunction(
-      () => !!document.querySelector('[data-component="PinError"]'),
-      undefined,
-      { timeout },
-    );
-  }
-
-  /** 退出家长模式 → 回到门禁。点击用 force:true 规避 Next 客户端导航后节点 detached 竞态。 */
-  async exitParent(): Promise<void> {
-    await this.page
-      .locator('[data-component="ExitParentBtn"]')
-      .click({ force: true });
-    await this.waitForGate();
   }
 
   /** 等待至少 min 条待审批项（异步拉取后）。 */
@@ -273,9 +220,6 @@ export default class ParentPage {
   async waitForProviderTestResult(name: string, timeout = 15000): Promise<void> {
     await this.page.waitForFunction(
       (n: string) =>
-        !!document.querySelector(
-          `[data-component="ProviderTestResult"][data-config-id]`,
-        ) &&
         !!document.querySelector(
           `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"] [data-component="ProviderTestResult"]`,
         ),

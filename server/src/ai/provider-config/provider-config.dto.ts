@@ -8,7 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
-export type ProviderTypeDto = 'openai-compatible' | 'bigmodel' | 'mock';
+export type ProviderTypeDto = 'openai-compatible' | 'mock';
 export type ProviderCapabilityDto = 'chat' | 'vision' | 'stt' | 'tts' | 'pronunciation';
 
 /** 前端传参用模型映射（均可选）。 */
@@ -35,7 +35,7 @@ export class CreateProviderConfigDto {
   @MaxLength(120)
   name: string;
 
-  @IsIn(['openai-compatible', 'bigmodel', 'mock'])
+  @IsIn(['openai-compatible', 'mock'])
   type: ProviderTypeDto;
 
   @IsOptional()

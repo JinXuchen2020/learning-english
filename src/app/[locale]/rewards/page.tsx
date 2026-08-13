@@ -6,6 +6,9 @@ import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import LevelRing from "@/components/LevelRing";
 import AuthGate from "@/components/AuthGate";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { SectionTitle } from "@/components/ui/section-title";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
@@ -86,8 +89,8 @@ function RewardsInner() {
   return (
     <div className="space-y-6" data-component="RewardsStore">
       {/* Header */}
-      <section
-        className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+      <Card
+        className="flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="RewardsHeader"
       >
         <Mascot expression="happy" size="large" level={undefined} />
@@ -95,13 +98,13 @@ function RewardsInner() {
           <h1 className="text-2xl font-extrabold text-kids-title">{t("title")}</h1>
           <p className="text-kids-muted">{t("subtitle")}</p>
         </div>
-      </section>
+      </Card>
 
       {error && (
-        <section className="card-kids flex items-center gap-3" data-component="RewardsError">
+        <Card className="flex items-center gap-3" data-component="RewardsError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
-        </section>
+        </Card>
       )}
 
       {loading ? (
@@ -112,8 +115,8 @@ function RewardsInner() {
       ) : (
         <>
           {/* 余额 + 等级环 */}
-          <section className="card-kids" data-component="RewardsBalance">
-            <h2 className="font-bold text-kids-title mb-3">{t("myPoints")}</h2>
+          <Card data-component="RewardsBalance">
+            <SectionTitle title={t("myPoints")} />
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 bg-kids-sun/20 rounded-control px-4 py-2" data-component="BalanceBadge">
                 <Star size={22} className="text-kids-sun fill-kids-sun" />
@@ -124,13 +127,13 @@ function RewardsInner() {
               </div>
               <LevelRing totalStars={totalStars} size={96} />
             </div>
-          </section>
+          </Card>
 
           {/* 奖励商城 */}
           <section className="space-y-3" data-component="RewardStore">
-            <h2 className="text-lg font-extrabold text-kids-title">{t("available")}</h2>
+            <SectionTitle title={t("available")} />
             {rewards.length === 0 ? (
-              <p className="card-kids text-center text-kids-muted py-8" data-component="RewardEmptyHint">
+              <p className="rounded-panel bg-kids-card shadow-card p-6 text-center text-kids-muted py-8" data-component="RewardEmptyHint">
                 {t("availableEmpty")}
               </p>
             ) : (
@@ -143,7 +146,7 @@ function RewardsInner() {
                       data-component="RewardCard"
                       data-reward-id={r.id}
                       data-reward-cost={r.cost}
-                      className="card-kids flex items-center gap-4"
+                      className="rounded-panel bg-kids-card shadow-card p-6 flex items-center gap-4"
                     >
                       <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-secondary text-2xl">
                         {r.emoji ?? "🎁"}
@@ -175,9 +178,9 @@ function RewardsInner() {
 
           {/* 我的兑换 */}
           <section className="space-y-3" data-component="MyRedemptions">
-            <h2 className="text-lg font-extrabold text-kids-title">{t("myRedemptions")}</h2>
+            <SectionTitle title={t("myRedemptions")} />
             {myRedemptions.length === 0 ? (
-              <p className="card-kids text-center text-kids-muted py-8" data-component="MyRedemptionsEmpty">
+              <p className="rounded-panel bg-kids-card shadow-card p-6 text-center text-kids-muted py-8" data-component="MyRedemptionsEmpty">
                 {t("myRedemptionsEmpty")}
               </p>
             ) : (
@@ -190,18 +193,19 @@ function RewardsInner() {
                       data-component="MyRedemption"
                       data-redemption-id={rd.id}
                       data-redemption-status={rd.status}
-                      className="card-kids flex items-center gap-3"
+                      className="rounded-panel bg-kids-card shadow-card p-6 flex items-center gap-3"
                     >
                       <span className="font-bold text-kids-title flex-1 truncate">
                         {rd.rewardTitle}
                       </span>
                       <span className="text-sm text-kids-muted">{rd.cost} {t("points")}</span>
-                      <span
+                      <Badge
+                        variant="neutral"
+                        className={badge.className}
                         data-component="RedemptionStatusBadge"
-                        className={`rounded-control px-3 py-1 text-sm font-bold ${badge.className}`}
                       >
                         {t(badge.labelKey)}
-                      </span>
+                      </Badge>
                     </li>
                   );
                 })}

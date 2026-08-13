@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
@@ -134,7 +135,7 @@ function PlanPreview({
 
       <div className="space-y-3">
         {weeks.map((week, wi) => (
-          <div key={wi} className="card-kids" data-component="PlanWeekCard">
+          <Card key={wi} data-component="PlanWeekCard">
             <h3 className="mb-2">
               {t('weekN', { n: week.week ?? wi + 1 })}{week.theme ? ` · ${week.theme}` : ""}
             </h3>
@@ -212,7 +213,7 @@ function PlanPreview({
                 );
               })}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -336,7 +337,7 @@ function PlanContent() {
       </h1>
 
       {/* Mascot guide */}
-      <section className="card-kids flex items-center gap-5 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]">
+      <Card className="flex items-center gap-5 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]">
         <Mascot expression="happy" size="large" />
         <div className="relative">
           <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
@@ -346,7 +347,7 @@ function PlanContent() {
             </p>
           </div>
         </div>
-      </section>
+      </Card>
 
       {error && (
         <p

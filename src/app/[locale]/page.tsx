@@ -6,13 +6,35 @@ import { Link } from "@/i18n/navigation";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import LevelRing from "@/components/LevelRing";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { SectionTitle } from "@/components/ui/section-title";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
-import type { DailyReportResponse, DailyTask, PlanStatusResponse, MascotLevelInfo, MascotStory, DueReview, MakeupQueue } from "@/lib/types";
-import { Headphones, Mic, Pencil, Star, Flame, Check, MessageCircle, RefreshCw, Gift } from "lucide-react";
+import type {
+  DailyReportResponse,
+  DailyTask,
+  PlanStatusResponse,
+  MascotLevelInfo,
+  MascotStory,
+  DueReview,
+  MakeupQueue,
+} from "@/lib/types";
+import {
+  Headphones,
+  Mic,
+  Pencil,
+  Star,
+  Flame,
+  Check,
+  MessageCircle,
+  RefreshCw,
+  Gift,
+} from "lucide-react";
 
 const taskIcons = {
   headphones: Headphones,
@@ -20,40 +42,6 @@ const taskIcons = {
   pencil: Pencil,
   review: RefreshCw,
 };
-
-function ProgressRing({ progress, color }: { progress: number; color: string }) {
-  const radius = 22;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (progress / 100) * circumference;
-
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
-      <circle cx="28" cy="28" r={radius} fill="none" stroke="#F0E8D8" strokeWidth="6" />
-      <circle
-        cx="28"
-        cy="28"
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        className="progress-ring-circle"
-      />
-      <text
-        x="28"
-        y="28"
-        textAnchor="middle"
-        dominantBaseline="central"
-        className="text-[11px] font-extrabold"
-        fill="#725D42"
-      >
-        {progress}%
-      </text>
-    </svg>
-  );
-}
 
 function AiReportCard({
   report,
@@ -70,50 +58,41 @@ function AiReportCard({
   // 尚未装载完成 → 思考态占位（不显示生成按钮，避免成功路径闪现按钮）。
   if (reportLoading) {
     return (
-      <section
-        data-component="AiReportCard"
-        className="card-kids flex items-center gap-4"
-      >
-        <Mascot expression="thinking" size="medium" />
-        <div className="flex-1">
+      <Card data-component="AiReportCard" className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Mascot expression="thinking" size="medium" className="shrink-0" />
+        <div className="flex-1 min-w-0">
           <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
           <p className="text-kids-muted">{t("aiReportLoading")}</p>
         </div>
-      </section>
+      </Card>
     );
   }
 
   // 拉取失败 / 无报告 → 吉祥物思考态 + 生成按钮（可重试）。
   if (!report) {
     return (
-      <section
-        data-component="AiReportCard"
-        className="card-kids flex items-center gap-4"
-      >
-        <Mascot expression="thinking" size="medium" />
-        <div className="flex-1">
+      <Card data-component="AiReportCard" className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Mascot expression="thinking" size="medium" className="shrink-0" />
+        <div className="flex-1 min-w-0">
           <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
           <p className="text-kids-muted">{t("aiReportEmpty")}</p>
         </div>
         <button
           data-component="AiReportGenerateBtn"
           onClick={onRetry}
-          className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90"
+          className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 w-full sm:w-auto"
         >
           {t("aiReportGenerate")}
         </button>
-      </section>
+      </Card>
     );
   }
 
   const expr = mapBackendMascotExpr(report.mascotExpr);
   return (
-    <section
-      data-component="AiReportCard"
-      className="card-kids flex items-start gap-4"
-    >
-      <Mascot expression={expr} size="medium" />
-      <div className="flex-1">
+    <Card data-component="AiReportCard" className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <Mascot expression={expr} size="medium" className="shrink-0" />
+      <div className="flex-1 min-w-0">
         <p className="font-bold text-kids-title">{t("aiReportTitle")}</p>
         <p data-component="AiReportSummary" className="text-kids-text">
           {report.summaryText}
@@ -121,12 +100,7 @@ function AiReportCard({
         {report.weakWords.length > 0 && (
           <div data-component="AiReportWeakWords" className="mt-2 flex flex-wrap gap-2">
             {report.weakWords.map((w) => (
-              <span
-                key={w}
-                className="rounded-control bg-kids-secondary px-3 py-1 text-sm font-semibold text-kids-text"
-              >
-                {w}
-              </span>
+              <Badge key={w}>{w}</Badge>
             ))}
           </div>
         )}
@@ -152,7 +126,7 @@ function AiReportCard({
           </div>
         )}
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -171,7 +145,7 @@ function MakeupCard({
   if (weakWords.length === 0 && missedTasks.length === 0) return null;
 
   return (
-    <section data-component="MakeupCard" className="card-kids flex flex-col gap-4">
+    <Card data-component="MakeupCard" className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-orange/20 text-kids-orange">
           <RefreshCw size={24} />
@@ -226,7 +200,7 @@ function MakeupCard({
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -390,9 +364,9 @@ function HomeContent() {
   return (
     <div className="space-y-8" data-component="Home">
       {/* Greeting Banner */}
-      <section
-        className="card-kids flex flex-col gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)] sm:flex-row sm:items-center"
+      <Card
         data-component="GreetingBanner"
+        className="flex flex-col gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)] sm:flex-row sm:items-center"
       >
         <div className="flex items-center gap-5">
           <Mascot expression="happy" size="large" level={mascotLevel?.level} />
@@ -431,7 +405,7 @@ function HomeContent() {
             </div>
           )}
         </div>
-      </section>
+      </Card>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -445,9 +419,9 @@ function HomeContent() {
 
           {/* AI-603：吉祥物成长 — 等级环 + 看成长故事 */}
           {mascotLevel && (
-            <section data-component="MascotGrowthCard" className="card-kids flex items-center gap-5">
-              <Mascot expression="happy" size="large" level={mascotLevel.level} />
-              <div className="flex-1">
+            <Card data-component="MascotGrowthCard" className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <Mascot expression="happy" size="large" level={mascotLevel.level} className="shrink-0" />
+              <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-kids-title">{t("mascotLevelTitle", { level: mascotLevel.level })}</h2>
                 <p className="text-kids-muted">
                   {mascotLevel.isMaxLevel
@@ -480,11 +454,11 @@ function HomeContent() {
                 data-component="ViewGrowthStoryBtn"
                 onClick={handleViewStory}
                 disabled={storyLoading}
-                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60"
+                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60 w-full sm:w-auto"
               >
                 {storyLoading ? t("storyLoading") : t("storyView")}
               </button>
-            </section>
+            </Card>
           )}
 
           {/* AI-603：成长剧情弹层（fixed overlay） */}
@@ -494,8 +468,8 @@ function HomeContent() {
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
               onClick={() => setShowStory(false)}
             >
-              <div
-                className="card-kids max-w-md w-full space-y-4"
+              <Card
+                className="max-w-md w-full space-y-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3">
@@ -517,15 +491,15 @@ function HomeContent() {
                 >
                   {t("storyClose")}
                 </button>
-              </div>
+              </Card>
             </div>
           )}
 
           {/* AI-701：{t("rewardsTitle")} — 余额 + 等级环 + {t("rewardsGo")}深链 */}
           {progress && (
-            <section
+            <Card
               data-component="RewardsHomeCard"
-              className="card-kids flex flex-col gap-4"
+              className="flex flex-col gap-4"
             >
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-sun/20 text-kids-sun">
@@ -546,33 +520,34 @@ function HomeContent() {
               >
                 {t("rewardsGo")}
               </Link>
-            </section>
+            </Card>
           )}
 
           {/* Plan Progress (AI-209)：仅当存在已应用计划时展示完成度 */}
           {planStatus?.hasPlan && (
-            <section
+            <Card
               data-component="PlanProgress"
-              className="card-kids flex items-center gap-5"
+              className="flex flex-col gap-5 sm:flex-row sm:items-center"
             >
               <ProgressRing
                 progress={Math.round((planStatus.completionRatio ?? 0) * 100)}
                 color="#10B981"
+                className="shrink-0"
               />
-              <div>
+              <div className="min-w-0">
                 <h2 className="font-bold text-kids-title">{t("planProgressTitle")}</h2>
                 <p className="text-kids-muted">
                   {t("planDone", { done: planStatus.doneDays, total: planStatus.totalDays })}
                 </p>
               </div>
-            </section>
+            </Card>
           )}
 
           {/* AI-605 复习提醒：到期/今日待复习单词（间隔重复） */}
           {reviews.length > 0 && (
-            <section
+            <Card
               data-component="ReviewReminderCard"
-              className="card-kids flex flex-col gap-4"
+              className="flex flex-col gap-4"
             >
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-kids-secondary text-kids-text">
@@ -607,7 +582,7 @@ function HomeContent() {
               >
                 {t("reviewGo")}
               </Link>
-            </section>
+            </Card>
           )}
 
           {/* AI-704 补学队列：昨日未掌握弱词（深链练习）+ 昨日未完成计划日（标记完成） */}
@@ -619,12 +594,10 @@ function HomeContent() {
 
           {/* Daily Tasks */}
           <section data-component="DailyTasks">
-            <h2 className="mb-4 flex items-center gap-2">
-              {t("todaysTasks")}
-              <span className="text-sm font-semibold text-kids-muted bg-kids-secondary rounded-control px-3 py-1">
-                {t("tasksDone", { done: doneCount, total: tasks.length })}
-              </span>
-            </h2>
+            <SectionTitle
+              title={t("todaysTasks")}
+              count={t("tasksDone", { done: doneCount, total: tasks.length })}
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {tasks.map((task) => {
                 const Icon = taskIcons[task.icon] || Headphones;
@@ -712,7 +685,7 @@ function HomeContent() {
 
           {/* Course Progress Cards */}
           <section data-component="CourseProgress">
-            <h2 className="mb-4">{t("myCourses")}</h2>
+            <SectionTitle title={t("myCourses")} />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {courses.map((course) => (
                 <Link

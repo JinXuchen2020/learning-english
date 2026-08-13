@@ -4,10 +4,8 @@ Feature: Parent AI provider configuration (AI-705)
   So that my child's AI features can use a provider I choose, instead of only the system default
 
   Scenario: Parent adds a Mock provider, sets it default, tests connection, and removes it
-    Given I am logged in as a new user
+    Given I am logged in as a new parent
     When I open the parent panel
-    Then I should see the parent PIN gate
-    When I set up the parent PIN "1234"
     Then I should be in the parent panel
     And I should see the AI provider config section
     When I add a Mock provider named "演示通道"
@@ -20,10 +18,8 @@ Feature: Parent AI provider configuration (AI-705)
     Then I should not see the provider config "演示通道"
 
   Scenario: Parent adds an OpenAI-compatible provider, sees the masked key, and removes it
-    Given I am logged in as a new user
+    Given I am logged in as a new parent
     When I open the parent panel
-    Then I should see the parent PIN gate
-    When I set up the parent PIN "1234"
     Then I should be in the parent panel
     And I should see the AI provider config section
     When I add an OpenAI-compatible provider named "我的智谱" with base url "https://api.test/v1" and api key "sk-secret1234"

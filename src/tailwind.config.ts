@@ -8,6 +8,31 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // ── 响应式断点（移动优先，显式声明以保持一致） ──
+      screens: {
+        sm: "640px", // 大手机 / 小平板
+        md: "768px", // 平板竖屏
+        lg: "1024px", // 平板横屏 / 小桌面
+        xl: "1280px", // 桌面
+        "2xl": "1536px", // 大桌面
+      },
+      // ── 居中容器：随断点放大内边距与最大宽度 ──
+      container: {
+        center: true,
+        padding: {
+          DEFAULT: "1.25rem",
+          sm: "1.5rem",
+          lg: "2rem",
+        },
+        screens: {
+          "2xl": "1280px",
+        },
+      },
+      // ── 桌面端更宽的内容承载（配合 layout.tsx 使用） ──
+      maxWidth: {
+        kids: "72rem", // 1152px：平板横屏舒适宽度
+        wide: "80rem", // 1280px：桌面
+      },
       colors: {
         seed: {
           bg: "var(--seed-bg)",
@@ -76,7 +101,17 @@ const config: Config = {
           "70%": { boxShadow: "0 0 0 12px rgba(111, 186, 44, 0)" },
           "100%": { boxShadow: "0 0 0 0 rgba(111, 186, 44, 0)" },
         },
-        "shake": {
+        "pulse-ring": {
+          "0%": { boxShadow: "0 0 0 0 rgba(25, 200, 185, 0.35)" },
+          "70%": { boxShadow: "0 0 0 12px rgba(25, 200, 185, 0)" },
+          "100%": { boxShadow: "0 0 0 0 rgba(25, 200, 185, 0)" },
+        },
+        "pulse-sun": {
+          "0%": { boxShadow: "0 0 0 0 rgba(255, 204, 0, 0.4)" },
+          "70%": { boxShadow: "0 0 0 12px rgba(255, 204, 0, 0)" },
+          "100%": { boxShadow: "0 0 0 0 rgba(255, 204, 0, 0)" },
+        },
+        shake: {
           "0%, 100%": { transform: "translateX(0)" },
           "20%": { transform: "translateX(-4px)" },
           "40%": { transform: "translateX(4px)" },
@@ -88,12 +123,19 @@ const config: Config = {
           "50%": { transform: "scale(1.3)" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         bounce: "bounce 2s ease-in-out infinite",
         "pulse-green": "pulse-green 0.6s ease-out",
+        "pulse-ring": "pulse-ring 0.6s ease-out",
+        "pulse-sun": "pulse-sun 0.6s ease-out",
         shake: "shake 0.4s ease-in-out",
         "star-pop": "star-pop 0.4s ease-out forwards",
+        "fade-in": "fade-in 0.3s ease-out both",
       },
     },
   },

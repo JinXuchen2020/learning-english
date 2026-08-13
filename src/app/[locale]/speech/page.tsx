@@ -9,6 +9,8 @@ import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import SpeechRecorder from "@/components/SpeechRecorder";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -97,16 +99,17 @@ function SpeechCard({
             : t("progressWord", { index: index + 1, total })}
         </span>
         {feedback && (
-          <span
+          <Badge
+            variant="neutral"
             className={`rounded-full px-3 py-1 text-xs font-extrabold ${LEVEL_BADGE[feedback.level].cls}`}
           >
             {t(LEVEL_BADGE[feedback.level].labelKey)}
-          </span>
+          </Badge>
         )}
       </div>
 
       {/* Card front */}
-      <section className="card-kids text-center space-y-3" data-component="WordFront">
+      <Card className="text-center space-y-3" data-component="WordFront">
         <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center overflow-hidden">
           <span
             className={`font-extrabold text-kids-title tracking-tight ${
@@ -130,7 +133,7 @@ function SpeechCard({
             </button>
           )}
         </div>
-      </section>
+      </Card>
 
       {/* Listen (TTS) button */}
       <div className="flex justify-center">
@@ -219,10 +222,10 @@ function SpeechFeedbackPanel({
 }) {
   const t = useTranslations("Speech");
   return (
-    <section
-      className="card-kids flex flex-col items-center gap-4 text-center"
-      data-component="SpeechFeedbackPanel"
-    >
+      <Card
+        className="flex flex-col items-center gap-4 text-center"
+        data-component="SpeechFeedbackPanel"
+      >
       <Mascot expression={mascotExpr} size="large" />
 
       <div className="space-y-1">
@@ -239,12 +242,13 @@ function SpeechFeedbackPanel({
       {feedback.weakPhonemes.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2" data-component="WeakPhonemes">
           {feedback.weakPhonemes.map((p, i) => (
-            <span
+            <Badge
               key={i}
+              variant="neutral"
               className="rounded-full bg-[var(--color-warning)]/15 text-[var(--color-warning)] px-3 py-1 text-sm font-bold"
             >
               {p}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
@@ -276,7 +280,7 @@ function SpeechFeedbackPanel({
         {isLast ? t("finish") : t("nextWord")}
         <ArrowRight size={20} className="ml-2" />
       </Button>
-    </section>
+    </Card>
   );
 }
 

@@ -10,6 +10,9 @@ import { logger } from "@/lib/logger";
 import type { WordCard, WordCardStatus } from "@/lib/types";
 import { Check, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 /** 审核状态 → 中文标签。 */
 const STATUS_LABEL: Record<WordCardStatus, string> = {
@@ -97,8 +100,8 @@ function WordCardsInner() {
   return (
     <div className="space-y-6" data-component="WordCards">
       {/* Header */}
-      <section
-        className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+      <Card
+        className="flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="WordCardHeader"
       >
         <Mascot expression="happy" size="large" />
@@ -106,14 +109,14 @@ function WordCardsInner() {
           <h1 className="text-2xl font-extrabold text-kids-title">{t('title')}</h1>
           <p className="text-kids-muted">{t('subtitle')}</p>
         </div>
-      </section>
+      </Card>
 
       {/* Generator */}
-      <section className="card-kids space-y-3" data-component="WordCardGenerator">
+      <Card className="space-y-3" data-component="WordCardGenerator">
         <label className="block font-bold text-kids-title" htmlFor="wc-interest">
           {t('interestLabel')}
         </label>
-        <input
+        <Input
           id="wc-interest"
           data-component="InterestInput"
           className="w-full rounded-control border border-kids-secondary bg-white px-4 py-3 text-kids-text outline-none focus:border-[var(--seed-primary)]"
@@ -126,7 +129,7 @@ function WordCardsInner() {
           <label className="font-bold text-kids-title" htmlFor="wc-count">
             {t('countLabel')}
           </label>
-          <input
+          <Input
             id="wc-count"
             type="number"
             min={1}
@@ -153,16 +156,16 @@ function WordCardsInner() {
             {t('degradedHint')}
           </p>
         )}
-      </section>
+      </Card>
 
       {error && (
-        <section
-          className="card-kids flex items-center gap-3"
+        <Card
+          className="flex items-center gap-3"
           data-component="WordCardError"
         >
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
-        </section>
+        </Card>
       )}
 
       {/* Status filter */}
@@ -191,9 +194,9 @@ function WordCardsInner() {
           <p className="text-kids-muted font-semibold">{t('loading')}</p>
         </div>
       ) : visible.length === 0 ? (
-        <section className="card-kids text-center text-kids-muted py-10" data-component="EmptyState">
+        <Card className="text-center text-kids-muted py-10" data-component="EmptyState">
           {t('empty')}
-        </section>
+        </Card>
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="WordCardList">
           {visible.map((c) => (
@@ -202,17 +205,18 @@ function WordCardsInner() {
               data-component="WordCardItem"
               data-status={c.status}
               data-card-id={c.id}
-              className="card-kids space-y-2"
+              className="rounded-panel bg-kids-card shadow-card p-6 space-y-2"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xl font-extrabold text-kids-title">{c.wordText}</span>
-                <span
+                <Badge
                   data-component="StatusBadge"
                   data-status={c.status}
-                  className="rounded-full bg-kids-secondary px-2 py-0.5 text-xs font-bold text-kids-text"
+                  variant="neutral"
+                  className="px-2 py-0.5 text-xs font-bold text-kids-text"
                 >
                   {t(STATUS_LABEL[c.status])}
-                </span>
+                </Badge>
               </div>
               <p className="text-kids-text">{c.meaning}</p>
               <p className="text-sm text-kids-muted">{c.example}</p>

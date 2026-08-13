@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
@@ -440,7 +441,7 @@ function Quiz({
       </div>
 
       {/* Word Card */}
-      <section className="card-kids text-center space-y-4" data-component="WordCard">
+      <Card className="text-center space-y-4" data-component="WordCard">
         {/* 看字选词：动物插图 + 单词 + 含义 + 音标切换 */}
         {mode === "multiple" && (
           <>
@@ -505,7 +506,7 @@ function Quiz({
             <p className="text-kids-muted">{t("tapToHear")}</p>
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Answer Grid */}
       <section data-component="AnswerGrid">
@@ -541,8 +542,8 @@ function Quiz({
 
       {/* Feedback + Next */}
       {(phase === "correct" || phase === "incorrect") && (
-        <section
-          className="flex items-center gap-4 card-kids"
+        <Card
+          className="flex items-center gap-4"
           data-component="QuizFeedback"
         >
           <Mascot
@@ -567,7 +568,7 @@ function Quiz({
           <Button onClick={handleNext} variant="default" className="shrink-0" data-action="quiz-next">
             {safeIndex + 1 >= totalWords ? t("finish") : t("nextWord")}
           </Button>
-        </section>
+        </Card>
       )}
     </div>
   );

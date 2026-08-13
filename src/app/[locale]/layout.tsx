@@ -47,12 +47,14 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} className={nunito.variable}>
-      <body className="min-h-screen bg-seed-bg pb-24">
+      <body className="min-h-screen bg-seed-bg pb-32">
         <NextIntlClientProvider messages={messages}>
           <LocaleSwitcher />
           <AuthProvider>
             <RoleGuard>
-              <main className="max-w-5xl mx-auto px-6 pt-6">{children}</main>
+              <main className="mx-auto w-full max-w-5xl px-5 pt-6 sm:px-6 lg:max-w-6xl xl:max-w-7xl">
+            {children}
+          </main>
               <TabNav />
             </RoleGuard>
           </AuthProvider>

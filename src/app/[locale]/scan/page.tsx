@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { logger } from "@/lib/logger";
 import type { ScanCard } from "@/lib/types";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Camera, BookMarked } from "lucide-react";
 
 /** 拍照学单词页主体（已登录态由 `AuthGate` 包裹，AI-606）。 */
@@ -105,8 +107,8 @@ function ScanInner() {
   return (
     <div className="space-y-6" data-component="ScanPage">
       {/* Header */}
-      <section
-        className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+      <Card
+        className="flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="ScanHeader"
       >
         <Mascot expression="happy" size="large" />
@@ -114,11 +116,11 @@ function ScanInner() {
           <h1 className="text-2xl font-extrabold text-kids-title">{t("title")}</h1>
           <p className="text-kids-muted">{t("subtitle")}</p>
         </div>
-      </section>
+      </Card>
 
       {/* Uploader */}
-      <section className="card-kids space-y-3" data-component="ScanUploader">
-        <input
+      <Card className="space-y-3" data-component="ScanUploader">
+        <Input
           ref={fileRef}
           type="file"
           accept="image/*"
@@ -140,23 +142,23 @@ function ScanInner() {
             {t("selected", { name: file.name })}
           </p>
         )}
-      </section>
+      </Card>
 
       {error && (
-        <section className="card-kids flex items-center gap-3" data-component="ScanError">
+        <Card className="flex items-center gap-3" data-component="ScanError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
-        </section>
+        </Card>
       )}
 
       {hint && (
-        <section
-          className="card-kids flex items-center gap-3"
+        <Card
+          className="flex items-center gap-3"
           data-component="ScanNothingHint"
         >
           <Mascot expression="thinking" size="medium" />
           <p className="text-kids-muted">{hint}</p>
-        </section>
+        </Card>
       )}
 
       {/* Recognized cards */}
@@ -178,7 +180,7 @@ function ScanInner() {
                 key={c.id}
                 data-component="ScanCardItem"
                 data-card-id={c.id}
-                className="card-kids space-y-2"
+                className="rounded-panel bg-kids-card shadow-card p-6 space-y-2"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xl font-extrabold text-kids-title">{c.wordText}</span>
@@ -202,9 +204,9 @@ function ScanInner() {
       <section className="space-y-3" data-component="VocabBook">
         <h2 className="text-lg font-extrabold text-kids-title">{t("myVocab")}</h2>
         {vocab.length === 0 ? (
-          <p data-component="VocabEmptyHint" className="card-kids text-center text-kids-muted py-8">
+          <Card data-component="VocabEmptyHint" className="text-center text-kids-muted py-8">
             {t("vocabEmpty")}
-          </p>
+          </Card>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3" data-component="VocabBookList">
             {vocab.map((c) => (
@@ -212,7 +214,7 @@ function ScanInner() {
                 key={c.id}
                 data-component="VocabWordItem"
                 data-word-text={c.wordText}
-                className="card-kids space-y-1"
+                className="rounded-panel bg-kids-card shadow-card p-6 space-y-1"
               >
                 <span className="text-xl font-extrabold text-kids-title">{c.wordText}</span>
                 <p className="text-kids-text">{c.meaning}</p>

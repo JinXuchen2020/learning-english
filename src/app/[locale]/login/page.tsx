@@ -35,17 +35,17 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      if (mode === "login") {
-        await login(username.trim(), password);
-      } else {
-        await register(
-          username.trim(),
-          password,
-          nickname.trim() || undefined,
-          role,
-        );
-      }
-      router.push("/");
+      // 按角色路由：家长账号直接进家长控制面板，孩子账号回首页。
+      const authed =
+        mode === "login"
+          ? await login(username.trim(), password)
+          : await register(
+              username.trim(),
+              password,
+              nickname.trim() || undefined,
+              role,
+            );
+      router.push(authed.role === "parent" ? "/parent" : "/");
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError) {

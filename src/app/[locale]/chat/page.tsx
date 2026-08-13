@@ -7,6 +7,7 @@ import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import SpeechRecorder from "@/components/SpeechRecorder";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -75,8 +76,8 @@ function ReadAlongPanel({
   }, [recording, evaluating, referenceText, userId]);
 
   return (
-    <div
-      className="mt-3 card-kids space-y-3"
+    <Card
+      className="mt-3 space-y-3"
       data-component="ReadAlongPanel"
     >
       <div className="flex items-center justify-between">
@@ -162,7 +163,7 @@ function ReadAlongPanel({
           </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -383,7 +384,7 @@ function ChatInner() {
   );
 
   return (
-    <div className="space-y-5" data-component="ChatPage">
+    <div className="space-y-5 pb-8" data-component="ChatPage">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Mascot expression="happy" size="medium" />
@@ -412,8 +413,8 @@ function ChatInner() {
 
       {/* AI-408：刚得星庆祝横幅 */}
       {celebration != null && (
-        <div
-          className="card-kids flex flex-col items-center gap-2 bg-[var(--color-primary-wash)] py-4 text-center animate-star-pop"
+        <Card
+          className="flex flex-col items-center gap-2 bg-[var(--color-primary-wash)] py-4 text-center animate-star-pop"
           data-component="ChatStarCelebration"
           data-stars={celebration}
         >
@@ -431,7 +432,7 @@ function ChatInner() {
           >
             {t("keepChatting")}
           </button>
-        </div>
+        </Card>
       )}
 
       {/* AI-409：我的会话列表 + 续聊入口 */}
@@ -572,7 +573,7 @@ function ChatInner() {
       {/* Chat thread */}
       <div
         ref={threadRef}
-        className="space-y-3 max-h-[55vh] overflow-y-auto pr-1"
+        className="space-y-3 max-h-[42vh] sm:max-h-[55vh] overflow-y-auto pr-1"
         data-component="ChatThread"
       >
         {messages.length === 0 && !loadingScenes && (
@@ -669,24 +670,25 @@ function ChatInner() {
       )}
 
       {/* Input */}
-      <div className="flex items-end gap-2" data-component="ChatComposer">
+      <div className="flex items-center gap-2" data-component="ChatComposer">
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
           placeholder={t("inputPlaceholder")}
-          className="flex-1 resize-none rounded-control border-2 border-kids-secondary bg-white px-3 py-2 text-kids-text focus:border-[var(--seed-primary)] focus:outline-none"
+          className="flex-1 resize-none rounded-control border-2 border-kids-secondary bg-white px-3 py-2 text-kids-text focus:border-[var(--seed-primary)] focus:outline-none h-11"
           data-component="ChatInput"
         />
         <Button
           variant="default"
-          size="lg"
+          size="sm"
           onClick={() => void handleSend()}
           disabled={!input.trim() || sending}
           data-action="send"
+          className="h-11 px-4 shadow-none"
         >
-          <Send size={18} className="mr-1" />
+          <Send size={16} className="mr-1" />
           {sending ? "…" : t("send")}
         </Button>
       </div>

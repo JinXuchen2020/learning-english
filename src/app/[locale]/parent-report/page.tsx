@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
 import TrendChart from "@/components/TrendChart";
+import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { mondayOfWeekUTC, addDaysUTC, weekEndOf, todayUtc } from "@/lib/weekly";
@@ -59,12 +60,13 @@ function ParentReportInner() {
   const childName = data?.childName || user?.nickname || t("childFallback");
 
   return (
-    <div className="space-y-6" data-component="ParentReport">
-      {/* Header */}
-      <section
-        className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
-        data-component="ReportHeader"
-      >
+    <div className="container-kids">
+      <div className="space-y-6" data-component="ParentReport">
+        {/* Header */}
+        <Card
+          className="flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+          data-component="ReportHeader"
+        >
         <Mascot expression="happy" size="large" />
         <div className="flex-1">
           <h1 className="text-2xl font-extrabold text-kids-title">{t("reportTitle")}</h1>
@@ -97,7 +99,7 @@ function ParentReportInner() {
             <ChevronRight size={20} />
           </button>
         </div>
-      </section>
+      </Card>
 
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -107,10 +109,10 @@ function ParentReportInner() {
       )}
 
       {error && !loading && (
-        <section className="card-kids flex items-center gap-4" data-component="ReportError">
+        <Card className="flex items-center gap-4" data-component="ReportError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{t("reportLoadError")}</p>
-        </section>
+        </Card>
       )}
 
       {!loading && !error && data && (
@@ -121,30 +123,30 @@ function ParentReportInner() {
               const raw = data.metrics[m.key];
               const value = raw == null ? "—" : `${raw}${m.suffixKey ? t(m.suffixKey) : ""}`;
               return (
-                <div
+                <Card
                   key={m.key}
-                  className="card-kids text-center py-4"
+                  className="text-center py-4"
                   data-component="MetricCard"
                   data-metric={m.key}
                 >
                   <div className="text-2xl font-extrabold text-[var(--seed-primary)]">{value}</div>
                   <div className="text-sm text-kids-muted mt-1">{t(m.labelKey)}</div>
-                </div>
+                </Card>
               );
             })}
           </section>
 
           {/* Trend chart */}
-          <section data-component="TrendSection" className="card-kids">
+          <Card data-component="TrendSection">
             <h2 className="font-bold text-kids-title mb-3 flex items-center gap-2">
               <BarChart3 size={18} className="text-[var(--seed-primary)]" />
               {t("trendTitle")}
             </h2>
             <TrendChart points={data.masteryTrend} />
-          </section>
+          </Card>
 
           {/* Weak words Top10 */}
-          <section data-component="WeakWordsSection" className="card-kids">
+          <Card data-component="WeakWordsSection">
             <h2 className="font-bold text-kids-title mb-3">{t("weakWordsTitle")}</h2>
             {data.weakWordsTop.length === 0 ? (
               <p className="text-kids-muted">{t("weakWordsEmpty")}</p>
@@ -163,10 +165,10 @@ function ParentReportInner() {
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
 
           {/* AI suggestions */}
-          <section data-component="SuggestionsSection" className="card-kids">
+          <Card data-component="SuggestionsSection">
             <h2 className="font-bold text-kids-title mb-3">{t("suggestionsTitle")}</h2>
             {data.suggestions.length === 0 ? (
               <p className="text-kids-muted">{t("suggestionsEmpty")}</p>
@@ -179,9 +181,10 @@ function ParentReportInner() {
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
         </>
       )}
+      </div>
     </div>
   );
 }

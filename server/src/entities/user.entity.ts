@@ -46,14 +46,6 @@ export class User {
   parentEmail: string | null;
 
   /**
-   * 家长 PIN 的 bcrypt 哈希（AI-702 家长模式）。
-   * 4 位数字 PIN，哈希存储不落明文；null = 尚未设置家长 PIN。
-   * 验证通过后后端签发「家长会话 JWT」（`role: 'parent'`），与 child JWT 分离。
-   */
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  parentPinHash: string | null;
-
-  /**
    * 家长归属（AI-705）。儿童 → 家长 `User.id`，用于把儿童发起的 AI 请求
    * 解析到其家长的默认 provider；向前兼容：初始全 null（解析器遇 null 回退 env 默认）。
    * 家庭绑定 UX（家长认领儿童）超出 AI-705 范围。

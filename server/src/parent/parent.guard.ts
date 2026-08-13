@@ -2,13 +2,11 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 /**
- * 家长会话门禁（AI-702，取代 AI-701 的 `ParentGuard` 临时明文 token 方案）。
+ * 家长会话门禁（AI-702 之后）。
  *
- * 校验 `Authorization: Bearer <家长会话JWT>`，且 payload `role === 'parent'`。
- * 家长会话 JWT 由 `ParentService.signParentToken` 在 PIN 验证通过后签发（15 分钟过期），
- * 与 child JWT（`role` 缺省）完全分离，因此儿童（child JWT）无法调用审批/目录 CRUD 端点。
- *
- * 不再读取 `x-parent-approval` 头、不再继承 `JwtAuthGuard`、不再依赖明文 dev token。
+ * 校验 `Authorization: Bearer <登录JWT>`，且 payload `role === 'parent'`。
+ * 家长身份直接由登录 JWT 的 role 字段承载，不再通过 PIN 换取独立会话令牌。
+ * 因此儿童（child JWT）无法调用审批/目录 CRUD 等家长域端点。
  */
 @Injectable()
 export class ParentGuard implements CanActivate {

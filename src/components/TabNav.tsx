@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import {
   Home,
@@ -11,6 +11,7 @@ import {
   BarChart3,
   ShieldCheck,
   LayoutGrid,
+  LogOut,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import MoreDrawer from "./MoreDrawer";
@@ -55,9 +56,16 @@ const parentTabs: TabDef[] = [
 
 export default function TabNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const t = useTranslations("TabNav");
-  const { isParent } = useAuth();
+  const { isParent, logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  // 任意登录账号（child / parent）皆可从此处退出登录。登录页无底栏，不受影响。
+  const handleSignOut = () => {
+    logout();
+    router.push("/login");
+  };
 
   // 用 hash 区分 /parent 的「概览」与「设置」两个 tab，
   // 避免 useSearchParams() 触发 next build 的 Suspense 边界要求。
@@ -104,11 +112,11 @@ export default function TabNav() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 bg-kids-card/95 backdrop-blur-sm rounded-t-[28px] shadow-[0_-4px_20px_rgba(107,92,67,0.1)]"
+        className="fixed bottom-0 left-0 right-0 z-[60] mb-[env(safe-area-inset-bottom)] bg-kids-card border-t border-kids-secondary/50 rounded-t-[28px] shadow-[0_-6px_24px_rgba(107,92,67,0.15)]"
         data-component="TabNav"
         aria-label={t("mainNav")}
       >
-        <div className="flex items-center justify-around max-w-3xl mx-auto px-4 py-2">
+        <div className="flex items-center overflow-x-auto scrollbar-hide max-w-3xl mx-auto px-2 sm:px-4 py-2">
           {tabs.map((tab) => {
             const active = isActive(tab);
             const Icon = tab.icon;
@@ -123,14 +131,14 @@ export default function TabNav() {
                   aria-haspopup="dialog"
                   aria-expanded={moreOpen}
                   aria-label={t("more")}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-control px-6 py-3 transition-all duration-200 touch-target-lg ${
+                  className={`flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg ${
                     active
                       ? "bg-[var(--seed-primary)] text-white shadow-button scale-105"
                       : "text-kids-muted hover:text-kids-title hover:bg-kids-secondary"
                   }`}
                 >
                   <Icon size={26} strokeWidth={2.2} />
-                  <span className="text-xs font-bold tracking-wide">
+                  <span className="text-[10px] sm:text-xs font-bold tracking-wide whitespace-nowrap">
                     {t("more")}
                   </span>
                 </button>
@@ -141,7 +149,7 @@ export default function TabNav() {
               <Link
                 key={tab.key}
                 href={tab.href}
-                className={`flex flex-col items-center justify-center gap-1 rounded-control px-6 py-3 transition-all duration-200 touch-target-lg ${
+                className={`flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg ${
                   active
                     ? "bg-[var(--seed-primary)] text-white shadow-button scale-105"
                     : "text-kids-muted hover:text-kids-title hover:bg-kids-secondary"
@@ -149,12 +157,22 @@ export default function TabNav() {
                 aria-current={active ? "page" : undefined}
               >
                 <Icon size={26} strokeWidth={2.2} />
-                <span className="text-xs font-bold tracking-wide">
+                <span className="text-[10px] sm:text-xs font-bold tracking-wide whitespace-nowrap">
                   {t(tab.key)}
                 </span>
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            aria-label={t("logout")}
+            data-component="SignOutBtn"
+            className="flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg text-kids-muted hover:text-[var(--color-danger)] hover:bg-kids-pink/20"
+          >
+            <LogOut size={26} strokeWidth={2.2} />
+            <span className="text-[10px] sm:text-xs font-bold tracking-wide whitespace-nowrap">{t("logout")}</span>
+          </button>
         </div>
       </nav>
       {!isParent && (

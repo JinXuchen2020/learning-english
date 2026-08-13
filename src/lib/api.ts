@@ -758,92 +758,30 @@ export function redeemReward(rewardId: string): Promise<RewardRedemption> {
   });
 }
 
-/* ----------------------- Parent Mode (AI-702) ----------------------- */
+/* ----------------------- Parent / Reward approvals ----------------------- */
 
 /**
- * 家长会话令牌持有于模块内存（与 child token「accessToken」同口径，仅内存，刷新即清）。
- * 家长模式每次刷新需重新输 PIN —— 对儿童产品是正向安全摩擦。
- */
-let parentToken: string | null = null;
-
-export function setParentToken(token: string | null) {
-  parentToken = token;
-}
-
-export function getParentToken(): string | null {
-  return parentToken;
-}
-
-export function clearParentToken() {
-  parentToken = null;
-}
-
-/** 当前孩子是否已设置家长 PIN。`GET /api/parent/status`（child JWT）。 */
-export function getParentStatus(): Promise<{ hasPin: boolean }> {
-  return request<{ hasPin: boolean }>("/parent/status");
-}
-
-/** 验证家长 PIN → 返回家长会话令牌。`POST /api/parent/verify-pin`（child JWT）。 */
-export function verifyParentPin(pin: string): Promise<{ parentToken: string }> {
-  return request<{ parentToken: string }>("/parent/verify-pin", {
-    method: "POST",
-    body: JSON.stringify({ pin }),
-  });
-}
-
-/** 首次设置家长 PIN → 返回家长会话令牌。`POST /api/parent/setup-pin`（child JWT）。 */
-export function setupParentPin(pin: string): Promise<{ parentToken: string }> {
-  return request<{ parentToken: string }>("/parent/setup-pin", {
-    method: "POST",
-    body: JSON.stringify({ pin }),
-  });
-}
-
-/** 修改家长 PIN（需先持家长会话令牌）。`POST /api/parent/change-pin`。 */
-export function changeParentPin(
-  oldPin: string,
-  newPin: string,
-): Promise<{ success: boolean; parentToken?: string }> {
-  return request<{ success: boolean; parentToken?: string }>(
-    "/parent/change-pin",
-    {
-      method: "POST",
-      body: JSON.stringify({ oldPin, newPin }),
-    },
-    true,
-    getParentToken(),
-  );
-}
-
-/**
- * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需家长会话令牌。
+ * 家长待审批/全部兑换列表（全部用户）。`GET /api/rewards/redemptions?status=`，需家长登录 JWT。
  * @param status 可选过滤（pending/approved/rejected）
  */
 export function getPendingApprovals(status?: RedemptionStatus): Promise<RewardRedemption[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  return request<RewardRedemption[]>(
-    `/rewards/redemptions${qs}`,
-    {},
-    true,
-    getParentToken(),
-  );
+  return request<RewardRedemption[]>(`/rewards/redemptions${qs}`);
 }
 
 /**
- * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需家长会话令牌。
+ * 家长批准一条兑换。`POST /api/rewards/redemptions/:id/approve`，需家长登录 JWT。
  * @param id 兑换单 id
  */
 export function approveRedemption(id: string): Promise<RewardRedemption> {
   return request<RewardRedemption>(
     `/rewards/redemptions/${encodeURIComponent(id)}/approve`,
     { method: "POST" },
-    true,
-    getParentToken(),
   );
 }
 
 /**
- * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需家长会话令牌。
+ * 家长驳回一条兑换（可选原因）。`POST /api/rewards/redemptions/:id/reject`，需家长登录 JWT。
  * @param id 兑换单 id
  * @param reason 可选驳回原因
  */
@@ -851,19 +789,17 @@ export function rejectRedemption(id: string, reason?: string): Promise<RewardRed
   return request<RewardRedemption>(
     `/rewards/redemptions/${encodeURIComponent(id)}/reject`,
     { method: "POST", body: JSON.stringify(reason != null ? { reason } : {}) },
-    true,
-    getParentToken(),
   );
 }
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
 /**
- * 列出当前家长账号下全部 provider 配置（掩码视图）。`GET /api/provider-config`，需家长会话令牌。
+ * 列出当前家长账号下全部 provider 配置（掩码视图）。`GET /api/provider-config`，需家长登录 JWT。
  * ownerUserId 由后端从 ParentGuard JWT 解析，前端不传。
  */
 export function listProviderConfigs(): Promise<ProviderConfigView[]> {
-  return request<ProviderConfigView[]>("/provider-config", {}, true, getParentToken());
+  return request<ProviderConfigView[]>("/provider-config");
 }
 
 /**
@@ -875,7 +811,7 @@ export function createProviderConfig(
   return request<ProviderConfigView>("/provider-config", {
     method: "POST",
     body: JSON.stringify(dto),
-  }, true, getParentToken());
+  });
 }
 
 /**
@@ -888,8 +824,6 @@ export function updateProviderConfig(
   return request<ProviderConfigView>(
     `/provider-config/${encodeURIComponent(id)}`,
     { method: "PUT", body: JSON.stringify(dto) },
-    true,
-    getParentToken(),
   );
 }
 
@@ -900,8 +834,6 @@ export function deleteProviderConfig(id: string): Promise<{ success: boolean }> 
   return request<{ success: boolean }>(
     `/provider-config/${encodeURIComponent(id)}`,
     { method: "DELETE" },
-    true,
-    getParentToken(),
   );
 }
 
@@ -914,8 +846,6 @@ export function setDefaultProviderConfig(
   return request<ProviderConfigView>(
     `/provider-config/${encodeURIComponent(id)}/default`,
     { method: "POST" },
-    true,
-    getParentToken(),
   );
 }
 
@@ -927,7 +857,5 @@ export function testProviderConfig(id: string): Promise<ProviderTestResult> {
   return request<ProviderTestResult>(
     `/provider-config/${encodeURIComponent(id)}/test`,
     { method: "POST" },
-    true,
-    getParentToken(),
   );
 }

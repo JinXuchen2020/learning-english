@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Mascot from "@/components/Mascot";
 import AuthGate from "@/components/AuthGate";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { playTts } from "@/lib/audio";
@@ -73,8 +75,8 @@ function PictureBookInner() {
   return (
     <div className="space-y-6" data-component="PictureBookSection">
       {/* Header */}
-      <section
-        className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
+      <Card
+        className="flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="PictureBookHeader"
       >
         <Mascot expression="happy" size="large" />
@@ -82,17 +84,17 @@ function PictureBookInner() {
           <h1 className="text-2xl font-extrabold text-kids-title">{t('title')}</h1>
           <p className="text-kids-muted">{t('subtitle')}</p>
         </div>
-      </section>
+      </Card>
 
       {error && (
-        <section className="card-kids flex items-center gap-3" data-component="PictureBookError">
+        <Card className="flex items-center gap-3" data-component="PictureBookError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
-        </section>
+        </Card>
       )}
 
       {/* 示例绘本（免课程种子，随时可读） */}
-      <section className="card-kids space-y-3" data-component="SampleBookCard">
+      <Card className="space-y-3" data-component="SampleBookCard">
         <h2 className="font-bold text-kids-title">{t('sampleTitle')}</h2>
         <p className="text-sm text-kids-muted">{t('sampleDesc')}</p>
         <button
@@ -103,7 +105,7 @@ function PictureBookInner() {
         >
           {loading ? t('generating') : t('readSample')}
         </button>
-      </section>
+      </Card>
 
       {/* 课程选择器 */}
       <section className="space-y-3" data-component="CoursePicker">
@@ -119,13 +121,13 @@ function PictureBookInner() {
                 key={c.id}
                 data-component="CourseItem"
                 data-course-id={c.id}
-                className="card-kids space-y-2"
+                className="rounded-panel bg-kids-card shadow-card p-6 space-y-2"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-extrabold text-kids-title">{c.title}</span>
-                  <span className="rounded-full bg-kids-secondary px-2 py-0.5 text-xs font-bold text-kids-text">
+                  <Badge variant="neutral" size="sm">
                     {c.wordCount} {t('words')}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="text-sm text-kids-muted">{c.description}</p>
                 <button
