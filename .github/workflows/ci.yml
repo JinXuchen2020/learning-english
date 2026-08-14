@@ -118,6 +118,9 @@ jobs:
       E2E_BROWSER_CHANNEL: ""
       SQLITE_PATH: ci.sqlite
       PORT: "4000"
+      # AI-713: 系统默认智谱 provider 种子 + AES 加密密钥（从 GitHub Environment 注入）
+      ZHIPU_API_KEY: ${{ vars.ZHIPU_API_KEY }}
+      PROVIDER_ENC_KEY: ${{ vars.PROVIDER_ENC_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
