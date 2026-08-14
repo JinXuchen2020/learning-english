@@ -113,12 +113,16 @@ jobs:
     name: E2E — full-stack journey (Cucumber + Playwright)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
-    environment: ZHIPU_API_KEY          # AI-713: 注入该 Environment 的变量（ZHIPU_API_KEY / PROVIDER_ENC_KEY）
+    environment: ZHIPU_AI           # AI-713: 声明 Environment 使其 variables 对此 job 可见
     env:
       # CI uses bundled Chromium (Linux). Locally this is unset -> Microsoft Edge.
       E2E_BROWSER_CHANNEL: ""
       SQLITE_PATH: ci.sqlite
       PORT: "4000"
+      # AI-713: 从 ZHIPU_AI Environment 读取变量并注入 runner 环境变量
+      # （environment: 仅使变量可访问；${{ vars.* }} 才将其设为进程环境变量）
+      ZHIPU_API_KEY: ${{ vars.ZHIPU_API_KEY }}
+      PROVIDER_ENC_KEY: ${{ vars.PROVIDER_ENC_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
