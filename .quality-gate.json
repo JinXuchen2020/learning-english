@@ -3,12 +3,12 @@
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-711-gate.md",
-  "notes": "AI-711 每孩独立 AI provider 覆盖：User 新增 childProviderConfigId；ProviderConfigService.resolveForChild + AiProviderRouter 按 role 分流（child→覆盖/parent→默认）+ 多层降级（child→家长默认→env）；后端新增 PUT /parent/children/:childId/provider 与 GET /parent/children/:childId/provider-options（均挂 ParentGuard，校验归属 403）；前端 ChildrenSection 每行 provider 下拉 + override 徽标；E2E 3 scenario 已编写待 CI。本次以真实 HTTP 冒烟测试（21 断言全绿）补足运行时验证。前序批次：ai-710 家庭绑定、favicon 降噪、Date 跨库兼容、uuid 外键对齐、DATABASE_URL/SSL。",
+  "reportRef": "docs/quality/ai-712-gate.md",
+  "notes": "AI-712 家长仪表盘（多孩子进度总览）：零新增表，纯只读聚合 ProgressAggregationService（getDashboard/getChildDetail）按 parentId 聚合 User/StudyPlan/StudyPlanDay/WordProgress/TaskCompletion；后端新增 GET /parent/dashboard 与 GET /parent/children/:childId/progress（均挂 ParentGuard，childId 必须归属于 JWT.userId，否则 404 不泄露他孩存在）；前端家长页新增 FamilyDashboard 卡片网格（Card/ProgressRing/Badge 复用 cozy-kids 原语，DashboardChildLink 下钻到 /parent/children/:childId 详情页展示弱项/技能掌握度/周趋势 7 柱）；全栈契约 ChildProgressSummary/ChildProgressDetail 字段对齐。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0/0 且 nest build 通过；前端 tsc 0/0；e2e tsc 0/0；全栈 ChildView 契约字段对齐含 providerConfigId；SetChildProviderDto 前后端一致)",
-    "tests": "PASSED (后端 jest 859/859 含 AI-711 跨 4 spec 共 25 新用例：provider-config.service.resolveForChild 6 + ai-provider.router 7 + parent.service 10 + parent.controller 2；前端 vitest 127/127 含 i18n 2/2 新键对齐；HTTP 冒烟 21/21 断言通过；BDD 3 scenario 已编写待 CI 实跑)",
-    "review": "PASSED (0 open：setChildProvider 校验 parentId 404 + ownerUserId 403；providerConfigId ?? null 空安全；resolveForChild 悬空/孤儿/userId-null 安全回退；provider-options 仅返回 masked 不明文 apiKey；避免与 ProviderConfigModule 循环依赖)",
-    "optimization": "PASSED (0 open：零新增依赖；零 stub/占位；ChildrenSection 移除未用 providerBusy state 且分配后同步刷新徽标；smoke-test.mjs 验证脚本不纳入提交)"
+    "consistency": "PASSED (后端 tsc 0/0 且 nest build 通过；前端 tsc 0/0；e2e tsc 0/0；修复 api.ts 漏 import ChildProgressSummary/ChildProgressDetail 与 spec 漏 import Repository；全栈 ChildProgressSummary/ChildProgressDetail 契约字段对齐)",
+    "tests": "PASSED (后端 parent 域 jest 42/42 全绿——含 AI-712 新增 progress-aggregation.service 聚合用例 + parent.service.findOwnedChild 越权用例 + parent.controller dashboard/越权用例；前端 tsc --noEmit 0/0；BDD/E2E 4 scenario 已编写——family-dashboard.feature 覆盖多卡总览 / 弱项按孩隔离 / 星数差异(任务完成) / 跨家长 404，待 CI 实跑)",
+    "review": "PASSED (0 open：getChildProgress 校验 parentId 归属→非自有孩子 404 不泄露存在；聚合空安全——无计划/无弱项/无掌握度均返回空数组或 0，DashboardEmpty 空态；weeklyTrend 恒 7 点；hasProviderOverride 来自 childProviderConfigId 非空)",
+    "optimization": "PASSED (0 open：零新增表、纯只读聚合、少孩场景无 N+1 放大；无未用导出；ProgressAggregationService 抽自 AI-507 报告思路与单孩/多孩共用；无 stub/占位)"
   }
 }

@@ -778,6 +778,49 @@ export interface SetChildProviderDto {
   providerConfigId?: string | null;
 }
 
+/* ----------------------- Parent Dashboard (AI-712) ----------------------- */
+
+/** 孩子进度摘要（与后端 `ChildProgressSummary` 对齐，家庭总览卡片）。 */
+export interface ChildProgressSummary {
+  childId: string;
+  nickname: string;
+  level: number;
+  totalStars: number;
+  streakDays: number;
+  /** 计划完成度 0..1（全部 applied 计划按天明细 isDone 比例）。 */
+  planCompletionRatio: number;
+  /** 最近活跃日期 YYYY-MM-DD，无则为 null。 */
+  lastActiveDate: string | null;
+  /** 是否使用独立 AI provider 覆盖（AI-711）。 */
+  hasProviderOverride: boolean;
+}
+
+/** 薄弱单词（含错次，供 UI 下钻到练习）。 */
+export interface WeakWord {
+  word: string;
+  wrongCount: number;
+}
+
+/** 技能掌握度（按 skillType 的完成度比例，0..1）。 */
+export interface SkillMastery {
+  skillType: string;
+  ratio: number;
+}
+
+/** 周趋势点（近 7 日每日活跃度）。 */
+export interface WeeklyTrendPoint {
+  date: string; // YYYY-MM-DD
+  stars: number;
+}
+
+/** 单孩进度详情（与后端 `ChildProgressDetail` 对齐，点开卡片后的详情页）。 */
+export interface ChildProgressDetail {
+  summary: ChildProgressSummary;
+  weakWords: WeakWord[];
+  skillMastery: SkillMastery[];
+  weeklyTrend: WeeklyTrendPoint[];
+}
+
 /** `POST /api/parent/children` 请求体（与后端 `CreateChildDto` 对齐）。 */
 export interface CreateChildDto {
   nickname: string;

@@ -150,7 +150,7 @@
 |---|---|---|---|---|---|
 | AI-710 | **家庭绑定（家长创建/认领孩子账号）** — 公开注册**仅限家长账号**（`POST /auth/register` 强制 `role:'parent'`、忽略/拒 `role:'child'`，注册页无孩子选项、文案「创建家长账号」）；家长面板「我的孩子」：①新建孩子账号（`role:'child'`、`parentId=家长.id`，凭据家长设定）②认领已有孩子（密码校验后写 parentId）③列表/解除绑定；孩子登录后 AI 请求经 `AiProviderRouter` 自动走家长默认 provider（链路已通，无需改 router）；注册页留「家长邀请码」UI 槽位（本期不接逻辑） | P0 | AI-705, AI-707, 现有 AuthModule | done | 公开注册落库必为 parent（带 `role:'child'` 被忽略/拒）；注册页无孩子角色选项；家长可建/认领孩子并列表可见；孩子凭据可登录；孩子 AI 请求实测落到家长 provider（mock 验证）；认领冲突/密码错有清晰报错；解除绑定仅清 parentId 且回退 env 默认；儿童 JWT 不可访问 `/parent/children*`；后端单测 + BDD/E2E 覆盖（2026-08-13 用户确认方案 A，UI 设计规格见 ai-710.md §9） |
 | AI-711 | **每孩独立 AI provider 覆盖（可选）** — `User` 加 `childProviderConfigId`；路由层 `resolveForChild`：孩子有覆盖→用该配置，否则回退家长 `isDefault`（AI-705 逻辑）；家长面板每行下拉选「沿用默认」或自己名下某 provider；多层安全降级（child→家长默认→env）；目标 config 必须归属该家长 | P1 | AI-710, AI-705 | done | 家长可给某孩指定自己名下任一 provider 且实测生效；设 null 回退家长默认；指到非本人配置→403/404；删 provider 后曾指向的孩子自动回退默认无崩溃；后端单测 + BDD/E2E 覆盖 |
-| AI-712 | **家长仪表盘（多孩子进度总览）** — 家长面板「家庭总览」卡片网格（昵称/等级/星星/连续天数/计划完成度，复用 cozy-kids 原语）；点开某孩看薄弱词 Top/技能掌握度/周趋势（聚合 `ai_reports`/`word_progress`/`lesson_progress`/`task_completion`，复用 AI-507 形态抽 `ProgressAggregationService`）；`childId` 必须 `parentId===JWT.userId`；无孩子空态引导添加 | P1 | AI-710, AI-507 | backlog | 家长见全部孩子进度卡且数据与库一致；点开可见薄弱词/趋势；越权访问他人孩子→403/404；无孩子空态引导；后端单测 + BDD/E2E 覆盖 |
+| AI-712 | **家长仪表盘（多孩子进度总览）** — 家长面板「家庭总览」卡片网格（昵称/等级/星星/连续天数/计划完成度，复用 cozy-kids 原语）；点开某孩看薄弱词 Top/技能掌握度/周趋势（聚合 `ai_reports`/`word_progress`/`lesson_progress`/`task_completion`，复用 AI-507 形态抽 `ProgressAggregationService`）；`childId` 必须 `parentId===JWT.userId`；无孩子空态引导添加 | P1 | AI-710, AI-507 | done | 家长见全部孩子进度卡且数据与库一致；点开可见薄弱词/趋势；越权访问他人孩子→403/404；无孩子空态引导；后端单测 + BDD/E2E 覆盖 |
 
 ---
 

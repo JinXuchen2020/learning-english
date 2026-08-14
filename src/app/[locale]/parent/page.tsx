@@ -18,9 +18,13 @@ import type {
   ProviderType,
   ProviderCapability,
   ChildView,
+  ChildProgressSummary,
 } from "@/lib/types";
 import { Check, X, ShieldCheck, BarChart3, UserPlus } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ProgressRing } from "@/components/ui/progress-ring";
 
 /** 兑换状态徽章（与 /rewards 同口径）。标签走 i18n，仅保留配色。 */
 const STATUS_BADGE: Record<RedemptionStatus, { className: string }> = {
@@ -165,6 +169,9 @@ function ParentInner() {
         </div>
       </section>
 
+      {/* AI-712：家庭总览（多孩子进度卡片网格） */}
+      <DashboardSection />
+
       <section
         className="card-kids flex items-center gap-4 bg-gradient-to-r from-[var(--seed-surface)] to-[var(--color-primary-wash)]"
         data-component="ParentHeader"
@@ -259,6 +266,107 @@ function ParentInner() {
         </div>
       </section>
     </div>
+  );
+}
+
+/* ----------------------- Family Dashboard (AI-712) ----------------------- */
+
+/**
+ * 家长「家庭总览」：卡片网格展示名下每个孩子的进度摘要
+ * （昵称/等级/星星/连续天数/计划完成度/独立配置标识），复用 cozy-kids
+ * `Card` / `Badge` / `ProgressRing` 原语。点开卡片进入
+ * `/parent/children/:childId` 详情页。无孩子时引导去添加孩子。
+ */
+function DashboardSection() {
+  const t = useTranslations("Parent");
+  const [children, setChildren] = useState<ChildProgressSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api
+      .getDashboard()
+      .then((list) => {
+        if (active) setChildren(list);
+      })
+      .catch((e) => logger.error("load dashboard", e))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <section className="space-y-3" data-component="FamilyDashboard">
+      <div className="flex items-center gap-3">
+        <Mascot expression="happy" size="medium" />
+        <div className="flex-1">
+          <h2 className="text-lg font-extrabold text-kids-title">{t("dashboardTitle")}</h2>
+          <p className="text-sm text-kids-muted">{t("dashboardSubtitle")}</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="card-kids text-center text-kids-muted py-8" data-component="DashboardLoading">
+          {t("childrenLoading")}
+        </p>
+      ) : children.length === 0 ? (
+        <p className="card-kids text-center text-kids-muted py-8" data-component="DashboardEmpty">
+          {t("noChildrenDashboard")}
+        </p>
+      ) : (
+        <ul
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+          data-component="DashboardGrid"
+        >
+          {children.map((c) => (
+            <li key={c.childId} data-component="DashboardChildCard" data-child-id={c.childId}>
+              <Link
+                href={`/parent/children/${c.childId}`}
+                className="block h-full rounded-panel bg-kids-card shadow-card p-6 hover:opacity-90"
+                data-component="DashboardChildLink"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-extrabold text-kids-title truncate">{c.nickname}</h3>
+                  {c.hasProviderOverride && (
+                    <Badge variant="primary" size="sm" data-component="DashboardOverrideBadge">
+                      {t("providerOverrideBadge")}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 mt-3">
+                  <ProgressRing
+                    progress={Math.round(c.planCompletionRatio * 100)}
+                    size={64}
+                    color="var(--seed-primary)"
+                    label={`${Math.round(c.planCompletionRatio * 100)}%`}
+                  />
+                  <div className="flex flex-col gap-1 text-sm">
+                    <span className="text-kids-muted">
+                      {t("childCardLevel")} <b className="text-kids-title">{c.level}</b>
+                    </span>
+                    <span className="text-kids-sun font-bold">
+                      ★ {c.totalStars}
+                    </span>
+                    <span className="text-kids-muted">
+                      {t("childCardStreak")} <b className="text-kids-title">{c.streakDays}</b>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm font-bold text-[var(--seed-primary)]">
+                  {t("viewDetail")} →
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

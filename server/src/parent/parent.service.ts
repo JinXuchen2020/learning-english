@@ -128,6 +128,20 @@ export class ParentService {
   }
 
   /**
+   * 取「归属本家长」的孩子实体；孩子不存在或不属于该家长 → 返回 null
+   * （AI-712 越权防护：不泄露他孩是否存在）。
+   */
+  async findOwnedChild(parentId: string, childId: string): Promise<User | null> {
+    const child = await this.usersRepo.findOne({
+      where: { id: childId, role: 'child' },
+    });
+    if (!child || child.parentId !== parentId) {
+      return null;
+    }
+    return child;
+  }
+
+  /**
    * 解除归属：仅清 parentId，不删账号。
    * @throws NotFoundException 孩子不存在或不归属该家长
    */

@@ -45,6 +45,8 @@ import type {
   UpdateProviderConfigDto,
   ProviderTestResult,
   ChildView,
+  ChildProgressSummary,
+  ChildProgressDetail,
   CreateChildDto as CreateChildApiDto,
   ClaimChildDto as ClaimChildApiDto,
   SetChildProviderDto as SetChildProviderApiDto,
@@ -937,5 +939,28 @@ export function getChildProviderOptions(
 ): Promise<ProviderConfigView[]> {
   return request<ProviderConfigView[]>(
     `/parent/children/${encodeURIComponent(childId)}/provider-options`,
+  );
+}
+
+/* ----------------------- Parent Dashboard (AI-712) ----------------------- */
+
+/**
+ * 家庭总览：列出当前家长名下每个孩子的进度摘要。`GET /api/parent/dashboard`，需家长登录 JWT。
+ * 返回 `ChildProgressSummary[]`（昵称/等级/星星/连续天数/计划完成度/独立配置标识）。
+ */
+export function getDashboard(): Promise<ChildProgressSummary[]> {
+  return request<ChildProgressSummary[]>("/parent/dashboard");
+}
+
+/**
+ * 单孩进度详情（薄弱词 Top / 技能掌握度 / 周趋势）。`GET /api/parent/children/:childId/progress`，需家长登录 JWT。
+ * 越权访问他人孩子 → 后端抛 404（ApiError）。返回 `ChildProgressDetail`。
+ * @param childId 孩子 id
+ */
+export function getChildProgress(
+  childId: string,
+): Promise<ChildProgressDetail> {
+  return request<ChildProgressDetail>(
+    `/parent/children/${encodeURIComponent(childId)}/progress`,
   );
 }
