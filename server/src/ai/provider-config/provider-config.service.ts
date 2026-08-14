@@ -1,12 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { ProviderConfig, ProviderType, ProviderCapability, ProviderModels } from './provider-config.entity';
 import { CreateProviderConfigDto, UpdateProviderConfigDto } from './provider-config.dto';
 import { encryptSecret, decryptSecret, maskSecret } from './crypto.util';
 import { OpenAiCompatibleProvider } from './openai-compatible.provider';
 import { BigModelProvider } from '../bigmodel.provider';
-import { MockAiProvider } from '../mock-ai.provider';
 import { createRetryableProvider } from '../retryable-ai-provider';
 import { AiProvider } from '../ai-provider.interface';
 import { User } from '../../entities/user.entity';
@@ -14,7 +13,7 @@ import { User } from '../../entities/user.entity';
 /** 前端视图（绝不返回明文 apiKey）。 */
 export interface ProviderConfigView {
   id: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
   name: string;
   type: ProviderType;
   baseUrl: string | null;
@@ -75,7 +74,7 @@ export class ProviderConfigService {
     return this.toView(saved);
   }
 
-  /** 删除：所有权校验；删默认则后续解析回退 env 默认。 */
+  /** 删除：所有权校验；删默认则后续解析回退系统默认。 */
   async remove(id: string, ownerUserId: string): Promise<void> {
     const entity = await this.requireOwned(id, ownerUserId);
     await this.repo.remove(entity);
@@ -101,14 +100,19 @@ export class ProviderConfigService {
     return this.repo.findOne({ where: { ownerUserId, isDefault: true } });
   }
 
+  /** 解析系统默认配置（ownerUserId=NULL 且 isDefault=true）。无则 null。 */
+  async resolveSystemDefault(): Promise<ProviderConfig | null> {
+    return this.repo.findOne({ where: { ownerUserId: IsNull(), isDefault: true } });
+  }
+
   /**
    * 解析孩子的生效 provider 配置（AI-711）。
    *
    * 优先级：child.childProviderConfigId 覆盖 → 家长 `resolveDefault`（回退基准）。
    * 多层安全降级：
-   * - 孩子无 parentId（孤儿）→ null（上层回退 env 默认）；
+   * - 孩子无 parentId（孤儿）→ null（上层回退系统默认）；
    * - 覆盖配置不存在 / 不归属孩子的家长 → 忽略覆盖，回退家长默认；
-   * - 任何异常 → null（绝不抛错，调用方回退 env 默认）。
+   * - 任何异常 → null（绝不抛错，调用方回退系统默认）。
    */
   async resolveForChild(childUserId: string): Promise<ProviderConfig | null> {
     if (!childUserId) return null;
@@ -161,10 +165,8 @@ export class ProviderConfigService {
       ttsModel: models.tts,
         });
         break;
-      case 'mock':
       default:
-        inner = new MockAiProvider();
-        break;
+        throw new BadRequestException(`不支持的 provider 类型: ${config.type}`);
     }
     return createRetryableProvider(inner);
   }
@@ -191,7 +193,7 @@ export class ProviderConfigService {
    * 把请求上下文解析为 effective parent：
    * - parent 角色 → 自身 userId；
    * - child / 无角色 → 查 `User.parentId`（null 则 undefined）；
-   * - 任何异常 → undefined（调用方回退 env 默认）。
+   * - 任何异常 → undefined（调用方回退系统默认）。
    */
   async resolveEffectiveParentId(userId: string | undefined, role?: string): Promise<string | undefined> {
     if (!userId) return undefined;

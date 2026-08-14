@@ -68,14 +68,13 @@ describe('text-similarity.util (AI-305)', () => {
     it('azure → phoneme 首选', () => {
       expect(selectScoringStrategy({ providerName: 'azure' })).toBe('phoneme');
     });
-    it('bigmodel / mock / nvidia → similarity 兜底', () => {
+    it('bigmodel / nvidia → similarity 兜底', () => {
       expect(selectScoringStrategy({ providerName: 'bigmodel' })).toBe('similarity');
-      expect(selectScoringStrategy({ providerName: 'mock' })).toBe('similarity');
       expect(selectScoringStrategy({ providerName: 'nvidia' })).toBe('similarity');
     });
     it('显式 strategy 覆盖自动推断', () => {
       expect(selectScoringStrategy({ providerName: 'azure', strategy: 'similarity' })).toBe('similarity');
-      expect(selectScoringStrategy({ providerName: 'mock', strategy: 'phoneme' })).toBe('phoneme');
+      expect(selectScoringStrategy({ providerName: 'bigmodel', strategy: 'phoneme' })).toBe('phoneme');
       expect(selectScoringStrategy({ strategy: 'phoneme' })).toBe('phoneme');
       expect(selectScoringStrategy({ strategy: 'similarity' })).toBe('similarity');
     });

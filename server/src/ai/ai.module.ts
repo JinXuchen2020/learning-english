@@ -1,11 +1,8 @@
 import { Global, Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { BigModelProvider } from './bigmodel.provider';
-import { MockAiProvider } from './mock-ai.provider';
 import { logger } from '../common/logger/logger';
-import { readAiConfig } from './ai-config';
 import { createRetryableProvider } from './retryable-ai-provider';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
@@ -61,64 +58,17 @@ import { AiProviderContextInterceptor } from './ai-provider-context.interceptor'
 import { APP_INTERCEPTOR } from '@nestjs/core';
 
 /**
- * 构造「重试 + 每日配额」链的最内层 provider（不含配额外壳）。
+ * 构造「重试 + 每日配额 + 审计」链（AI-713）。
  *
- * 保留原签名（仅 `config`）以兼容 `ai.factory.spec.ts`；配额外壳在下方模块
- * 工厂 `createQuotaAwareProvider` 中叠加，二者职责分离便于单测。
- */
-export function createAiProvider(config: ConfigService): AiProvider {
-  const cfg = readAiConfig(config);
-  const provider = cfg.provider;
-  let inner: AiProvider;
-  switch (provider) {
-    case 'bigmodel':
-      if (!cfg.bigmodel.apiKey) {
-        logger.warn(
-          '[AI] AI_PROVIDER=bigmodel 但未配置 BIGMODEL_API_KEY，调用将失败；建议配置 key 或设 AI_PROVIDER=mock 进行演示',
-        );
-      }
-      inner = new BigModelProvider({
-        apiKey: cfg.bigmodel.apiKey,
-        baseUrl: cfg.bigmodel.baseUrl,
-        model: cfg.bigmodel.model,
-        visionModel: cfg.bigmodel.visionModel,
-        ttsModel: cfg.bigmodel.ttsModel,
-        ttsVoice: cfg.bigmodel.ttsVoice,
-      });
-      break;
-    case 'mock':
-      inner = new MockAiProvider();
-      break;
-    case 'nvidia': {
-      const lackingKey = cfg.nvidia.apiKey ? '' : '且缺少 NVIDIA_API_KEY，';
-      logger.warn(`[AI] AI_PROVIDER=nvidia 尚未实现（${lackingKey}）回退 MockAiProvider 以保证应用可启动`);
-      inner = new MockAiProvider();
-      break;
-    }
-    case 'azure':
-      logger.warn('[AI] AI_PROVIDER=azure 尚未实现，回退 MockAiProvider 以保证应用可启动');
-      inner = new MockAiProvider();
-      break;
-    default:
-      logger.warn(`[AI] 未知的 AI_PROVIDER=${provider}，回退 MockAiProvider`);
-      inner = new MockAiProvider();
-  }
-  return createRetryableProvider(inner);
-}
-
-/**
- * 模块工厂：把内层（重试后）provider 再套上 AI-107 每日配额闸门，形成
- * 中间层 `UsageLimited(Retryable(inner))`。
- * 配额错误在最外层抛出，不会进入内层 `withRetry` 重试。
- *
- * 注入 `AiUsageLimitService`（负责 `ai_usage` 持久化）与 userId 解析器。
+ * 基础 provider 不再来自 env，而来自 DB 解析的「系统默认」provider 配置
+ * （`providerConfigService.resolveSystemDefault()`，由 `seed.ts` 播种智谱配置）。
+ * 未 seed / 缺失时兜底构造一个空 key 的 BigModelProvider（调用时失败但应用可启动）。
  */
 export function createQuotaAwareProvider(
-  config: ConfigService,
+  inner: AiProvider,
   usage: AiUsageLimitService,
   resolveUserId: UserIdResolver,
 ): AiProvider {
-  const inner = createAiProvider(config);
   return createUsageLimitedProvider(inner, usage, resolveUserId);
 }
 
@@ -128,14 +78,22 @@ export function createQuotaAwareProvider(
  * 注入 userId / moduleTag 解析器与 `AiCallLogService`。
  */
 export function createAuditedProvider(
-  config: ConfigService,
+  inner: AiProvider,
   usage: AiUsageLimitService,
   resolveUserId: UserIdResolver,
   resolveModuleTag: ModuleTagResolver,
   callLog: AiCallLogService,
 ): AiProvider {
-  const inner = createQuotaAwareProvider(config, usage, resolveUserId);
-  return createLoggedProvider(inner, callLog, resolveUserId, resolveModuleTag);
+  const quotaWrapped = createQuotaAwareProvider(inner, usage, resolveUserId);
+  return createLoggedProvider(quotaWrapped, callLog, resolveUserId, resolveModuleTag);
+}
+
+/** 系统默认缺失时的兜底 provider（无 key，调用时失败但应用可启动）。 */
+function fallbackProvider(): AiProvider {
+  logger.error(
+    '[AI] 未找到系统默认 provider 配置（请先运行 npm run seed 播种智谱默认），AI 调用将失败',
+  );
+  return createRetryableProvider(new BigModelProvider({ apiKey: '' }));
 }
 
 /**
@@ -171,27 +129,22 @@ export function createAuditedProvider(
     { provide: EMAIL_SENDER_TOKEN, useClass: LogEmailSender },
     {
       provide: AI_PROVIDER_TOKEN,
-      useFactory: (
-        config: ConfigService,
+      useFactory: async (
         usage: AiUsageLimitService,
         resolveUserId: UserIdResolver,
         resolveModuleTag: ModuleTagResolver,
         callLog: AiCallLogService,
         providerConfigService: ProviderConfigService,
       ) => {
-        // env `AI_PROVIDER` 单例（已套 重试/配额/日志 链）作为回退基准。
-        const defaultProvider = createAuditedProvider(
-          config,
-          usage,
-          resolveUserId,
-          resolveModuleTag,
-          callLog,
-        );
-        // 运行时路由代理：命中家长默认配置则走自定义 provider，否则回退基准。
+        // AI-713：基础 provider 来自 DB 系统默认（seed 播种的智谱配置），
+        // 不再从 env 读取。缺失则兜底空 key provider（调用失败但可启动）。
+        const sysCfg = await providerConfigService.resolveSystemDefault();
+        const inner = sysCfg ? providerConfigService.buildProvider(sysCfg) : fallbackProvider();
+        const defaultProvider = createAuditedProvider(inner, usage, resolveUserId, resolveModuleTag, callLog);
+        // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认。
         return new AiProviderRouter(defaultProvider, providerConfigService);
       },
       inject: [
-        ConfigService,
         AiUsageLimitService,
         USER_ID_RESOLVER_TOKEN,
         AI_MODULE_TAG_RESOLVER_TOKEN,

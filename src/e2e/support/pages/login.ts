@@ -66,6 +66,11 @@ export default class LoginPage {
   }
 
   async login(username: string, password: string): Promise<void> {
+    // Ensure we're on the login screen first. Some callers (e.g. "log in as the
+    // child") invoke login() from a non-login route (Home / parent panel), and
+    // the mode/field toggles only exist on the login page — without this, the
+    // sign-in toggle wait times out. Navigating is idempotent when already there.
+    await this.open();
     await this.switchToSignIn();
     await this.fillUsername(username);
     await this.fillPassword(password);

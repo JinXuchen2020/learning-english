@@ -23,7 +23,7 @@ function makeService(overrides: Overrides = {}) {
   const lessonRepo: Partial<Repository<any>> = { findOne: jest.fn() };
   const wordRepo: Partial<Repository<any>> = { findOne: jest.fn() };
   const aiProvider: Partial<AiProvider> = {
-    name: 'mock',
+    name: 'bigmodel',
     chat: jest.fn(),
     synthesize: jest.fn(),
   };

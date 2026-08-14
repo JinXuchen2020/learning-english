@@ -97,7 +97,7 @@ export default class ParentPage {
     await this.page.waitForSelector('[data-component="ProviderConfigForm"]');
   }
 
-  /** 填充表单（type 取值 openai-compatible | bigmodel | mock）。 */
+  /** 填充表单（type 取值 openai-compatible | bigmodel；AI-713 起已无 mock 类型）。 */
   async fillProviderForm(opts: {
     name: string;
     type?: string;
@@ -329,8 +329,9 @@ export default class ParentPage {
   }
 
   /**
-   * 解除指定昵称孩子的绑定。先找到匹配的 ChildItem，再在其中点击
-   * UnlinkChildBtn（按钮有 data-child-id 属性）。
+   * 解除指定昵称孩子的绑定。先找到匹配的 ChildItem，点击 UnlinkChildBtn 打开
+   * 内联二次确认，再点击 UnlinkConfirmYesBtn 真正解绑。
+   * （不再使用 window.confirm —— Playwright 默认自动 dismiss 会导致解绑无效。）
    */
   async unlinkChild(nickname: string): Promise<void> {
     // 找到匹配昵称的 ChildItem 的 data-child-id
@@ -344,11 +345,16 @@ export default class ParentPage {
     if (!childId) {
       throw new Error(`Child item with nickname "${nickname}" not found`);
     }
+    // 1) 打开内联确认
     await this.page
-      .locator(
-        `[data-component="UnlinkChildBtn"][data-child-id="${childId}"]`,
-      )
+      .locator(`[data-component="UnlinkChildBtn"][data-child-id="${childId}"]`)
       .click();
+    // 2) 等待确认区出现并点击「确认解绑」
+    const yesBtn = this.page.locator(
+      `[data-component="UnlinkConfirmYesBtn"][data-child-id="${childId}"]`,
+    );
+    await yesBtn.waitFor({ state: "visible", timeout: 5000 });
+    await yesBtn.click();
   }
 
   /* ---------------------- Per-child provider (AI-711) ---------------------- */

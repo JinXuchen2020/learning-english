@@ -99,7 +99,7 @@ describe('ProviderConfigService (AI-705)', () => {
 
   it('setDefault 同账号互斥', async () => {
     const entity: ProviderConfig = {
-      id: 'c1', ownerUserId: OWNER, name: 'A', type: 'mock',
+      id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
       baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
       isDefault: false, createdAt: new Date(), updatedAt: new Date(),
     };
@@ -111,7 +111,7 @@ describe('ProviderConfigService (AI-705)', () => {
 
   it('resolveDefault 命中默认配置', async () => {
     const def: ProviderConfig = {
-      id: 'c1', ownerUserId: OWNER, name: 'A', type: 'mock',
+      id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
       baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
       isDefault: true, createdAt: new Date(), updatedAt: new Date(),
     };
@@ -153,7 +153,7 @@ describe('ProviderConfigService (AI-705)', () => {
     isDefault: false, createdAt: new Date(), updatedAt: new Date(),
   });
   const parentDefaultCfg = (): ProviderConfig => ({
-    id: 'cfg-default', ownerUserId: 'p1', name: 'Parent Default', type: 'mock',
+    id: 'cfg-default', ownerUserId: 'p1', name: 'Parent Default', type: 'openai-compatible',
     baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
     isDefault: true, createdAt: new Date(), updatedAt: new Date(),
   });

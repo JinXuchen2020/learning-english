@@ -154,6 +154,16 @@
 
 ---
 
+## M9 — AI provider 去 env 化与系统默认 (W9+)
+
+> 来源: 用户决策（2026-08-14）— 去掉 `.env` 里所有 AI provider 字段，把智谱作为「系统默认」provider 种子入库；家长/孩子未配置时回退该系统默认；彻底去除 MockProvider 概念；e2e 改打真实智谱（走系统默认）。依赖 AI-705（provider-config 运行时解析）/ AI-710（家庭绑定）/ AI-711（每孩覆盖）。
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-713 | **AI provider 去 env 化 + 系统默认智谱种子 + 去 mock** — 移除 `.env` 全部 AI provider 字段（`AI_PROVIDER`/`BIGMODEL_*`/`NVIDIA_*`）；智谱配置作为「系统默认」种子插入 `provider_configs`（`ownerUserId=NULL, isDefault=true`，密钥 AES 加密落库）；家长/孩子未设配置时回退该系统默认；运行时不再读任何 AI env；删除 `MockAiProvider` 及所有 `'mock'` 类型（ProviderName 联合 / DTO / switch / e2e 步骤与 `provMock` i18n 键）；聊天内容安全分类器（`chat-safety`）去除 NVIDIA env，**复用系统默认智谱 provider** 做 LLM 安全判断（fail-open 兜底）；`seed.ts` 读 `ZHIPU_API_KEY`（仅播种用，运行时一律不读 AI env）插入系统默认；CI 注入 `ZHIPU_API_KEY` + `PROVIDER_ENC_KEY`。**e2e 范围修正（2026-08-14）**：仅去除 e2e 中的 `mock` provider 概念（provider 创建 step 改 `type:"openai-compatible"` 并带 baseUrl/apiKey；删除 `provMock` 键）；保留 `src/e2e/support/pages/{chat,speech,home}.ts` 中的 `page.route` **UI 确定性夹具**（scenes/stars/sessions/speech/report 等前端展示数据），因其非 pluggable 的 MockProvider 抽象、移除需真实智谱网络（沙箱受限）且会破坏音频断言——真实 AI 端到端验证交由 CI（注入 `ZHIPU_API_KEY`）完成 | P0 | AI-705, AI-710, AI-711 | done | `server/.env`/`.env.example` 无 AI_PROVIDER/BIGMODEL_*/NVIDIA_*（仅 `ZHIPU_API_KEY`+`PROVIDER_ENC_KEY`）；种子后 `provider_configs` 存在 `ownerUserId=NULL & isDefault=true` 的智谱配置（openai-compatible，密钥加密）；`resolveSystemDefault()`/`AiProviderRouter` 回退链路单测覆盖（家长/孩子未配→系统默认）；`MockAiProvider` 删除、`'mock'` 从所有联合/DTO/switch/e2e 移除；安全分类器无 NVIDIA env 依赖、复用默认 provider（fail-open）；e2e provider 创建步骤改 openai-compatible + provMock 键删除；后端 jest 全绿（含改写 spec）；前端 tsc 0；质量门四门 PASSED |
+
+---
+
 ## 里程碑汇总
 
 | 里程碑 | 包含 | 完成标志 |

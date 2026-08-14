@@ -54,17 +54,17 @@ export class AiAccessError extends AiProviderException {
 
 /** 构造 BigModelProvider 时可注入的配置，便于测试与 AI-103 动态装配。 */
 export interface BigModelConfig {
-  /** 智谱 API key，格式 `{id}.{secret}`。缺省读 `BIGMODEL_API_KEY`。 */
+  /** 智谱 API key，格式 `{id}.{secret}`。由 DB 系统默认配置解密注入（AI-713 去 env 化）。 */
   apiKey?: string;
-  /** OpenAI 兼容 base URL。缺省读 `BIGMODEL_BASE_URL`。 */
+  /** OpenAI 兼容 base URL。缺省用 `DEFAULT_BASE_URL`（open.bigmodel.cn/api/paas/v4）。 */
   baseUrl?: string;
-  /** 默认 chat 模型。缺省读 `BIGMODEL_MODEL`。 */
+  /** 默认 chat 模型。缺省 `DEFAULT_MODEL`（glm-4.7-flash）。 */
   model?: string;
-  /** 视觉/OCR 模型。缺省读 `BIGMODEL_VISION_MODEL`。 */
+  /** 视觉/OCR 模型。缺省 `DEFAULT_VISION_MODEL`（glm-4.6v-flash）。 */
   visionModel?: string;
-  /** TTS 模型。缺省读 `BIGMODEL_TTS_MODEL`（默认 `glm-tts`）。 */
+  /** TTS 模型。缺省 `DEFAULT_TTS_MODEL`（glm-tts）。 */
   ttsModel?: string;
-  /** 默认 TTS 音色（狐狸吉祥物音色）。缺省读 `BIGMODEL_TTS_VOICE`（默认 `tongtong`）。 */
+  /** 默认 TTS 音色（狐狸吉祥物音色）。缺省 `DEFAULT_TTS_VOICE`（tongtong）。 */
   ttsVoice?: string;
 }
 
@@ -135,15 +135,12 @@ export class BigModelProvider implements AiProvider {
     config: BigModelConfig = {},
     fetchFn: FetchFn = globalThis.fetch.bind(globalThis),
   ) {
-    this.apiKey = config.apiKey ?? process.env.BIGMODEL_API_KEY ?? '';
-    this.baseUrl = (
-      config.baseUrl ?? process.env.BIGMODEL_BASE_URL ?? DEFAULT_BASE_URL
-    ).replace(/\/+$/, '');
-    this.model = config.model ?? process.env.BIGMODEL_MODEL ?? DEFAULT_MODEL;
-    this.visionModel =
-      config.visionModel ?? process.env.BIGMODEL_VISION_MODEL ?? DEFAULT_VISION_MODEL;
-    this.ttsModel = config.ttsModel ?? process.env.BIGMODEL_TTS_MODEL ?? DEFAULT_TTS_MODEL;
-    this.ttsVoice = config.ttsVoice ?? process.env.BIGMODEL_TTS_VOICE ?? DEFAULT_TTS_VOICE;
+    this.apiKey = config.apiKey ?? '';
+    this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.model = config.model ?? DEFAULT_MODEL;
+    this.visionModel = config.visionModel ?? DEFAULT_VISION_MODEL;
+    this.ttsModel = config.ttsModel ?? DEFAULT_TTS_MODEL;
+    this.ttsVoice = config.ttsVoice ?? DEFAULT_TTS_VOICE;
     this.fetchFn = fetchFn;
   }
 
@@ -231,7 +228,7 @@ export class BigModelProvider implements AiProvider {
     options?: SynthesizeOptions,
   ): Promise<AudioResult> {
     if (!this.apiKey) {
-      throw new AiProviderException('BigModel API key 未配置（BIGMODEL_API_KEY）', {
+      throw new AiProviderException('BigModel API key 未配置（请通过家长设置或 seed 系统默认配置）', {
         statusCode: 401,
       });
     }
@@ -328,7 +325,7 @@ export class BigModelProvider implements AiProvider {
     timeoutMs?: number,
   ): Promise<BigModelChatResponse> {
     if (!this.apiKey) {
-      throw new AiProviderException('BigModel API key 未配置（BIGMODEL_API_KEY）', {
+      throw new AiProviderException('BigModel API key 未配置（请通过家长设置或 seed 系统默认配置）', {
         statusCode: 401,
       });
     }

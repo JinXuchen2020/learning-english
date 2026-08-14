@@ -2,7 +2,7 @@
  * AiProvider — AI 能力抽象接口
  *
  * 统一封装 LLM 对话 / 多模态理解 / 语音转写(STT) / 发音评测 / 语音合成(TTS)
- * 四类能力，使 BigModel / NVIDIA / Mock / Azure 等具体 provider 可插拔替换，
+ * 四类能力，使 BigModel / NVIDIA / Azure 等具体 provider 可插拔替换，
  * 业务模块（plan / speech / conversation / report）只依赖本接口，不绑定厂商。
  *
  * 这是 M1 基建的第一块（见 `features/backlog.md` AI-101）。
@@ -160,8 +160,8 @@ export interface SynthesizeOptions {
 /**
  * AI 能力提供方统一抽象。
  *
- * 各实现（bigmodel / nvidia / mock / azure）在 `ai.module.ts` 中按 `.env` 的
- * `AI_PROVIDER` 动态注册，业务模块通过 `AI_PROVIDER_TOKEN` 注入本接口。
+ * 各实现（bigmodel / nvidia / azure）由 `ProviderConfigService.buildProvider` 按
+ * DB 配置构建，业务模块通过 `AI_PROVIDER_TOKEN` 注入本接口。
  */
 export interface AiProvider {
   /** Provider 标识，对应 `ProviderName`。 */
@@ -211,8 +211,8 @@ export interface AiProvider {
   synthesize(text: string, voice?: string, options?: SynthesizeOptions): Promise<AudioResult>;
 }
 
-/** 支持的 provider 名称，须与 `.env` 的 `AI_PROVIDER` 取值一致。 */
-export type ProviderName = 'bigmodel' | 'nvidia' | 'mock' | 'azure';
+/** 支持的 provider 名称（品牌标识，与运行时配置 `type` 区分）。 */
+export type ProviderName = 'bigmodel' | 'nvidia' | 'azure';
 
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
 export const AI_PROVIDER_TOKEN = 'AI_PROVIDER';

@@ -3,9 +3,7 @@ Feature: Plan progress write-back and Home completion display (AI-209)
   study_plan_days.isDone, and Home shows a plan completion card that updates.
 
   Background:
-    Given I am on the login page
-    When I switch to "Sign Up" mode
-    And I register with a unique username and password "Passw0rd!23"
+    Given I am logged in as a new user
     Then I should be redirected to the home page
 
   Scenario: Applying a plan shows the plan completion card on Home

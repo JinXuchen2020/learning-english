@@ -7,6 +7,9 @@ import { Sentence } from './entities/sentence.entity';
 import { DailyTask } from './entities/daily-task.entity';
 import { buildDataSourceOptions, getDbType } from './config/database.config';
 import { logger } from './common/logger/logger';
+import { IsNull } from 'typeorm';
+import { ProviderConfig } from './ai/provider-config/provider-config.entity';
+import { encryptSecret } from './ai/provider-config/crypto.util';
 
 const ds = new DataSource(buildDataSourceOptions());
 
@@ -149,6 +152,41 @@ async function seed() {
 
   for (const t of tasks) {
     await taskRepo.save(taskRepo.create(t));
+  }
+
+  // AI-713：系统默认智谱 provider —— 仅 seed 一次，运行时 AI 调用全部走 DB。
+  // 不再从 env 读取 AI 配置；家长未设置自己 provider 时使用此默认。
+  const providerConfigRepo = ds.getRepository(ProviderConfig);
+  const existingDefault = await providerConfigRepo.findOne({
+    where: { ownerUserId: IsNull(), isDefault: true },
+  });
+  if (!existingDefault) {
+    const zhipuKey = process.env.ZHIPU_API_KEY;
+    if (!zhipuKey) {
+      logger.warn(
+        '[Seed] ZHIPU_API_KEY 未设置，跳过系统默认智谱 provider 播种；AI 调用将失败，请在运行 seed 前配置 ZHIPU_API_KEY',
+      );
+    } else {
+      await providerConfigRepo.save(
+        providerConfigRepo.create({
+          ownerUserId: null,
+          name: '智谱 GLM (系统默认)',
+          type: 'bigmodel',
+          baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+          apiKeyEnc: encryptSecret(zhipuKey),
+          modelsJson: JSON.stringify({
+            chat: 'glm-4.7-flash',
+            vision: 'glm-4.6v-flash',
+            tts: 'glm-tts',
+          }),
+          capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
+          isDefault: true,
+        }),
+      );
+      logger.info('[Seed] 已播种系统默认智谱 provider (type=bigmodel, isDefault=true)');
+    }
+  } else {
+    logger.info('[Seed] 系统默认智谱 provider 已存在，跳过播种');
   }
 
   logger.info('Seed complete!');

@@ -14,12 +14,12 @@ import { ProviderConfigService } from './provider-config/provider-config.service
  * 供 `AiProviderRouter` 选择家长账号配置的默认 provider。
  *
  * 解析规则：
- * - 无 / 非法 Authorization → 上下文置空（router 回退 env 默认）；
+ * - 无 / 非法 Authorization → 上下文置空（router 回退系统默认）；
  * - `role==='parent'` → 自身 userId；
  * - child / 无角色 → 查 `User.parentId`（null 则置空）；
  * - 任何异常 → 置空（绝不抛错，保证不影响其他端点）。
  *
- * 这是「破坏性改动 AI_PROVIDER_TOKEN 单例」的安全网：默认路径与改动前完全一致。
+ * 这是「破坏性改动 AI_PROVIDER_TOKEN 单例」的安全网：默认路径与改动前一致（现回退 DB 系统默认）。
  */
 @Injectable()
 export class AiProviderContextInterceptor implements NestInterceptor {

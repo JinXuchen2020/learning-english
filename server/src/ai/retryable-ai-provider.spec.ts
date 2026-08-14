@@ -114,9 +114,9 @@ describe('RetryableAiProvider', () => {
   });
 
   it('passes through the inner provider name', () => {
-    const inner = fakeInner({ name: 'mock' });
+    const inner = fakeInner({ name: 'bigmodel' });
     const p = createRetryableProvider(inner, { maxAttempts: 3, delay: noDelay }, new ConcurrencyLimiter(2));
-    expect(p.name).toBe('mock');
+    expect(p.name).toBe('bigmodel');
   });
 
   it('uses a default limiter when none is supplied', async () => {

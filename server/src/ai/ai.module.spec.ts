@@ -260,50 +260,26 @@ async function compileAiModule() {
 }
 
 describe('AiModule (DI 动态装配)', () => {
-  const ORIGINAL = process.env.AI_PROVIDER;
-
-  afterEach(() => {
-    if (ORIGINAL === undefined) delete process.env.AI_PROVIDER;
-    else process.env.AI_PROVIDER = ORIGINAL;
-  });
-
-  it('injects a bigmodel-backed provider when AI_PROVIDER=bigmodel', async () => {
-    process.env.AI_PROVIDER = 'bigmodel';
+  it('注入系统默认兜底 provider（未 seed 时回退 BigModelProvider），name=bigmodel', async () => {
     const moduleRef = await compileAiModule();
     const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
+    expect(provider).toBeDefined();
     expect(provider.name).toBe('bigmodel');
   });
 
-  it('injects a mock-backed provider when AI_PROVIDER is unset (default)', async () => {
-    delete process.env.AI_PROVIDER;
-    const moduleRef = await compileAiModule();
-    const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
-    expect(provider.name).toBe('mock');
-  });
-
-  it('injects a mock-backed provider when AI_PROVIDER=mock', async () => {
-    process.env.AI_PROVIDER = 'mock';
-    const moduleRef = await compileAiModule();
-    const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
-    expect(provider.name).toBe('mock');
-  });
-
   it('also exposes AiUsageLimitService for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiUsageLimitService);
     expect(svc).toBeDefined();
   });
 
   it('also exposes AiCallLogService (AI-108) for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiCallLogService);
     expect(svc).toBeDefined();
   });
 
   it('also exposes AiSpeechFeedbackService (AI-306) for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiSpeechFeedbackService);
     expect(svc).toBeDefined();

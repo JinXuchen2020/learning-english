@@ -26,5 +26,8 @@ Feature: Per-child AI provider override (AI-711)
   Scenario: Parent cannot assign a child to a provider they do not own
     Given I am logged in as a new parent
     And I have created a child account with nickname "小狐"
-    When I try to assign the child "小狐" to provider config id "nonexistent-id"
+    # 用格式合法（v4 UUID）但本家长并不拥有的 id：让 DTO 校验通过，
+    # 真正走到归属校验 —— 后端对「配置不归属本家长」抛 ForbiddenException → 403。
+    # （若用 "nonexistent-id" 这类非法 UUID，会在 DTO 校验阶段被拦成 400。）
+    When I try to assign the child "小狐" to provider config id "d4e5f607-1234-4abc-8def-0123456789ab"
     Then the assignment should be rejected with status 403

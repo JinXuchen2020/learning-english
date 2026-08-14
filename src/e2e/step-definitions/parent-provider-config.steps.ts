@@ -12,13 +12,6 @@ Then("I should see the AI provider config section", async function (this: E2EWor
   await parent(this).waitForProviderSection();
 });
 
-When("I add a Mock provider named {string}", async function (this: E2EWorld, name: string) {
-  const p = parent(this);
-  await p.clickAddProvider();
-  await p.fillProviderForm({ name, type: "mock" });
-  await p.saveProvider();
-});
-
 When(
   "I add an OpenAI-compatible provider named {string} with base url {string} and api key {string}",
   async function (this: E2EWorld, name: string, baseUrl: string, apiKey: string) {

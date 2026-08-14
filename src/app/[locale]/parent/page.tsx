@@ -375,7 +375,6 @@ function DashboardSection() {
 const PROVIDER_TYPE_LABEL_KEY: Record<string, string> = {
   "openai-compatible": "provOpenaiCompatible",
   bigmodel: "provBigModel",
-  mock: "provMock",
 };
 
 const ALL_CAPABILITIES: ProviderCapability[] = [
@@ -476,7 +475,7 @@ function ProviderConfigSection() {
       setError(t("configNameRequired"));
       return;
     }
-    if (formType !== "mock" && !formBaseUrl.trim()) {
+    if (!formBaseUrl.trim()) {
       setError(t("baseUrlRequired"));
       return;
     }
@@ -710,7 +709,7 @@ function ProviderConfigSection() {
               data-component="ProviderTypeSelect"
               value={formType}
               onChange={(v) => setFormType(v as ProviderType)}
-              options={(["openai-compatible", "mock"] as ProviderType[]).map((typeVal) => ({
+              options={(["openai-compatible"] as ProviderType[]).map((typeVal) => ({
                 value: typeVal,
                 label: t(PROVIDER_TYPE_LABEL_KEY[typeVal]),
               }))}
@@ -718,7 +717,7 @@ function ProviderConfigSection() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">
-              {t("baseUrlLabel")}{formType === "mock" ? t("optional") : t("required")}
+              {t("baseUrlLabel")}{t("required")}
             </label>
             <input
               data-component="ProviderBaseUrlInput"
@@ -731,7 +730,7 @@ function ProviderConfigSection() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">
-              {t("apiKeyLabel")}{formType === "mock" ? t("optional") : editingId ? t("apiKeyEditHint") : t("required")}
+              {t("apiKeyLabel")}{editingId ? t("apiKeyEditHint") : t("required")}
             </label>
             <input
               data-component="ProviderApiKeyInput"
@@ -798,6 +797,10 @@ function ChildrenSection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 解除绑定前的内联二次确认（替代 window.confirm：原生 confirm 在自动化
+  // 测试与移动端体验上都有问题，且 Playwright 默认自动 dismiss 导致解绑无效）。
+  const [confirmUnlinkId, setConfirmUnlinkId] = useState<string | null>(null);
 
   // AI-711：每孩 provider 覆盖下拉
   const [providerOptions, setProviderOptions] = useState<ProviderConfigView[] | null>(null);
@@ -898,24 +901,34 @@ function ChildrenSection() {
   }, [busy, formMode, formNickname, formUsername, formPassword, resetForm, load, t]);
 
   const handleUnlink = useCallback(
-    async (childId: string) => {
+    (childId: string) => {
       if (busy) return;
-      if (!window.confirm(t("unlinkConfirm"))) return;
-      setBusy(true);
-      setError(null);
-      setSuccess(null);
-      try {
-        await api.unlinkChild(childId);
-        await load();
-      } catch (e) {
-        setError(t("unlinkFailed"));
-        logger.error("unlink child", e);
-      } finally {
-        setBusy(false);
-      }
+      // 仅打开内联二次确认，实际解绑在 confirmUnlink 中执行。
+      setConfirmUnlinkId(childId);
     },
-    [busy, load, t],
+    [busy],
   );
+
+  const confirmUnlink = useCallback(async () => {
+    if (confirmUnlinkId == null || busy) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.unlinkChild(confirmUnlinkId);
+      await load();
+    } catch (e) {
+      setError(t("unlinkFailed"));
+      logger.error("unlink child", e);
+    } finally {
+      setBusy(false);
+      setConfirmUnlinkId(null);
+    }
+  }, [confirmUnlinkId, busy, load, t]);
+
+  const cancelUnlink = useCallback(() => {
+    setConfirmUnlinkId(null);
+  }, []);
 
   const handleChildProviderChange = useCallback(
     async (childId: string, value: string) => {
@@ -1043,15 +1056,47 @@ function ChildrenSection() {
                   />
                 </div>
               )}
-              <button
-                data-component="UnlinkChildBtn"
-                data-child-id={child.id}
-                disabled={busy}
-                onClick={() => void handleUnlink(child.id)}
-                className="rounded-control bg-kids-sun/20 px-3 py-1.5 text-sm font-bold text-kids-orange hover:opacity-90 disabled:opacity-50"
-              >
-                {t("unlink")}
-              </button>
+              {confirmUnlinkId === child.id ? (
+                <div
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  data-component="UnlinkConfirmWrap"
+                  data-child-id={child.id}
+                >
+                  <span className="text-sm font-semibold text-kids-title">
+                    {t("unlinkConfirm")}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      data-component="UnlinkConfirmYesBtn"
+                      data-child-id={child.id}
+                      disabled={busy}
+                      onClick={() => void confirmUnlink()}
+                      className="rounded-control bg-kids-orange px-3 py-1.5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      {t("unlinkConfirmYes")}
+                    </button>
+                    <button
+                      data-component="UnlinkConfirmNoBtn"
+                      data-child-id={child.id}
+                      disabled={busy}
+                      onClick={cancelUnlink}
+                      className="rounded-control bg-kids-secondary px-3 py-1.5 text-sm font-bold text-kids-muted hover:opacity-90 disabled:opacity-50"
+                    >
+                      {t("unlinkConfirmNo")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  data-component="UnlinkChildBtn"
+                  data-child-id={child.id}
+                  disabled={busy}
+                  onClick={() => handleUnlink(child.id)}
+                  className="rounded-control bg-kids-sun/20 px-3 py-1.5 text-sm font-bold text-kids-orange hover:opacity-90 disabled:opacity-50"
+                >
+                  {t("unlink")}
+                </button>
+              )}
             </li>
           ))}
         </ul>

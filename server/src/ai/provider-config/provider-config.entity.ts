@@ -7,8 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-/** Provider 类型：开放兼容优先；mock 为演示。bigmodel 为历史存量（智谱走 openai-compatible），新配置不再可选。 */
-export type ProviderType = 'openai-compatible' | 'bigmodel' | 'mock';
+/** Provider 类型：开放兼容优先（智谱/OpenAI/DeepSeek/Qwen 等均走 OpenAI 兼容通道）；bigmodel 为历史存量。'mock' 已移除（AI-713）。 */
+export type ProviderType = 'openai-compatible' | 'bigmodel';
 
 /** 能力枚举（与 AiProvider 五方法对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability =
@@ -36,10 +36,10 @@ export class ProviderConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** 家长账号 userId；建索引以支持按账号高效查询。 */
+  /** 家长账号 userId；系统默认行（智谱种子）为 NULL；建索引以支持按账号高效查询。 */
   @Index()
-  @Column({ type: 'uuid' })
-  ownerUserId: string;
+  @Column({ type: 'uuid', nullable: true })
+  ownerUserId: string | null;
 
   /** 展示名。 */
   @Column({ type: 'varchar', length: 120 })

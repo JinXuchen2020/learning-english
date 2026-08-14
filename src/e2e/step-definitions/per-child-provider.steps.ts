@@ -25,7 +25,13 @@ async function getParentToken(world: E2EWorld): Promise<string> {
   return token;
 }
 
-/** 创建一条 mock provider 配置（无需 apiKey），返回其 id。 */
+/**
+ * 创建一条 openai-compatible provider 配置（AI-713 起已无 mock 类型），返回其 id。
+ * 这里只用于 per-child 绑定的「配置存在性」前置，不会真正调用该 provider 的 AI 能力，
+ * 因此用占位 baseUrl / apiKey 即可（归属校验只看配置是否在本家长名下）。
+ */
+const E2E_PROVIDER_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+const E2E_PROVIDER_API_KEY = "sk-e2e-placeholder-not-a-real-key";
 async function createProviderConfig(
   token: string,
   name: string,
@@ -36,7 +42,12 @@ async function createProviderConfig(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ name, type: "mock" }),
+    body: JSON.stringify({
+      name,
+      type: "openai-compatible",
+      baseUrl: E2E_PROVIDER_BASE_URL,
+      apiKey: E2E_PROVIDER_API_KEY,
+    }),
   });
   if (!res.ok) {
     throw new Error(

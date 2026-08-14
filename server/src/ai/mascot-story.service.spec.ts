@@ -19,7 +19,7 @@ function makeService(overrides: Overrides = {}) {
   const usersRepo: Partial<Repository<any>> = {
     findOne: jest.fn().mockResolvedValue(overrides.userFindOne ?? null),
   };
-  const aiProvider: Partial<AiProvider> = { name: 'mock', chat: jest.fn() };
+  const aiProvider: Partial<AiProvider> = { name: 'bigmodel', chat: jest.fn() };
   if (overrides.chatError) {
     (aiProvider.chat as jest.Mock).mockRejectedValue(new Error('ai down'));
   } else {

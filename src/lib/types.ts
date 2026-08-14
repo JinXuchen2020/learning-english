@@ -696,8 +696,8 @@ export interface RewardsSummary {
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
-/** Provider 类型（与后端 `ProviderType` 对齐）。bigmodel 已并入 openai-compatible。 */
-export type ProviderType = "openai-compatible" | "mock";
+/** Provider 类型（与后端 `ProviderType` 对齐：openai-compatible 家长自建，bigmodel 系统默认智谱）。AI-713 已移除 mock。 */
+export type ProviderType = "openai-compatible" | "bigmodel";
 
 /** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";
@@ -732,7 +732,7 @@ export interface CreateProviderConfigDto {
   name: string;
   type: ProviderType;
   baseUrl?: string;
-  /** 明文 key（后端加密落库）；mock 可空。 */
+  /** 明文 key（后端加密落库，必填）。 */
   apiKey?: string;
   models?: ProviderModels;
   capabilities?: ProviderCapability[];

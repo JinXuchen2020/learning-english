@@ -1,71 +1,55 @@
-import { NvidiaSafetyClassifier, FetchFn } from './chat-safety.classifier';
+import { LlmSafetyClassifier } from './chat-safety.classifier';
+import { AiProvider, ChatMessage, ChatOptions, ChatResult } from '../ai/ai-provider.interface';
 
-/** 构造假 fetch：按给定 ok/status/content 返回，或抛错。 */
-function fakeFetch(opts: {
-  ok?: boolean;
-  status?: number;
-  content?: string;
-  throwErr?: Error;
-}): FetchFn {
-  return async () => {
-    if (opts.throwErr) throw opts.throwErr;
-    return {
-      ok: opts.ok ?? true,
-      status: opts.status ?? 200,
-      statusText: 'OK',
-      json: async () => ({
-        choices: [{ message: { content: opts.content ?? 'safe' } }],
-      }),
-    };
+/** 构造假 provider：按给定 text 返回，或抛错。 */
+function fakeProvider(opts: { text?: string; throwErr?: Error }): AiProvider {
+  return {
+    name: 'bigmodel',
+    chat: async (_messages: ChatMessage[], _options?: ChatOptions): Promise<ChatResult> => {
+      if (opts.throwErr) throw opts.throwErr;
+      return { text: opts.text ?? 'safe' };
+    },
+    chatWithImage: async () => ({ text: '' }),
+    transcribe: async () => ({ text: '', confidence: 0, durationMs: 0 }),
+    assessPronunciation: async () => ({
+      score: 0,
+      readableText: '',
+      weakPhonemes: [],
+      feedback: '',
+      mascotExpr: 'thinking',
+    }),
+    synthesize: async () => ({ mimeType: 'audio/mp3' }),
   };
 }
 
-describe('NvidiaSafetyClassifier (AI-406)', () => {
-  it('响应含 "safe" → 分类为安全（true）', async () => {
-    const c = new NvidiaSafetyClassifier(
-      { apiKey: 'k', baseUrl: 'https://x/v1', model: 'm/nemoguard' },
-      fakeFetch({ content: 'safe' }),
-    );
+describe('LlmSafetyClassifier (AI-406 / AI-713)', () => {
+  it('模型返回 "safe" → 分类为安全（true）', async () => {
+    const c = new LlmSafetyClassifier(fakeProvider({ text: 'safe' }));
     expect(await c.classify('hello fox')).toBe(true);
   });
 
-  it('响应含 "unsafe" → 分类为不安全（false）', async () => {
-    const c = new NvidiaSafetyClassifier(
-      { apiKey: 'k', baseUrl: 'https://x/v1', model: 'm/nemoguard' },
-      fakeFetch({ content: 'unsafe' }),
-    );
+  it('模型返回含 "unsafe" → 分类为不安全（false）', async () => {
+    const c = new LlmSafetyClassifier(fakeProvider({ text: 'unsafe' }));
     expect(await c.classify('some harmful text')).toBe(false);
   });
 
-  it('未配置 NVIDIA_API_KEY → fail-open 放行（true）', async () => {
-    const c = new NvidiaSafetyClassifier({}, fakeFetch({ content: 'unsafe' }));
+  it('模型返回大写 UNSAFE → 同样判不安全（false）', async () => {
+    const c = new LlmSafetyClassifier(fakeProvider({ text: 'UNSAFE' }));
+    expect(await c.classify('x')).toBe(false);
+  });
+
+  it('未注入 provider → fail-open 放行（true）', async () => {
+    const c = new LlmSafetyClassifier(undefined as unknown as AiProvider);
     expect(await c.classify('anything')).toBe(true);
   });
 
-  it('HTTP 非 2xx → fail-open 放行（true）', async () => {
-    const c = new NvidiaSafetyClassifier(
-      { apiKey: 'k' },
-      fakeFetch({ ok: false, status: 500, content: 'unsafe' }),
-    );
+  it('provider 抛错（网络/超时）→ fail-open 放行（true）', async () => {
+    const c = new LlmSafetyClassifier(fakeProvider({ throwErr: new Error('network down') }));
     expect(await c.classify('anything')).toBe(true);
   });
 
-  it('fetch 抛错（网络/超时）→ fail-open 放行（true）', async () => {
-    const c = new NvidiaSafetyClassifier(
-      { apiKey: 'k' },
-      fakeFetch({ throwErr: new Error('network down') }),
-    );
-    expect(await c.classify('anything')).toBe(true);
-  });
-
-  it('响应结构异常（无 choices）→ fail-open 放行（true）', async () => {
-    const broken: FetchFn = async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({ nope: true }),
-    });
-    const c = new NvidiaSafetyClassifier({ apiKey: 'k' }, broken);
+  it('模型返回无法判定（空/其他词）→ 视为安全放行（true）', async () => {
+    const c = new LlmSafetyClassifier(fakeProvider({ text: 'i am not sure' }));
     expect(await c.classify('anything')).toBe(true);
   });
 });

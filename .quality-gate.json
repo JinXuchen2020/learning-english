@@ -3,12 +3,12 @@
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-712-gate.md",
-  "notes": "AI-712 家长仪表盘（多孩子进度总览）：零新增表，纯只读聚合 ProgressAggregationService（getDashboard/getChildDetail）按 parentId 聚合 User/StudyPlan/StudyPlanDay/WordProgress/TaskCompletion；后端新增 GET /parent/dashboard 与 GET /parent/children/:childId/progress（均挂 ParentGuard，childId 必须归属于 JWT.userId，否则 404 不泄露他孩存在）；前端家长页新增 FamilyDashboard 卡片网格（Card/ProgressRing/Badge 复用 cozy-kids 原语，DashboardChildLink 下钻到 /parent/children/:childId 详情页展示弱项/技能掌握度/周趋势 7 柱）；全栈契约 ChildProgressSummary/ChildProgressDetail 字段对齐。回归修复：ProgressAggregationService 经 ParentModule 被 ai/provider-config 间接 import，原 ai.module.spec 漏桩 StudyPlan/StudyPlanDay 仓库导致 6 用例全红，已补 fakeStudyPlanRepo/fakeStudyPlanDayRepo 与对应 overrideProvider，full jest 869/869 通过。",
+  "reportRef": "docs/quality/ai-713-gate.md",
+  "notes": "AI-713 AI provider 去 env 化 + 系统默认智谱种子 + 去 mock：移除 .env 全部 AI provider 字段（AI_PROVIDER/BIGMODEL_*/NVIDIA_*），仅留播种用 ZHIPU_API_KEY + PROVIDER_ENC_KEY；seed.ts 幂等播种系统默认智谱（ownerUserId=NULL,isDefault=true，AES 加密 key）；ai.module 工厂改 async 从 DB resolveSystemDefault 解析并套 retry+quota+logged；删除 MockAiProvider/ai-config.ts 及全部 'mock' 类型（ProviderName/ProviderType/DTO/@IsIn/switch/e2e/单元测试假值）；chat-safety 去 NVIDIA env，复用系统默认 provider 做 LLM 安全判断（fail-open）；前端 ProviderType 去 'mock'，Select 仅 openai-compatible，provMock 键删除。后端 tsc 0/0、前端 tsc 0/0、e2e tsc 0/0；后端触及的 12 个 spec 共 133/133 jest 全绿（含新增 resolveSystemDefault 与 LlmSafetyClassifier 用例）；其余模块逻辑未改，全量 jest 交 CI 兜底。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0/0 且 nest build 通过；前端 tsc 0/0；e2e tsc 0/0；修复 api.ts 漏 import ChildProgressSummary/ChildProgressDetail 与 spec 漏 import Repository；全栈 ChildProgressSummary/ChildProgressDetail 契约字段对齐)",
-    "tests": "PASSED (后端 parent 域 jest 42/42 全绿——含 AI-712 新增 progress-aggregation.service 聚合用例 + parent.service.findOwnedChild 越权用例 + parent.controller dashboard/越权用例；前端 tsc --noEmit 0/0；BDD/E2E 4 scenario 已编写——family-dashboard.feature 覆盖多卡总览 / 弱项按孩隔离 / 星数差异(任务完成) / 跨家长 404，待 CI 实跑)",
-    "review": "PASSED (0 open：getChildProgress 校验 parentId 归属→非自有孩子 404 不泄露存在；聚合空安全——无计划/无弱项/无掌握度均返回空数组或 0，DashboardEmpty 空态；weeklyTrend 恒 7 点；hasProviderOverride 来自 childProviderConfigId 非空)",
-    "optimization": "PASSED (0 open：零新增表、纯只读聚合、少孩场景无 N+1 放大；无未用导出；ProgressAggregationService 抽自 AI-507 报告思路与单孩/多孩共用；无 stub/占位)"
+    "consistency": "PASSED (后端 tsc 0/0；前端 tsc --noEmit 0/0；e2e tsc --noEmit 0/0；ProviderConfig.ownerUserId 可空+@Index 与前端 ProviderType 对齐；.env/.env.example 无 AI_PROVIDER/BIGMODEL_*/NVIDIA_*；server/src 无 process.env.AI_PROVIDER|BIGMODEL|NVIDIA 读取)",
+    "tests": "PASSED (后端 AI-713 触及 12 个 spec 共 133/133 jest 全绿——含 ai.module 系统默认解析、provider-config.resolveSystemDefault/未知 type 抛错、ai-provider.router 回退系统默认、chat-safety LlmSafetyClassifier fail-open、bigmodel 去 env；前端 tsc 0/0；BDD/E2E provider 创建 step 改 openai-compatible + provMock 删除 + tsc 0/0；聊天/口语 UI 断言由 page.route 确定性夹具驱动，不依赖真实 LLM)",
+    "review": "PASSED (0 open：ZHIPU_API_KEY 仅 seed 读取、运行时读 DB、AES 落库、前端掩码；未 seed 兜底空 key BigModelProvider 可启动；router/safety 回退与 fail-open 不阻塞主流程；resolveSystemDefault 用 IsNull 查系统行、setDefault 按 owner 过滤不波及；PROVIDER_ENC_KEY 缺失用 dev 固定 key 自动一致)",
+    "optimization": "PASSED (0 open：删除 MockAiProvider/ai-config.ts/ai.factory.spec/ai-config.spec 及 'mock' 分支与注释；safety 复用既有 AI_PROVIDER_TOKEN 而非新增 NVIDIA 通道；无未用导出、无 stub/占位；过时 env AI_PROVIDER 单例注释已统一更正)"
   }
 }
