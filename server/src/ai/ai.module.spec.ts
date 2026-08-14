@@ -28,6 +28,8 @@ import { UserPoints } from '../rewards/user-points.entity';
 import { Reward } from '../rewards/reward.entity';
 import { RewardRedemption } from '../rewards/reward-redemption.entity';
 import { ProviderConfig } from './provider-config/provider-config.entity';
+import { StudyPlan } from '../plan/study-plan.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -187,6 +189,22 @@ const fakeProviderConfigRepo = {
   remove: jest.fn(async () => undefined),
 };
 
+/** 假 StudyPlan 仓库：让 `ProgressAggregationService`(AI-712, 经 ParentModule 被 AiModule 图间接加载) 完成 DI 装配。 */
+const fakeStudyPlanRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 StudyPlanDay 仓库：让 `ProgressAggregationService`(AI-712) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeStudyPlanDayRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
 /** 构造并编译 AiModule（含仓库/服务覆盖），供各用例复用。 */
 async function compileAiModule() {
   return Test.createTestingModule({
@@ -230,6 +248,10 @@ async function compileAiModule() {
     .useValue(fakeLessonRepo)
     .overrideProvider(getRepositoryToken(ProviderConfig))
     .useValue(fakeProviderConfigRepo)
+    .overrideProvider(getRepositoryToken(StudyPlan))
+    .useValue(fakeStudyPlanRepo)
+    .overrideProvider(getRepositoryToken(StudyPlanDay))
+    .useValue(fakeStudyPlanDayRepo)
     .overrideProvider(EMAIL_SENDER_TOKEN)
     .useValue(fakeEmailSender)
     .overrideProvider(AiPronunciationScorerService)
