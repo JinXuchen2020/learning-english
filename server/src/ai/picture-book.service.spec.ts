@@ -103,6 +103,18 @@ describe('PictureBookService', () => {
       expect(res.isDefault).toBe(true);
     });
 
+    it('requests no-retry + tight timeout so unreachable AI degrades fast (not ~180s)', async () => {
+      const { service, aiProvider } = makeService({
+        chat: {
+          text: JSON.stringify({ title: 'x', pages: [{ pageNumber: 1, text: 'y', illustrationPrompt: 'z' }] }),
+        },
+      });
+      await service.getOrGenerateBook('u1', 'c1');
+      const opts = (aiProvider.chat as jest.Mock).mock.calls[0][1];
+      expect(opts.maxAttempts).toBe(1);
+      expect(opts.timeoutMs).toBe(20000);
+    });
+
     it('does not query course repo when courseId is empty (sample book)', async () => {
       const { service, courseRepo } = makeService({
         chat: {

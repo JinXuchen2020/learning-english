@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-713-gate.md",
-  "notes": "AI-713 AI provider 去 env 化 + 系统默认智谱种子 + 去 mock：移除 .env 全部 AI provider 字段（AI_PROVIDER/BIGMODEL_*/NVIDIA_*），仅留播种用 ZHIPU_API_KEY + PROVIDER_ENC_KEY；seed.ts 幂等播种系统默认智谱（ownerUserId=NULL,isDefault=true，AES 加密 key）；ai.module 工厂改 async 从 DB resolveSystemDefault 解析并套 retry+quota+logged；删除 MockAiProvider/ai-config.ts 及全部 'mock' 类型（ProviderName/ProviderType/DTO/@IsIn/switch/e2e/单元测试假值）；chat-safety 去 NVIDIA env，复用系统默认 provider 做 LLM 安全判断（fail-open）；前端 ProviderType 去 'mock'，Select 仅 openai-compatible，provMock 键删除。后端 tsc 0/0、前端 tsc 0/0、e2e tsc 0/0；后端触及的 12 个 spec 共 133/133 jest 全绿（含新增 resolveSystemDefault 与 LlmSafetyClassifier 用例）；其余模块逻辑未改，全量 jest 交 CI 兜底。CI fix: e2e job 用 environment: ZHIPU_API_KEY（Environment 实名）+ \${{ vars.* }} 注入 runner。构建修复: next.config swcMinify:false 解决 Next14.2 App Router 客户端 chunk 漏注入 __name helper 导致 __name is not defined、React 无法挂载、页面导航 ERR_ABORTED（本地 next dev 不压缩不暴露，CI next build+start 中招）；ai-report.service.generateDailyReport 加外层 try/catch 兜底默认报告，杜绝该端点 500（与 fail-open 一致）。",
+  "notes": "AI-713 收尾 + CI e2e 9 场景修复 + 绘本 AI 降级收紧：e2e 对 plan/scan/picture-book 三端点补 page.route mock（与既有 chat/speech/report 约定一致），parent panel 竞态修复（open 前等 le_auth_user.role==='parent'）；scan.service.recognize 包 try/catch 失败降级而非 500；ChatOptions 新增可选 maxAttempts，RetryableAiProvider 合并调用级覆盖，绘本 callAgent 传 {timeoutMs:20000,maxAttempts:1} 使智谱不可达约 20s 即落模板绘本（原 3x60s≈180s）；新增 retryable/picture-book 单测锁定行为。后端 tsc 0/0、前端 tsc 0/0、e2e tsx 仅转译；后端 jest retryable-ai-provider + picture-book.service 21/21 全绿。",
   "gates": {
-    "consistency": "PASSED (后端 tsc 0/0；前端 tsc --noEmit 0/0；e2e tsc --noEmit 0/0；ProviderConfig.ownerUserId 可空+@Index 与前端 ProviderType 对齐；.env/.env.example 无 AI_PROVIDER/BIGMODEL_*/NVIDIA_*；server/src 无 process.env.AI_PROVIDER|BIGMODEL|NVIDIA 读取)",
-    "tests": "PASSED (后端 AI-713 触及 12 个 spec 共 133/133 jest 全绿——含 ai.module 系统默认解析、provider-config.resolveSystemDefault/未知 type 抛错、ai-provider.router 回退系统默认、chat-safety LlmSafetyClassifier fail-open、bigmodel 去 env；前端 tsc 0/0；BDD/E2E provider 创建 step 改 openai-compatible + provMock 删除 + tsc 0/0；聊天/口语 UI 断言由 page.route 确定性夹具驱动，不依赖真实 LLM)",
-    "review": "PASSED (0 open：ZHIPU_API_KEY 仅 seed 读取、运行时读 DB、AES 落库、前端掩码；未 seed 兜底空 key BigModelProvider 可启动；router/safety 回退与 fail-open 不阻塞主流程；resolveSystemDefault 用 IsNull 查系统行、setDefault 按 owner 过滤不波及；PROVIDER_ENC_KEY 缺失用 dev 固定 key 自动一致)",
-    "optimization": "PASSED (0 open：删除 MockAiProvider/ai-config.ts/ai.factory.spec/ai-config.spec 及 'mock' 分支与注释；safety 复用既有 AI_PROVIDER_TOKEN 而非新增 NVIDIA 通道；无未用导出、无 stub/占位；过时 env AI_PROVIDER 单例注释已统一更正)"
+    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc 0/0；e2e tsx 仅转译不类型检查；ChatOptions.maxAttempts 为向后兼容可选字段；RetryableAiProvider.resolveRetryOptions 仅覆盖 maxAttempts，其余退避参数沿用全局默认；.quality-gate.json 随源码一并暂存)",
+    "tests": "PASSED (后端 jest retryable-ai-provider + picture-book.service 共 21/21 全绿，含 per-call maxAttempts=1 不重试与绘本 chat 选项断言；AI-713 触及 spec 133/133 仍有效；e2e 三类端点 mock 由 page.route 确定性夹具驱动，不依赖真实 LLM)",
+    "review": "PASSED (0 open：maxAttempts 覆盖仅收紧绘本这一降级型端点，plan/report/speech 等瞬时错误敏感端点仍保持默认 3 次重试；scan.service 失败降级文案友好且无新增 re-throw 断言冲突；parent 竞态修复不改变鉴权语义)",
+    "optimization": "PASSED (0 open：仅新增可选字段与两处测试，无删除/无 stub；provider 重试链路其余包装层透传 options 不变；无未用导出)"
   }
 }

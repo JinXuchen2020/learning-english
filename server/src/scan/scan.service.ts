@@ -45,10 +45,23 @@ export class ScanService {
     prompt?: string,
   ): Promise<ScanResult> {
     const image: ImageInput = { data: imageBase64, mimeType };
-    const result = await this.ai.chatWithImage(buildScanPrompt(prompt), image, {
-      temperature: 0.3,
-      maxTokens: 1500,
-    });
+
+    let result: { text: string; model?: string };
+    try {
+      result = await this.ai.chatWithImage(buildScanPrompt(prompt), image, {
+        temperature: 0.3,
+        maxTokens: 1500,
+      });
+    } catch (err) {
+      // AI 视觉调用失败（无 key / 网络不可达 / 限流耗尽）时优雅降级为「未识别」，
+      // 而不是把异常抛到 controller 变成 500 —— 前端会据此展示友好文案，不破坏体验。
+      this.logger.warn(`[Scan] 视觉识别调用失败，走友好兜底：${(err as Error).message}`);
+      return {
+        cards: [],
+        recognized: false,
+        message: "图片识别服务暂时不可用，稍后再试～",
+      };
+    }
 
     const cards = parseScanOutput(result.text);
     if (cards.length === 0) {

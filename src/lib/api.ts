@@ -410,8 +410,10 @@ export function requestPictureBookTts(text: string): Promise<{ ttsUrl: string | 
 
 /**
  * 生成学习计划（AI-202/AI-207）。
- * 无 LLM key 时后端经 MockProvider 自动降级为内置模板计划，仍返回 200，
- * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ * 注意：自 AI-713 移除 MockProvider 后，后端不再有无 key 自动降级；缺 key / 不可达时
+ * provider 会抛错并由 service 向上传播（不返回 200）。e2e 通过该端点 `page.route`
+ * 封闭 mock，使计划向导测试不依赖外部 AI。响应 `degraded:true` 仅在后端模板兜底
+ * （如 LLM 输出校验失败）时出现，前端据此提示而非解析失败。
  */
 export function generatePlan(dto: GeneratePlanDto) {
   return request<GeneratePlanResponse>("/ai/plan/generate", {

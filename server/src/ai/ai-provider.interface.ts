@@ -127,6 +127,14 @@ export interface ChatOptions {
   timeoutMs?: number;
   /** 指定模型覆盖（如 `BIGMODEL_MODEL`）。 */
   model?: string;
+  /**
+   * 本次调用的重试次数覆盖（含首次）。仅 `RetryableAiProvider` 生效，缺省沿用全局
+   * `DEFAULT_RETRY_OPTIONS.maxAttempts`（默认 3）。
+   *
+   * 用于「失败即优雅降级」的端点（如绘本生成，AI 不可达直接落模板绘本），
+   * 设为 1 可跳过重试、缩短降级等待。瞬时错误敏感端点（plan/report/speech）保持缺省。
+   */
+  maxAttempts?: number;
 }
 
 /** 转写可选参数。 */

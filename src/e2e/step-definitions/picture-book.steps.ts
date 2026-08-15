@@ -10,6 +10,8 @@ Then("I should see the picture book section", async function (this: E2EWorld) {
 
 When("I click the view sample book button", async function (this: E2EWorld) {
   const page = new PictureBookPage(this.page, this.baseUrl);
+  // 封闭示例绘本生成，避免 e2e 依赖外部 AI（CI 不可达时后端调用会挂起超时）。
+  await page.mockStory();
   await page.clickViewSample();
 });
 

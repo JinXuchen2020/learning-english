@@ -42,7 +42,7 @@ export class RetryableAiProvider implements AiProvider {
 
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
     return this.limiter.run(() =>
-      withRetry(() => this.inner.chat(messages, options), this.retryOptions),
+      withRetry(() => this.inner.chat(messages, options), this.resolveRetryOptions(options)),
     );
   }
 
@@ -52,8 +52,20 @@ export class RetryableAiProvider implements AiProvider {
     options?: ChatOptions,
   ): Promise<ChatResult> {
     return this.limiter.run(() =>
-      withRetry(() => this.inner.chatWithImage(prompt, image, options), this.retryOptions),
+      withRetry(
+        () => this.inner.chatWithImage(prompt, image, options),
+        this.resolveRetryOptions(options),
+      ),
     );
+  }
+
+  /**
+   * 合并全局重试配置与调用级 `maxAttempts` 覆盖（无覆盖沿用全局）。
+   * 仅允许收紧/放开单次调用的尝试次数，其余退避参数始终用全局默认。
+   */
+  private resolveRetryOptions(options?: ChatOptions): Required<AiRetryOptions> {
+    if (options?.maxAttempts == null) return this.retryOptions;
+    return { ...this.retryOptions, maxAttempts: options.maxAttempts };
   }
 
   transcribe(audio: AudioInput, options?: TranscribeOptions): Promise<TranscriptResult> {

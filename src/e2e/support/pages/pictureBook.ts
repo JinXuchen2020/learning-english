@@ -40,6 +40,45 @@ export default class PictureBookPage {
       .click();
   }
 
+  /**
+   * Mock `GET /api/ai/picture-book/story` 使示例绘本在 e2e 中封闭（不依赖外部 AI）。
+   * 返回含非空标题与多页的 PictureBook，确保阅读器弹窗（PictureBookModal）能确定性渲染。
+   * 注意：示例绘本仅在用户点击「播放朗读」时才触发 tts 请求，弹窗本身只依赖本端点。
+   */
+  async mockStory(): Promise<void> {
+    const body = {
+      id: "book-sample",
+      courseId: "",
+      title: "The Little Fox",
+      pages: [
+        {
+          pageNumber: 1,
+          text: "Once upon a time, a little fox lived in the forest.",
+          illustrationPrompt: "a little fox in a green forest",
+        },
+        {
+          pageNumber: 2,
+          text: "He made friends with a friendly rabbit.",
+          illustrationPrompt: "a fox and a rabbit together",
+        },
+        {
+          pageNumber: 3,
+          text: "They played and laughed every single day.",
+          illustrationPrompt: "a fox and a rabbit playing happily",
+        },
+      ],
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+    };
+    await this.page.route("**/api/ai/picture-book/story**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
   async waitForModal(): Promise<void> {
     await this.page
       .locator('[data-component="PictureBookModal"]')

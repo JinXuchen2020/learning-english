@@ -83,7 +83,10 @@ When("I select weeks {string}", async function (this: E2EWorld, value: string) {
 });
 
 When("I click the generate button", async function (this: E2EWorld) {
-  await new PlanPage(this.page, this.baseUrl).clickGenerate();
+  const page = new PlanPage(this.page, this.baseUrl);
+  // 封闭 AI 计划生成，避免 e2e 依赖外部智谱服务（CI 不可达时必挂）。
+  await page.mockGeneratePlan();
+  await page.clickGenerate();
 });
 
 Then(

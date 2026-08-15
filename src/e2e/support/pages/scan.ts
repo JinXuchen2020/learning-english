@@ -42,6 +42,80 @@ export default class ScanPage {
     await this.page.locator('[data-component="ScanButton"]').click();
   }
 
+  /**
+   * Mock 拍照识词链路，使 photo-word 流程在 e2e 中封闭（不依赖外部视觉 AI）：
+   *  - POST /api/scan/recognize → 返回确定性待确认卡片（pending）
+   *  - POST /api/scan/confirm   → 记录已确认 id（模拟真实落库），回显 saved 卡片
+   *  - GET  /api/scan           → 仅返回已确认(saved)卡片，驱动生词本渲染
+   * 前端加词走 `loadVocab()` 拉取 GET /api/scan，故必须同时 mock 该端点，
+   * 否则 confirm 的假 id 在真实后端找不到 → 生词本为空 → VocabWordItem 出不来。
+   */
+  async mockRecognize(): Promise<void> {
+    const cards = [
+      {
+        id: "scan-card-apple",
+        wordText: "apple",
+        meaning: "苹果",
+        example: "I eat an apple every day.",
+        imagePrompt: "a red apple",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "scan-card-banana",
+        wordText: "banana",
+        meaning: "香蕉",
+        example: "The banana is yellow.",
+        imagePrompt: "a yellow banana",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const confirmed = new Set<string>();
+
+    await this.page.route("**/api/scan/recognize", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          cards,
+          recognized: true,
+          model: "mock-scan",
+        }),
+      }),
+    );
+
+    await this.page.route("**/api/scan/confirm", async (route) => {
+      let ids: string[] = [];
+      try {
+        const post = route.request().postData();
+        if (post) ids = (JSON.parse(post).ids as string[]) ?? [];
+      } catch {
+        /* best-effort */
+      }
+      ids.forEach((id) => confirmed.add(id));
+      const saved = cards
+        .filter((c) => confirmed.has(c.id))
+        .map((c) => ({ ...c, status: "saved" as const }));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(saved),
+      });
+    });
+
+    await this.page.route("**/api/scan", (route) => {
+      const saved = cards
+        .filter((c) => confirmed.has(c.id))
+        .map((c) => ({ ...c, status: "saved" as const }));
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(saved),
+      });
+    });
+  }
+
   /** 等待识别卡片出现，并记录单词列表。 */
   async waitForCards(): Promise<void> {
     const list = this.page.locator('[data-component="ScanCardList"]');

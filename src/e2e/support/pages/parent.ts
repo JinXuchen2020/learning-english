@@ -38,6 +38,24 @@ export default class ParentPage {
   }
 
   async open(): Promise<void> {
+    // 先等登录态落地：上一步 "log in with the registered user" 的登录请求可能仍在飞行中，
+    // 若此处直接 goto('/parent') 会中断在途的登录 fetch → applyAuth 永不执行 → localStorage
+    // 仍是孩子会话 → /parent 渲染 ParentUnauthorized 而非 ParentPanel。等 localStorage 中
+    // le_auth_user.role==='parent' 就绪后再硬导航，可消除该竞态（CI 后端响应慢时稳定复现）。
+    await this.page.waitForFunction(
+      () => {
+        try {
+          const raw = localStorage.getItem("le_auth_user");
+          if (!raw) return false;
+          const u = JSON.parse(raw) as { role?: string } | null;
+          return !!u && u.role === "parent";
+        } catch {
+          return false;
+        }
+      },
+      undefined,
+      { timeout: 15000 },
+    );
     // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；/parent 不在 TabNav，
     // 走 goto 兜底（middleware 重定向到默认 locale 前缀）。
     await this.page.goto(`${this.baseUrl}${PARENT_PATH}`);
