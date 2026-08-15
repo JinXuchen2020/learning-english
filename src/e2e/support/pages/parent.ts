@@ -353,6 +353,10 @@ export default class ParentPage {
    * （不再使用 window.confirm —— Playwright 默认自动 dismiss 会导致解绑无效。）
    */
   async unlinkChild(nickname: string): Promise<void> {
+    // 先等匹配昵称的孩子项真正渲染出来。ChildrenSection 的 listChildren 是
+    // 异步拉取，ParentPanel 挂载后孩子项才会出现；若直接从「打开家长面板」跳到
+    // 解绑而不同步等待，下面的 evaluate 会找不到元素 → 误报 "not found"。
+    await this.waitForChildItem(nickname);
     // 找到匹配昵称的 ChildItem 的 data-child-id
     const childId = await this.page.evaluate((nick: string) => {
       const items = document.querySelectorAll('[data-component="ChildItem"]');

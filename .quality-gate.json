@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-provider-fallback-gate.md",
-  "notes": "AI-801 定制计划→生成配套课程（路径 B）：新增 features/ai-801.md 与 backlog M9 里程碑，定义 POST /api/ai/plan/:id/generate-courses、CoursesService.createCourseFromPlan、courses-from-plan 提示词/校验/降级模板契约；.gitignore 增补排障临时产物（_be_probe.json、_fe_probe.html、_be_diag*.log、server/diag-boot.js、server/.tts_cache/、server/_testtts.js）。本提交同时并入此前已重启验证的语音跟读修复：浏览器 Web Speech API 预转写（clientTranscript 可选旁路，绕过云端 STT 全不通）+ 聊天参考文本清洗（extractEnglishForReadAlong、stripMetaMarkers）去除系统标记与中文翻译；BigModelProvider.transcribe/assessPronunciation 改为抛 501 触发前端预转写；新增 EdgeTtsProvider 作为 synthesize 链末兜底（本地 edge-tts 免费微软 TTS）；新增 edge-tts.provider、chat-text.util 及对应 spec。",
+  "notes": "AI-802 聊天语音输入：新增 features/ai-802.md 功能规格（纯前端，复用浏览器 Web Speech API，规划 useSpeechDictation hook + ChatComposer 麦克风按钮 + i18n），并在 features/backlog.md 增补 M10 里程碑。CI E2E 修复两处：①family-binding 解绑误报 — ParentPage.unlinkChild 缺前置等待，ChildrenSection 异步加载期间 evaluate 找不到 ChildItem，补 waitForChildItem 后再取 data-child-id；②plan-progress 完成全部任务 30s 超时 — 计划每日含 speaking 任务，completeAllTasks 驱动真实 POST /api/ai/speech/evaluate 而该场景未 mock 端点（CI 打不通云端 provider），在 completeAllTasks 兜底封闭该端点返回确定性通过分数（与“AI 端点 e2e 封闭 mock”约定一致）。改动仅 2 个 e2e page-object（被前端 tsconfig exclude），不影响双端 tsc。",
   "gates": {
-    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc -p tsconfig.json --noEmit 0/0；.gitignore 增补临时产物排除；.quality-gate.json 随源码一并暂存)",
-    "tests": "PASSED (后端 jest chat-text.util + text-similarity.util 共 2 套件 30/30 全绿；其余模块沿用既有 spec)",
-    "review": "PASSED (0 open：API key 仍经 AGNES_API_KEY/ZHIPU_API_KEY 环境变量注入未硬编码；EdgeTtsProvider 仅作 TTS 兜底不改变 chat 语义；clientTranscript 为可选旁路，缺省走原 STT 链)",
-    "optimization": "PASSED (0 open：仅新增 provider/util/spec 与文档，无删除无 stub；EdgeTtsProvider 构造同步探测 python 并仅兜底 synthesize)"
+    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc -p tsconfig.json --noEmit 0/0；双端 tsc 均在 Node 20 通过；.quality-gate.json 随源码一并暂存)",
+    "tests": "PASSED (改动为 e2e page-object 与功能文档，无新增/修改单测；修正的 family-binding 与 plan-progress 两个 e2e 场景将在 CI 实跑验证；jest 其余模块沿用既有 spec)",
+    "review": "PASSED (0 open：语音输入为纯前端增强，复用既有 speech-recognition 类型声明；e2e 兜底 mock 不改动业务语义；.gitignore 与 secrets 无变动)",
+    "optimization": "PASSED (0 open：仅新增 feature 文档 + e2e page-object 的等待/兜底逻辑，无删除无 stub)"
   }
 }

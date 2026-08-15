@@ -73,6 +73,14 @@
 
 ---
 
+## M10 — 聊天语音输入（用户新增, 2026-08-16）
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | todo | 见 `features/ai-802.md` |
+
+---
+
 ## M3 — AI 每日口语训练 (W3-W4)
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
@@ -184,5 +192,6 @@
 | **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
 | **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
+| **Milestone 10** (W10+) | AI-802 | 聊天语音输入（`/chat` 麦克风实时英文听写 + Firefox/非安全上下文降级） |
 
 > 每里程碑独立可交付, 验收通过 `lsp_diagnostics` 零错误 + `next build` 成功 + 真机演示。

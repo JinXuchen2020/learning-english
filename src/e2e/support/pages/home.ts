@@ -174,6 +174,27 @@ export default class HomePage {
   /** 完成 Home 上所有每日任务（含口语深链任务）。 */
   async completeAllTasks(): Promise<void> {
     const speech = new SpeechPage(this.page, this.baseUrl);
+    // AI-209 / CI 兜底：计划每日任务含 speaking 任务（plan-template REVIEW_SLOTS），
+    // 完成它们会驱动一次真实 POST /api/ai/speech/evaluate。CI 无法访问云端 provider，
+    // 若该端点未 mock，completeSession() 的 waitFeedback 会卡到 20s+（叠加等待
+    // SpeechPage 的 15s）直接击穿 30s step 超时。此处封闭该端点为确定性「通过」，
+    // 确保「完成全部」这一通用 helper 在任意场景下都不依赖真实 AI（与 memory 中
+    // 「AI 端点 e2e 封闭 mock」约定一致；若场景已自行 mock，后注册的覆盖前者）。
+    await this.page.route("**/api/ai/speech/evaluate", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          score: 95,
+          readableText: "ok",
+          weakPhonemes: [],
+          feedback: "Great job!",
+          mascotExpr: "cheer",
+          passed: true,
+          level: "good",
+        }),
+      }),
+    );
     for (let guard = 0; guard < 30; guard++) {
       const cards = this.page.locator('[data-component="DailyTasks"] [data-task-id]');
       const count = await cards.count();
