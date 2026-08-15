@@ -69,6 +69,22 @@ export class ProviderConfig {
   @Column({ type: 'boolean', default: false })
   isDefault: boolean;
 
+  /**
+   * 系统级兜底排序（仅对 `ownerUserId=NULL` 的系统 provider 有意义）。
+   * 主用 provider 用 `isDefault=true` 表达（排序最前）；其余系统 provider 设此值
+   * 表示「主用失败时按 rank 升序兜底」。例如 Agnes(主) 失败 → 依次尝试 rank=1 的智谱。
+   * 非系统 provider（家长自建）恒为 NULL。
+   */
+  @Column({ type: 'integer', nullable: true })
+  systemFallbackRank?: number | null;
+
+  /**
+   * 透传给 provider 的额外请求体 JSON（如 OpenAI 兼容的 `chat_template_kwargs`
+   * / `enable_thinking`）。构建运行时 provider 时合并进 chat 请求体，绝不存明文密钥。
+   */
+  @Column({ type: 'text', nullable: true })
+  extraJson?: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -52,6 +52,7 @@ export class ProviderConfigService {
       apiKeyEnc: dto.apiKey ? encryptSecret(dto.apiKey) : null,
       modelsJson: dto.models ? JSON.stringify(dto.models) : null,
       capabilitiesJson: dto.capabilities ? JSON.stringify(dto.capabilities) : null,
+      extraJson: dto.extraBody ? JSON.stringify(dto.extraBody) : null,
       isDefault: false,
     });
     const saved = await this.repo.save(entity);
@@ -70,6 +71,9 @@ export class ProviderConfigService {
     if (dto.apiKey !== undefined) entity.apiKeyEnc = dto.apiKey ? encryptSecret(dto.apiKey) : null;
     if (dto.models !== undefined) entity.modelsJson = JSON.stringify(dto.models);
     if (dto.capabilities !== undefined) entity.capabilitiesJson = JSON.stringify(dto.capabilities);
+    if (dto.extraBody !== undefined) {
+      entity.extraJson = dto.extraBody ? JSON.stringify(dto.extraBody) : null;
+    }
     const saved = await this.repo.save(entity);
     return this.toView(saved);
   }
@@ -103,6 +107,21 @@ export class ProviderConfigService {
   /** 解析系统默认配置（ownerUserId=NULL 且 isDefault=true）。无则 null。 */
   async resolveSystemDefault(): Promise<ProviderConfig | null> {
     return this.repo.findOne({ where: { ownerUserId: IsNull(), isDefault: true } });
+  }
+
+  /**
+   * 解析系统 provider 链（AI-713 续）：按「主用 → 兜底」排序的全部系统 provider。
+   * - 主用：`isDefault=true`（排序最前）；
+   * - 兜底：其余系统 provider，按 `systemFallbackRank` 升序（NULL 排最后）。
+   * 返回空数组表示未配置任何系统 provider（上层回退空 key 兜底 provider）。
+   */
+  async resolveSystemChain(): Promise<ProviderConfig[]> {
+    const all = await this.repo.find({ where: { ownerUserId: IsNull() } });
+    return all.sort((a, b) => {
+      const rank = (e: ProviderConfig): number =>
+        e.isDefault ? -1 : e.systemFallbackRank ?? Number.MAX_SAFE_INTEGER;
+      return rank(a) - rank(b);
+    });
   }
 
   /**
@@ -154,6 +173,7 @@ export class ProviderConfigService {
           chatModel: models.chat,
           visionModel: models.vision,
           ttsModel: models.tts,
+          extraBody: this.parseExtra(config.extraJson),
         });
         break;
       case 'bigmodel':
@@ -220,6 +240,17 @@ export class ProviderConfigService {
     if (!json) return {};
     try {
       return JSON.parse(json) as ProviderModels;
+    } catch {
+      return {};
+    }
+  }
+
+  /** 解析透传额外请求体（chat_template_kwargs 等）。非法 JSON → 空对象。 */
+  private parseExtra(json?: string | null): Record<string, unknown> {
+    if (!json) return {};
+    try {
+      const parsed = JSON.parse(json);
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
     } catch {
       return {};
     }

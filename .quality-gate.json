@@ -3,12 +3,12 @@
   "stack": "node-ts",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-713-gate.md",
-  "notes": "AI-713 收尾 + CI e2e 9 场景修复 + 绘本 AI 降级收紧：e2e 对 plan/scan/picture-book 三端点补 page.route mock（与既有 chat/speech/report 约定一致），parent panel 竞态修复（open 前等 le_auth_user.role==='parent'）；scan.service.recognize 包 try/catch 失败降级而非 500；ChatOptions 新增可选 maxAttempts，RetryableAiProvider 合并调用级覆盖，绘本 callAgent 传 {timeoutMs:20000,maxAttempts:1} 使智谱不可达约 20s 即落模板绘本（原 3x60s≈180s）；新增 retryable/picture-book 单测锁定行为。后端 tsc 0/0、前端 tsc 0/0、e2e tsx 仅转译；后端 jest retryable-ai-provider + picture-book.service 21/21 全绿。",
+  "reportRef": "docs/quality/ai-provider-fallback-gate.md",
+  "notes": "AI-714 系统 provider 兜底链 + Agnes AI 主用/智谱兜底种子：新增 Agnes AI（openai-compatible，baseURL https://api.agnes-ai.cn/v1，模型 agnes-2.5-flash，chat_template_kwargs.enable_thinking=true）作为 isDefault 主用系统 provider；智谱 GLM 改种子为 systemFallbackRank=1 兜底（isDefault=false），并对历史 isDefault 智谱做兼容 reconcile；两 key 均经 AGNES_API_KEY / ZHIPU_API_KEY 环境变量注入（未硬编码进源码/git）。ProviderConfig 实体新增 systemFallbackRank(int,nullable) 与 extraJson(text,nullable) 两列；DTO 新增可选 extraBody(object)；OpenAiCompatibleProvider 将 extraBody 合并进 chat/chatWithImage 请求体。新增 FallbackAiProvider：对 chat/chatWithImage/transcribe/assessPronunciation/synthesize 五方法按 providers 顺序 tryChain 首成即返、全败抛末错；ai.module 改为 resolveSystemChain → 逐 cfg buildProvider → FallbackAiProvider → audited → AiProviderRouter。后端 tsc 0/0；后端 jest openai-compatible.provider + provider-config.service + fallback-ai-provider 共 32/32 全绿。",
   "gates": {
-    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc 0/0；e2e tsx 仅转译不类型检查；ChatOptions.maxAttempts 为向后兼容可选字段；RetryableAiProvider.resolveRetryOptions 仅覆盖 maxAttempts，其余退避参数沿用全局默认；.quality-gate.json 随源码一并暂存)",
-    "tests": "PASSED (后端 jest retryable-ai-provider + picture-book.service 共 21/21 全绿，含 per-call maxAttempts=1 不重试与绘本 chat 选项断言；AI-713 触及 spec 133/133 仍有效；e2e 三类端点 mock 由 page.route 确定性夹具驱动，不依赖真实 LLM)",
-    "review": "PASSED (0 open：maxAttempts 覆盖仅收紧绘本这一降级型端点，plan/report/speech 等瞬时错误敏感端点仍保持默认 3 次重试；scan.service 失败降级文案友好且无新增 re-throw 断言冲突；parent 竞态修复不改变鉴权语义)",
-    "optimization": "PASSED (0 open：仅新增可选字段与两处测试，无删除/无 stub；provider 重试链路其余包装层透传 options 不变；无未用导出)"
+    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；新增 systemFallbackRank/extraJson 列 nullable 且与 synchronize 自动建表兼容；extraBody DTO 仅追加可选字段向后兼容；resolveSystemChain 排序键 [isDefault?-1:rank??MAX] 稳定；.quality-gate.json 随源码一并暂存)",
+    "tests": "PASSED (后端 jest 3 套件 32/32 全绿：openai-compatible 验证 extraBody 合并进 chat body；provider-config.service 验证 resolveSystemChain 主用优先+按 rank 升序、buildProvider 将 extraJson→extraBody；fallback-ai-provider 验证主用成功跳过兜底、主用失败切兜底、全败抛末错、五方法均兜底；AI-713 既有 spec 仍有效)",
+    "review": "PASSED (0 open：API key 经环境变量注入未硬编码进源码/git；FallbackAiProvider 仅串联系统链，不改变用户/孩子级 per-request 解析语义；RetryableAiProvider 仍包裹各 inner provider 自身 3 次重试，兜底切换发生在重试耗尽后；seed 按 name 幂等且兼容既有智谱默认行)",
+    "optimization": "PASSED (0 open：仅新增实体列/可选 DTO 字段/单文件 provider 与测试，无删除无 stub；FallbackAiProvider 透传 options 不变；无未用导出)"
   }
 }

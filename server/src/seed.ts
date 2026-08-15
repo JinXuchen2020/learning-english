@@ -154,23 +154,58 @@ async function seed() {
     await taskRepo.save(taskRepo.create(t));
   }
 
-  // AI-713：系统默认智谱 provider —— 仅 seed 一次，运行时 AI 调用全部走 DB。
-  // 不再从 env 读取 AI 配置；家长未设置自己 provider 时使用此默认。
+  // AI-713 续：系统 provider 链（主用 Agnes AI → 兜底智谱 GLM）。
+  // 两者均从 env 读 key 并加密落库；按 name 幂等，运行时 AI 调用全部走 DB。
   const providerConfigRepo = ds.getRepository(ProviderConfig);
-  const existingDefault = await providerConfigRepo.findOne({
-    where: { ownerUserId: IsNull(), isDefault: true },
+
+  // 1) 主用：Agnes AI（openai-compatible，启用思考模式）
+  const agnesKey = process.env.AGNES_API_KEY;
+  const agnesName = 'Agnes AI';
+  const existingAgnes = await providerConfigRepo.findOne({
+    where: { ownerUserId: IsNull(), name: agnesName },
   });
-  if (!existingDefault) {
-    const zhipuKey = process.env.ZHIPU_API_KEY;
-    if (!zhipuKey) {
+  if (!existingAgnes) {
+    if (!agnesKey) {
       logger.warn(
-        '[Seed] ZHIPU_API_KEY 未设置，跳过系统默认智谱 provider 播种；AI 调用将失败，请在运行 seed 前配置 ZHIPU_API_KEY',
+        '[Seed] AGNES_API_KEY 未设置，跳过 Agnes AI 主 provider 播种；将仅以智谱兜底运行',
       );
     } else {
       await providerConfigRepo.save(
         providerConfigRepo.create({
           ownerUserId: null,
-          name: '智谱 GLM (系统默认)',
+          name: agnesName,
+          type: 'openai-compatible',
+          baseUrl: 'https://api.agnes-ai.cn/v1',
+          apiKeyEnc: encryptSecret(agnesKey),
+          modelsJson: JSON.stringify({ chat: 'agnes-2.5-flash', vision: 'agnes-2.5-flash' }),
+          capabilitiesJson: JSON.stringify(['chat', 'vision']),
+          extraJson: JSON.stringify({ chat_template_kwargs: { enable_thinking: true } }),
+          isDefault: true,
+          systemFallbackRank: null,
+        }),
+      );
+      logger.info('[Seed] 已播种 Agnes AI 主 provider (type=openai-compatible, isDefault=true)');
+    }
+  } else {
+    logger.info('[Seed] Agnes AI 主 provider 已存在，跳过播种');
+  }
+
+  // 2) 兜底：智谱 GLM（历史 bigmodel 通道）；被降级为 systemFallbackRank=1。
+  const zhipuKey = process.env.ZHIPU_API_KEY;
+  const zhipuName = '智谱 GLM (系统默认)';
+  const existingZhipu = await providerConfigRepo.findOne({
+    where: { ownerUserId: IsNull(), name: zhipuName },
+  });
+  if (!existingZhipu) {
+    if (!zhipuKey) {
+      logger.warn(
+        '[Seed] ZHIPU_API_KEY 未设置，跳过智谱兜底 provider 播种；AI 调用在主用失败时无兜底',
+      );
+    } else {
+      await providerConfigRepo.save(
+        providerConfigRepo.create({
+          ownerUserId: null,
+          name: zhipuName,
           type: 'bigmodel',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
           apiKeyEnc: encryptSecret(zhipuKey),
@@ -180,13 +215,17 @@ async function seed() {
             tts: 'glm-tts',
           }),
           capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
-          isDefault: true,
+          extraJson: null,
+          isDefault: false,
+          systemFallbackRank: 1,
         }),
       );
-      logger.info('[Seed] 已播种系统默认智谱 provider (type=bigmodel, isDefault=true)');
+      logger.info('[Seed] 已播种智谱兜底 provider (type=bigmodel, isDefault=false, systemFallbackRank=1)');
     }
-  } else {
-    logger.info('[Seed] 系统默认智谱 provider 已存在，跳过播种');
+  } else if (existingZhipu.isDefault || existingZhipu.systemFallbackRank == null) {
+    // 兼容旧数据：曾作为系统默认播种的智谱 → 降级为兜底，确保 Agnes 为唯一系统默认。
+    await providerConfigRepo.update(existingZhipu.id, { isDefault: false, systemFallbackRank: 1 });
+    logger.info('[Seed] 已将既有智谱 provider 降级为系统兜底 (isDefault=false, systemFallbackRank=1)');
   }
 
   logger.info('Seed complete!');

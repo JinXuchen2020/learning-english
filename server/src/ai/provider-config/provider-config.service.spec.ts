@@ -11,7 +11,7 @@ function makeRepo() {
       createdAt: e.createdAt ?? new Date(),
       updatedAt: e.updatedAt ?? new Date(),
     })),
-    find: jest.fn(async () => []),
+    find: jest.fn(async (): Promise<ProviderConfig[]> => []),
     findOne: jest.fn(),
     update: jest.fn(async () => undefined),
     remove: jest.fn(async () => undefined),
@@ -23,6 +23,26 @@ function makeUsersRepo() {
 }
 
 const OWNER = 'owner-1';
+
+/** 构造系统级 provider 实体（ownerUserId=NULL）。 */
+function mkSys(p: Partial<ProviderConfig>): ProviderConfig {
+  return {
+    id: 'sys',
+    ownerUserId: null,
+    name: 'sys',
+    type: 'openai-compatible',
+    baseUrl: null,
+    apiKeyEnc: null,
+    modelsJson: null,
+    capabilitiesJson: null,
+    isDefault: false,
+    systemFallbackRank: null,
+    extraJson: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...p,
+  };
+}
 
 describe('ProviderConfigService (AI-705)', () => {
   const ORIGINAL = process.env.PROVIDER_ENC_KEY;
@@ -117,6 +137,51 @@ describe('ProviderConfigService (AI-705)', () => {
     };
     repo.findOne.mockResolvedValue(def);
     expect(await svc.resolveDefault(OWNER)).toBe(def);
+  });
+
+  it('resolveSystemChain: 主用(isDefault)在前，兜底按 systemFallbackRank 升序', async () => {
+    const agnes: ProviderConfig = mkSys({ id: 'agnes', name: 'Agnes AI', isDefault: true, systemFallbackRank: null });
+    const zhipu: ProviderConfig = mkSys({ id: 'zhipu', name: '智谱 GLM (系统默认)', isDefault: false, systemFallbackRank: 1 });
+    // 故意乱序返回，驗证排序
+    repo.find.mockResolvedValue([zhipu, agnes]);
+    const chain = await svc.resolveSystemChain();
+    expect(chain.map((c) => c.id)).toEqual(['agnes', 'zhipu']);
+  });
+
+  it('resolveSystemChain: 仅兜底（无主用）→ 兜底排前', async () => {
+    const zhipu: ProviderConfig = mkSys({ id: 'zhipu', isDefault: false, systemFallbackRank: 1 });
+    repo.find.mockResolvedValue([zhipu]);
+    const chain = await svc.resolveSystemChain();
+    expect(chain.map((c) => c.id)).toEqual(['zhipu']);
+  });
+
+  it('buildProvider: openai-compatible 透传 extraJson 为 extraBody', async () => {
+    const cfg: ProviderConfig = mkSys({
+      id: 'agnes', type: 'openai-compatible', baseUrl: 'https://api.agnes-ai.cn/v1',
+      apiKeyEnc: encryptSecret('sk-agnes'), modelsJson: JSON.stringify({ chat: 'agnes-2.5-flash' }),
+      extraJson: JSON.stringify({ chat_template_kwargs: { enable_thinking: true } }),
+      isDefault: true,
+    });
+    // 直接构造内层 provider 验证请求体（buildProvider 会再包 Retryable，这里只验透传）。
+    const { OpenAiCompatibleProvider } = await import('./openai-compatible.provider');
+    const fetchFn = jest.fn(
+      async (_url: string, _init: RequestInit): Promise<Response> =>
+        new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const inner = new OpenAiCompatibleProvider(
+      {
+        apiKey: decryptSecret(cfg.apiKeyEnc!),
+        baseUrl: cfg.baseUrl ?? undefined,
+        chatModel: 'agnes-2.5-flash',
+        extraBody: svc['parseExtra'](cfg.extraJson),
+      },
+      fetchFn,
+    );
+    await inner.chat([{ role: 'user', content: 'hi' }]);
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: true });
   });
 
   it('buildProvider 按 type 构建（解密 key）', async () => {

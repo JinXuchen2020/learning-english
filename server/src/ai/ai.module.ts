@@ -4,6 +4,7 @@ import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { BigModelProvider } from './bigmodel.provider';
 import { logger } from '../common/logger/logger';
 import { createRetryableProvider } from './retryable-ai-provider';
+import { FallbackAiProvider } from './fallback-ai-provider';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import {
@@ -138,10 +139,14 @@ function fallbackProvider(): AiProvider {
       ) => {
         // AI-713：基础 provider 来自 DB 系统默认（seed 播种的智谱配置），
         // 不再从 env 读取。缺失则兜底空 key provider（调用失败但可启动）。
-        const sysCfg = await providerConfigService.resolveSystemDefault();
-        const inner = sysCfg ? providerConfigService.buildProvider(sysCfg) : fallbackProvider();
-        const defaultProvider = createAuditedProvider(inner, usage, resolveUserId, resolveModuleTag, callLog);
-        // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认。
+        // AI-713 续：系统 provider 链（主用 Agnes AI → 兜底智谱）。为空则回退空 key provider。
+        const sysChain = await providerConfigService.resolveSystemChain();
+        const innerProviders = sysChain.length
+          ? sysChain.map((cfg) => providerConfigService.buildProvider(cfg))
+          : [fallbackProvider()];
+        const chain = new FallbackAiProvider(innerProviders);
+        const defaultProvider = createAuditedProvider(chain, usage, resolveUserId, resolveModuleTag, callLog);
+        // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认链。
         return new AiProviderRouter(defaultProvider, providerConfigService);
       },
       inject: [

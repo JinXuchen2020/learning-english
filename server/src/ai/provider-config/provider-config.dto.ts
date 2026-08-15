@@ -55,6 +55,11 @@ export class CreateProviderConfigDto {
   @IsArray()
   @IsIn(['chat', 'vision', 'stt', 'tts', 'pronunciation'], { each: true })
   capabilities?: ProviderCapabilityDto[];
+
+  /** 透传额外请求体（如 OpenAI 兼容的 chat_template_kwargs / enable_thinking）。 */
+  @IsOptional()
+  @IsObject()
+  extraBody?: Record<string, unknown>;
 }
 
 /** 修改 provider 配置；apiKey 可空表示不修改。 */
@@ -81,4 +86,9 @@ export class UpdateProviderConfigDto {
   @IsArray()
   @IsIn(['chat', 'vision', 'stt', 'tts', 'pronunciation'], { each: true })
   capabilities?: ProviderCapabilityDto[];
+
+  /** 透传额外请求体（如 OpenAI 兼容的 chat_template_kwargs / enable_thinking）。 */
+  @IsOptional()
+  @IsObject()
+  extraBody?: Record<string, unknown>;
 }
