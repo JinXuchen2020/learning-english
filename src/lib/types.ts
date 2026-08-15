@@ -281,6 +281,11 @@ export interface EvaluateSpeechOptions {
   durationMs?: number;
   /** 归属用户 id（缺省后端用 `anonymous` 占位）。 */
   userId?: string;
+  /**
+   * 客户端（浏览器 Web Speech API）预转写文本。
+   * 提供时后端跳过 STT 链，直接用此文本做发音评分。
+   */
+  clientTranscript?: string;
 }
 
 /* ----------------------- AI Chat (AI-407) ----------------------- */

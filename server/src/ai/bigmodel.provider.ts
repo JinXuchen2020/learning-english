@@ -201,25 +201,24 @@ export class BigModelProvider implements AiProvider {
   }
 
   async transcribe(_audio: AudioInput, _options?: TranscribeOptions): Promise<TranscriptResult> {
-    // BigModel STT 暂未接入（AI-102 范围外），返回降级结果，由 AI-304 接入真实能力。
-    logger.debug('BigModelProvider.transcribe 暂未实现，返回降级结果');
-    return { text: '', confidence: 0, durationMs: 0 };
+    // BigModel STT 暂未接入（AI-102 范围外），必须抛错让 FallbackAiProvider 继续尝试下一个 provider。
+    // 若返回空文本（不抛错），FallbackAiProvider 会把空结果当"成功"消费，导致 STT 静默失败（分数恒为 0）。
+    throw new AiProviderException('智谱 GLM 暂不支持语音转写（STT），请配置支持 whisper 的 provider', {
+      statusCode: 501,
+      code: 'STT_NOT_SUPPORTED',
+    });
   }
 
   async assessPronunciation(
     _audio: AudioInput,
-    referenceText: string,
+    _referenceText: string,
     _options?: AssessOptions,
   ): Promise<ScoreResult> {
-    // BigModel 发音评测暂未接入（AI-102 范围外），返回降级结果，由 AI-305 接入。
-    logger.debug('BigModelProvider.assessPronunciation 暂未实现，返回降级结果');
-    return {
-      score: 0,
-      readableText: referenceText,
-      weakPhonemes: [],
-      feedback: '发音评测暂不可用，请稍后再试。',
-      mascotExpr: 'thinking',
-    };
+    // BigModel 发音评测暂未接入，必须抛错让 FallbackAiProvider 继续尝试下一个 provider。
+    throw new AiProviderException('智谱 GLM 暂不支持发音评测', {
+      statusCode: 501,
+      code: 'PRONUNCIATION_NOT_SUPPORTED',
+    });
   }
 
   async synthesize(
@@ -236,7 +235,6 @@ export class BigModelProvider implements AiProvider {
       model: this.ttsModel,
       input: text,
       voice: voice || this.ttsVoice,
-      response_format: 'mp3',
       speed: options?.speed ?? 1.0,
       volume: 1.0,
       stream: false,

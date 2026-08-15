@@ -5,6 +5,7 @@ import { BigModelProvider } from './bigmodel.provider';
 import { logger } from '../common/logger/logger';
 import { createRetryableProvider } from './retryable-ai-provider';
 import { FallbackAiProvider } from './fallback-ai-provider';
+import { EdgeTtsProvider } from './edge-tts.provider';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import {
@@ -144,6 +145,8 @@ function fallbackProvider(): AiProvider {
         const innerProviders = sysChain.length
           ? sysChain.map((cfg) => providerConfigService.buildProvider(cfg))
           : [fallbackProvider()];
+        // AI-407 修复：本地免费 edge-tts 作为 synthesize 链最终兜底（付费 provider 均无可用 TTS 通道）。
+        innerProviders.push(new EdgeTtsProvider());
         const chain = new FallbackAiProvider(innerProviders);
         const defaultProvider = createAuditedProvider(chain, usage, resolveUserId, resolveModuleTag, callLog);
         // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认链。

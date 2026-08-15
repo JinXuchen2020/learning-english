@@ -483,6 +483,7 @@ export function evaluateSpeech(
   if (opts.referenceText) form.append("referenceText", opts.referenceText);
   if (opts.durationMs != null) form.append("durationMs", String(opts.durationMs));
   if (opts.userId) form.append("userId", opts.userId);
+  if (opts.clientTranscript) form.append("clientTranscript", opts.clientTranscript);
 
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;

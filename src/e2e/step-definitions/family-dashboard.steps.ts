@@ -14,6 +14,14 @@ function dashPage(world: E2EWorld): FamilyDashboardPage {
   return new FamilyDashboardPage(world.page, world.baseUrl);
 }
 
+/**
+ * 导航到家长「概览」页（/parent）。与「I open the parent panel」不同——后者进入
+ * 控制面板（/parent/settings），而家庭总览（FamilyDashboard）只在概览页渲染。
+ */
+When("I open the parent overview", async function (this: E2EWorld) {
+  await dashPage(this).open();
+});
+
 /** 从 localStorage 取当前登录 JWT（Given/When 步骤调 API 时用）。 */
 async function getToken(world: E2EWorld): Promise<string> {
   const token = await world.page.evaluate(() =>

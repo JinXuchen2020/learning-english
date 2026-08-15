@@ -33,7 +33,7 @@ export async function loginAsNewUser(
   const login = new LoginPage(page, baseUrl);
   await login.open();
   await login.register(parent.username, parent.password, parent.nickname);
-  await page.waitForSelector('[data-component="ParentPanel"]', {
+  await page.waitForSelector('[data-component="ParentOverviewPanel"]', {
     timeout: 15000,
   });
 
@@ -93,7 +93,7 @@ export async function loginAsNewParent(
   const login = new LoginPage(page, baseUrl);
   await login.open();
   await login.register(user.username, user.password, user.nickname);
-  await page.waitForSelector('[data-component="ParentPanel"]', {
+  await page.waitForSelector('[data-component="ParentOverviewPanel"]', {
     timeout: 15000,
   });
   return user;

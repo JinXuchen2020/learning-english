@@ -81,6 +81,7 @@ export class AiSpeechEvaluatorService {
       audio: { data: file.buffer, mimeType: file.mimetype },
       referenceText,
       opts: { passLine: 60 },
+      clientTranscript: dto.clientTranscript,
     });
 
     // AI-306：装配反馈 + best-effort 落库（消费 AI-301 实体），不阻断反馈返回。

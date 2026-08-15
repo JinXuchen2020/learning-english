@@ -65,6 +65,12 @@
 | AI-208 | **`/plan` 页面 — 计划展示与交互** — 周计划卡片视图 (每日颜色化), "重新生成"、"应用此计划"、单日任务勾选 | P0 | AI-206, AI-207 | done | 应用后跳转 Home 并看到新任务; 重新生成有 loading/降级提示 |
 | AI-209 | **计划进度回写** — 完成计划内任务时回写 planDay.isDone, Home 展示计划完成度 | P1 | AI-206, 现有 ProgressModule | done | 完成任务后计划完成度同步更新; Home PlanProgress 卡片显示已完成 X/Y 天 |
 
+## M9 — 学习计划→课程生成（用户新增, 2026-08-16）
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/courses` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | todo | 见 `features/ai-801.md` |
+
 ---
 
 ## M3 — AI 每日口语训练 (W3-W4)
@@ -177,5 +183,6 @@
 | **Milestone 6** (W7+) | AI-601 ~ AI-606 | 自适应与内容生成增强 |
 | **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
+| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
 
 > 每里程碑独立可交付, 验收通过 `lsp_diagnostics` 零错误 + `next build` 成功 + 真机演示。

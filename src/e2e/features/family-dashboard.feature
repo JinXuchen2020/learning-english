@@ -7,7 +7,7 @@ Feature: Family dashboard (AI-712)
     Given I am logged in as a new parent
     And I create a child named "小红" via the API
     And I create a child named "小蓝" via the API
-    When I open the parent panel
+    When I open the parent overview
     Then I should see the family dashboard
     And I should see a dashboard card for child "小红"
     And I should see a dashboard card for child "小蓝"
@@ -22,7 +22,7 @@ Feature: Family dashboard (AI-712)
     And I create a child named "小红" via the API
     And I create a child named "小蓝" via the API
     And the child "小红" has a weak word "Cat"
-    When I open the parent panel
+    When I open the parent overview
     When I open the dashboard card for child "小红"
     Then I should see at least 1 weak word item
     And I should see a weak word item for "Cat"
@@ -37,7 +37,7 @@ Feature: Family dashboard (AI-712)
     When I log in as the child named "小红"
     And I complete the first daily task
     When I log in with the registered user
-    And I open the parent panel
+    And I open the parent overview
     Then I should see a dashboard card for child "小红" with more stars than child "小蓝"
 
   Scenario: A different parent cannot access another family's child detail

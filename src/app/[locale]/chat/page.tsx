@@ -22,6 +22,39 @@ import type {
 } from "@/lib/types";
 import type { RecordingResult } from "@/lib/speech-recorder";
 
+/**
+ * 去掉 LLM 自造的元注释/系统标记（如 `(这次没有语音)`），避免污染消息展示。
+ * 这些标记不应出现在用户可见的回复里。
+ */
+const META_MARKERS = [
+  /（\s*这次没有语音\s*）/g,
+  /\(\s*这次没有语音\s*\)/g,
+  /（\s*暂无语音\s*）/g,
+  /\(\s*暂无语音\s*\)/g,
+];
+function stripMetaMarkers(text: string): string {
+  let cleaned = text;
+  for (const re of META_MARKERS) {
+    cleaned = cleaned.replace(re, "");
+  }
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * 从 Fox Teacher 消息中提取适合跟读的英文参考文本。
+ * 只保留第一个中文字符/全角括号之前的英文内容，去掉中文翻译和元标记。
+ */
+function extractEnglishForReadAlong(text: string): string {
+  const cleaned = stripMetaMarkers(text);
+  const idx = cleaned.search(/[\u4e00-\u9fff（）]/);
+  const before = idx >= 0 ? cleaned.slice(0, idx) : cleaned;
+  return before
+    .replace(/\s+/g, " ")
+    .replace(/[\s\u3000]+$/, "")
+    .replace(/[.,!?;:\s()（）]+$/, "")
+    .trim();
+}
+
 export default function ChatPage() {
   return (
     <AuthGate>
@@ -52,15 +85,91 @@ function ReadAlongPanel({
     setError(null);
   }, []);
 
+  /**
+   * 用浏览器 Web Speech API 对录音做本地 STT 转写。
+   * 返回转写文本；若 API 不可用或转写失败，返回 null（后端会 fallback 到自己的 STT 链）。
+   */
+  const transcribeWithBrowserApi = useCallback(
+    (blob: Blob): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+          ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+        if (!SR) {
+          resolve(null);
+          return;
+        }
+        const recognition = new SR();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event: Event) => {
+          const results = (event as SpeechRecognitionEvent).results;
+          if (results && results.length > 0) {
+            const text = results[0][0]?.transcript?.trim() || "";
+            resolve(text.length > 0 ? text : null);
+          } else {
+            resolve(null);
+          }
+        };
+
+        recognition.onerror = () => {
+          resolve(null);
+        };
+
+        recognition.onend = () => {
+          // 如果 onresult 未触发（静音/太短），resolve(null) 已在 onerror 或超时中处理
+        };
+
+        try {
+          recognition.start();
+          // 把录音 blob 播放到识别器（通过 AudioContext + MediaStream）
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          audio.onended = () => {
+            // 给识别器一点时间处理最终结果
+            setTimeout(() => {
+              recognition.stop();
+              URL.revokeObjectURL(audioUrl);
+            }, 500);
+          };
+          audio.onerror = () => {
+            recognition.stop();
+            URL.revokeObjectURL(audioUrl);
+            resolve(null);
+          };
+          audio.play().catch(() => {
+            recognition.stop();
+            URL.revokeObjectURL(audioUrl);
+            resolve(null);
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+    [],
+  );
+
   const handleSubmit = useCallback(async () => {
     if (!recording || evaluating) return;
     setEvaluating(true);
     setError(null);
     try {
+      // 尝试用浏览器 Web Speech API 做本地 STT 转写（解决云端 STT 不可达问题）
+      let clientTranscript: string | undefined;
+      try {
+        const transcript = await transcribeWithBrowserApi(recording.blob);
+        if (transcript) clientTranscript = transcript;
+      } catch {
+        // Web Speech API 不可用或失败，静默降级到后端 STT
+      }
+
       const fb = await api.evaluateSpeech(recording.blob, {
         referenceText,
         durationMs: recording.durationMs,
         userId,
+        clientTranscript,
       });
       setFeedback(fb);
     } catch (err) {
@@ -603,7 +712,7 @@ function ChatInner() {
                   : "bg-kids-card text-kids-text"
               }`}
             >
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              <p className="whitespace-pre-wrap leading-relaxed">{stripMetaMarkers(msg.text)}</p>
 
               {/* 助手消息：TTS 语音条 + 跟读按钮 */}
               {msg.role === "assistant" && (
@@ -649,7 +758,7 @@ function ChatInner() {
 
               {msg.role === "assistant" && readAlongForId === msg.id && (
                 <ReadAlongPanel
-                  referenceText={msg.text}
+                  referenceText={extractEnglishForReadAlong(msg.text)}
                   userId={user?.id}
                   onClose={() => setReadAlongForId(null)}
                 />

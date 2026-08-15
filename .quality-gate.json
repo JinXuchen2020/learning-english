@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-provider-fallback-gate.md",
-  "notes": "AI-714 系统 provider 兜底链 + Agnes AI 主用/智谱兜底种子：新增 Agnes AI（openai-compatible，baseURL https://api.agnes-ai.cn/v1，模型 agnes-2.5-flash，chat_template_kwargs.enable_thinking=true）作为 isDefault 主用系统 provider；智谱 GLM 改种子为 systemFallbackRank=1 兜底（isDefault=false），并对历史 isDefault 智谱做兼容 reconcile；两 key 均经 AGNES_API_KEY / ZHIPU_API_KEY 环境变量注入（未硬编码进源码/git）。ProviderConfig 实体新增 systemFallbackRank(int,nullable) 与 extraJson(text,nullable) 两列；DTO 新增可选 extraBody(object)；OpenAiCompatibleProvider 将 extraBody 合并进 chat/chatWithImage 请求体。新增 FallbackAiProvider：对 chat/chatWithImage/transcribe/assessPronunciation/synthesize 五方法按 providers 顺序 tryChain 首成即返、全败抛末错；ai.module 改为 resolveSystemChain → 逐 cfg buildProvider → FallbackAiProvider → audited → AiProviderRouter。后端 tsc 0/0；后端 jest openai-compatible.provider + provider-config.service + fallback-ai-provider 共 32/32 全绿。CI e2e 工作流(.github/workflows/ci.yml)补充注入 AGNES_API_KEY（与 ZHIPU_API_KEY 同取自 Environment variables），使 CI seed 拓扑与本地/生产一致（Agnes 主用、智谱兜底）。",
+  "notes": "AI-801 定制计划→生成配套课程（路径 B）：新增 features/ai-801.md 与 backlog M9 里程碑，定义 POST /api/ai/plan/:id/generate-courses、CoursesService.createCourseFromPlan、courses-from-plan 提示词/校验/降级模板契约；.gitignore 增补排障临时产物（_be_probe.json、_fe_probe.html、_be_diag*.log、server/diag-boot.js、server/.tts_cache/、server/_testtts.js）。本提交同时并入此前已重启验证的语音跟读修复：浏览器 Web Speech API 预转写（clientTranscript 可选旁路，绕过云端 STT 全不通）+ 聊天参考文本清洗（extractEnglishForReadAlong、stripMetaMarkers）去除系统标记与中文翻译；BigModelProvider.transcribe/assessPronunciation 改为抛 501 触发前端预转写；新增 EdgeTtsProvider 作为 synthesize 链末兜底（本地 edge-tts 免费微软 TTS）；新增 edge-tts.provider、chat-text.util 及对应 spec。",
   "gates": {
-    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；新增 systemFallbackRank/extraJson 列 nullable 且与 synchronize 自动建表兼容；extraBody DTO 仅追加可选字段向后兼容；resolveSystemChain 排序键 [isDefault?-1:rank??MAX] 稳定；.quality-gate.json 随源码一并暂存)",
-    "tests": "PASSED (后端 jest 3 套件 32/32 全绿：openai-compatible 验证 extraBody 合并进 chat body；provider-config.service 验证 resolveSystemChain 主用优先+按 rank 升序、buildProvider 将 extraJson→extraBody；fallback-ai-provider 验证主用成功跳过兜底、主用失败切兜底、全败抛末错、五方法均兜底；AI-713 既有 spec 仍有效)",
-    "review": "PASSED (0 open：API key 经环境变量注入未硬编码进源码/git；FallbackAiProvider 仅串联系统链，不改变用户/孩子级 per-request 解析语义；RetryableAiProvider 仍包裹各 inner provider 自身 3 次重试，兜底切换发生在重试耗尽后；seed 按 name 幂等且兼容既有智谱默认行)",
-    "optimization": "PASSED (0 open：仅新增实体列/可选 DTO 字段/单文件 provider 与测试，无删除无 stub；FallbackAiProvider 透传 options 不变；无未用导出)"
+    "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc -p tsconfig.json --noEmit 0/0；.gitignore 增补临时产物排除；.quality-gate.json 随源码一并暂存)",
+    "tests": "PASSED (后端 jest chat-text.util + text-similarity.util 共 2 套件 30/30 全绿；其余模块沿用既有 spec)",
+    "review": "PASSED (0 open：API key 仍经 AGNES_API_KEY/ZHIPU_API_KEY 环境变量注入未硬编码；EdgeTtsProvider 仅作 TTS 兜底不改变 chat 语义；clientTranscript 为可选旁路，缺省走原 STT 链)",
+    "optimization": "PASSED (0 open：仅新增 provider/util/spec 与文档，无删除无 stub；EdgeTtsProvider 构造同步探测 python 并仅兜底 synthesize)"
   }
 }

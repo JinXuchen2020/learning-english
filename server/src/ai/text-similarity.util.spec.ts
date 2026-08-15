@@ -113,6 +113,15 @@ describe('text-similarity.util (AI-305)', () => {
       expect(out.mascotExpr).toBeUndefined();
       expect(out.feedback).toBe('x');
     });
+    it('feedback 字段含未转义英文双引号时仍能提取正文', () => {
+      const out = parseLlmAssessment(
+        '{"feedback":"别灰心，像小蛇吐信子一样，"think" 和 "three" 都要用到它。[θ]","weakPhonemes":["θ"],"mascotExpr":"encourage"}',
+      );
+      expect(out.feedback).toContain('think');
+      expect(out.feedback).not.toContain('{');
+      expect(out.weakPhonemes).toEqual(['θ']);
+      expect(out.mascotExpr).toBe('encourage');
+    });
     it('非 JSON 文本 → 全文作 feedback', () => {
       const out = parseLlmAssessment('注意 th 和 v 的发音～');
       expect(out.feedback).toBe('注意 th 和 v 的发音～');

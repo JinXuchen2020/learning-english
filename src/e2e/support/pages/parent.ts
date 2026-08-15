@@ -1,4 +1,4 @@
-// Page object for the parent control panel (src/app/[locale]/parent/page.tsx,
+// Page object for the parent control panel (src/app/[locale]/parent/settings/page.tsx,
 // AuthGuard wrapped; role==='parent' renders the panel directly — no PIN gate).
 //
 // Regions & hooks:
@@ -26,7 +26,7 @@ function cssEscape(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-const PARENT_PATH = "/parent";
+const PARENT_PATH = "/parent/settings";
 
 export default class ParentPage {
   private page: Page;
@@ -39,9 +39,10 @@ export default class ParentPage {
 
   async open(): Promise<void> {
     // 先等登录态落地：上一步 "log in with the registered user" 的登录请求可能仍在飞行中，
-    // 若此处直接 goto('/parent') 会中断在途的登录 fetch → applyAuth 永不执行 → localStorage
-    // 仍是孩子会话 → /parent 渲染 ParentUnauthorized 而非 ParentPanel。等 localStorage 中
-    // le_auth_user.role==='parent' 就绪后再硬导航，可消除该竞态（CI 后端响应慢时稳定复现）。
+    // 若此处直接 goto('/parent/settings') 会中断在途的登录 fetch → applyAuth 永不执行 →
+    // localStorage 仍是孩子会话 → /parent/settings 渲染 ParentUnauthorized 而非 ParentPanel。
+    // 等 localStorage 中 le_auth_user.role==='parent' 就绪后再硬导航，可消除该竞态
+    // （CI 后端响应慢时稳定复现）。
     await this.page.waitForFunction(
       () => {
         try {

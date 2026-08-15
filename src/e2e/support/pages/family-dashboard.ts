@@ -30,6 +30,16 @@ export default class FamilyDashboardPage {
     this.baseUrl = baseUrl;
   }
 
+  /**
+   * 打开家长「概览」页（/parent，含家庭总览）。家长注册后默认重定向到此页；
+   * 显式 goto 兜底（middleware 重定向到默认 locale 前缀）。等待 FamilyDashboard
+   * 渲染（异步拉取后）作为「已进入」判定。
+   */
+  async open(timeout = 15000): Promise<void> {
+    await this.page.goto(`${this.baseUrl}/parent`);
+    await this.waitForFamilyDashboard(timeout);
+  }
+
   /** 等待家庭总览根容器出现。 */
   async waitForFamilyDashboard(timeout = 15000): Promise<void> {
     await this.page.waitForFunction(

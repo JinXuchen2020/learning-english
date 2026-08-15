@@ -55,4 +55,13 @@ export class EvaluateSpeechDto {
   @IsOptional()
   @IsString()
   audioPath?: string;
+
+  /**
+   * 客户端（浏览器 Web Speech API）预转写文本。
+   * 提供时后端跳过 provider STT 链，直接用此文本做发音评分。
+   * 解决云端 STT（Agnes whisper / Google）不可达时音频静默失败的问题。
+   */
+  @IsOptional()
+  @IsString()
+  clientTranscript?: string;
 }

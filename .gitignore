@@ -74,3 +74,15 @@ desktop.ini
 .workbuddy/*
 # 但保留项目级 skills/ 跟踪，使 feature-builder 工作流（含质量门 hook 约定）可随仓库复现
 !.workbuddy/skills/
+
+# --- Session troubleshoot / diagnostic temp artifacts (never commit) ---
+# 排障/重启探针产生的临时文件（命名约定：下划线前缀 + 日期后缀）
+_be_probe.json
+_fe_probe.html
+_be_diag*.log
+_fe_diag*.log
+# 一次性诊断脚本（如 bootstrap 探针），用完即删，勿入库
+server/diag-boot.js
+# 服务端临时/缓存产物（TTS 缓存、临时自测脚本），勿入库
+server/.tts_cache/
+server/_testtts.js

@@ -220,7 +220,7 @@ export interface AiProvider {
 }
 
 /** 支持的 provider 名称（品牌标识，与运行时配置 `type` 区分）。 */
-export type ProviderName = 'bigmodel' | 'nvidia' | 'azure';
+export type ProviderName = 'bigmodel' | 'nvidia' | 'azure' | 'edge-tts';
 
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
 export const AI_PROVIDER_TOKEN = 'AI_PROVIDER';

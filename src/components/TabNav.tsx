@@ -25,8 +25,6 @@ type TabDef = {
   icon: typeof Home;
   /** 精确匹配（用于首页 `/`）。 */
   exact?: boolean;
-  /** 该 tab 对应的 hash（用于同路径多 tab，如 /parent 概览 vs 设置）。 */
-  hash?: string;
 };
 
 /** child 端「更多」抽屉收纳的二级路由（孤儿页接入口）。 */
@@ -41,17 +39,11 @@ const childTabs: TabDef[] = [
   { href: "#more", path: "#more", key: "more", icon: LayoutGrid },
 ];
 
-/** 家长端：概览 + 周报 + 设置 3 个主入口。 */
+/** 家长端：概览 + 周报 + 设置 3 个主入口（概览与控制面板为独立真实路由）。 */
 const parentTabs: TabDef[] = [
   { href: "/parent", path: "/parent", key: "parentHome", icon: Home },
   { href: "/parent-report", path: "/parent-report", key: "report", icon: BarChart3 },
-  {
-    href: "/parent#settings",
-    path: "/parent",
-    key: "parentSettings",
-    icon: ShieldCheck,
-    hash: "#settings",
-  },
+  { href: "/parent/settings", path: "/parent/settings", key: "parentSettings", icon: ShieldCheck },
 ];
 
 export default function TabNav() {
@@ -66,16 +58,6 @@ export default function TabNav() {
     logout();
     router.push("/login");
   };
-
-  // 用 hash 区分 /parent 的「概览」与「设置」两个 tab，
-  // 避免 useSearchParams() 触发 next build 的 Suspense 边界要求。
-  const [hash, setHash] = useState("");
-  useEffect(() => {
-    const sync = () => setHash(window.location.hash);
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
 
   // 路由变化（含从抽屉点卡片导航）时关闭「更多」抽屉。
   useEffect(() => {
@@ -99,11 +81,10 @@ export default function TabNav() {
     if (tab.path === "/parent-report") {
       return pathname === "/parent-report" || pathname.startsWith("/parent-report/");
     }
+    // 概览 tab：仅在 /parent（概览）或其下钻页 /parent/children/:id 高亮，
+    // 不可匹配 /parent/settings（控制面板已是独立 tab）。
     if (tab.path === "/parent") {
-      const onSettings = hash === "#settings";
-      if (tab.hash === "#settings") return pathname === "/parent" && onSettings;
-      // 概览 tab：在 /parent 且不在设置视图时高亮。
-      return pathname === "/parent" && !onSettings;
+      return pathname === "/parent" || pathname.startsWith("/parent/children");
     }
     if (tab.exact) return pathname === tab.path;
     return pathname === tab.path || pathname.startsWith(tab.path + "/");
