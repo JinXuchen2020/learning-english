@@ -1,11 +1,16 @@
 // AI mascot growth story steps (AI-603).
-import { Then, When } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
 import MascotPage from "../support/pages/mascot";
 import type E2EWorld from "../support/world";
 
 Then("I should see the mascot growth card", async function (this: E2EWorld) {
   const mascot = new MascotPage(this.page, this.baseUrl);
   await mascot.waitForGrowthCard();
+});
+
+Given("the mascot growth story is stubbed", async function (this: E2EWorld) {
+  const mascot = new MascotPage(this.page, this.baseUrl);
+  await mascot.mockStory("Foxy's First Word", "Once upon a time, a little fox learned to say hello.", 1);
 });
 
 Then(

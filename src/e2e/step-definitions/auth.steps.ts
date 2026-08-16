@@ -42,6 +42,23 @@ When("I go to the login page", async function (this: E2EWorld) {
 When("I log in with the registered user", async function (this: E2EWorld) {
   const login = new LoginPage(this.page, this.baseUrl);
   await login.login(this.testUser!.username, this.testUser!.password);
+  // 等登录真正落库（localStorage 角色变为 parent）再继续。否则下游步骤
+  // `goto('/parent')` 整页重载时，AuthProvider 仅在 mount 时一次性从 localStorage
+  // rehydrate，会读到上一任 child 会话 → 误显示 ParentUnauthorized → 等待超时。
+  await this.page.waitForFunction(
+    () => {
+      try {
+        const u = JSON.parse(
+          window.localStorage.getItem("le_auth_user") || "null",
+        );
+        return !!u && u.role === "parent";
+      } catch {
+        return false;
+      }
+    },
+    undefined,
+    { timeout: 15000 },
+  );
 });
 
 Then("I should be redirected to the home page", async function (this: E2EWorld) {

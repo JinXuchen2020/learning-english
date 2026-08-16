@@ -43,6 +43,21 @@ export default class MascotPage {
       .click();
   }
 
+  /**
+   * Mock 成长剧情端点（AI-603，AI 生成）。CI 中该端点缓存未命中会调 LLM，
+   * 云端不可达要等 ~60s 超时后才降级模板，而弹窗等待仅 15s → 超时。
+   * 与 chat/speech 等同口径，在 e2e 中封闭该端点，返回确定性剧情。
+   */
+  async mockStory(title: string, text: string, level = 1): Promise<void> {
+    await this.page.route("**/api/ai/mascot/story/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ level, title, storyText: text, isDefault: false }),
+      }),
+    );
+  }
+
   async waitForStoryModal(): Promise<void> {
     await this.page
       .locator('[data-component="MascotStoryModal"]')
