@@ -224,3 +224,15 @@ export type ProviderName = 'bigmodel' | 'nvidia' | 'azure' | 'edge-tts';
 
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
 export const AI_PROVIDER_TOKEN = 'AI_PROVIDER';
+
+/**
+ * 标记「该 provider 不实现当前能力」（如 EdgeTts 仅支持 TTS，对 chat/transcribe
+ * 等调用应抛此错误）。`FallbackAiProvider.tryChain` 会据此**跳过**该 provider，
+ * 而非当作失败冒泡——避免 TTS-only 的 provider 污染通用兜底链导致非 TTS 调用 500。
+ */
+export class UnsupportedMethodError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedMethodError';
+  }
+}
