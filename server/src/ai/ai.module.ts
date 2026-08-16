@@ -113,7 +113,7 @@ function fallbackProvider(): AiProvider {
   controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController, PictureBookController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
-    { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
+    { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: ((op: string) => op) as ModuleTagResolver },
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,

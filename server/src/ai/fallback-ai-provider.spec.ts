@@ -41,9 +41,9 @@ function fakeProvider(opts: {
 }
 
 describe('FallbackAiProvider (AI-713 续)', () => {
-  it('name 取首个 provider 之名', () => {
+  it('name 为链上各 provider 真实名（用 → 串联，便于审计归因）', () => {
     const p = new FallbackAiProvider([fakeProvider({ name: 'agnes' }), fakeProvider({ name: 'zhipu' })]);
-    expect(p.name).toBe('agnes');
+    expect(p.name).toBe('agnes → zhipu');
   });
 
   it('主用成功 → 不调用兜底', async () => {
@@ -66,13 +66,30 @@ describe('FallbackAiProvider (AI-713 续)', () => {
     expect(fb.calls).toHaveLength(1);
   });
 
-  it('全部失败 → 抛最后一个错误', async () => {
+  it('全部失败 → 抛最后一个错误（保留其类型/statusCode）', async () => {
     const primary = fakeProvider({ name: 'agnes', fail: true });
     const fb = fakeProvider({ name: 'zhipu', fail: true });
     const chain = new FallbackAiProvider([primary, fb]);
     await expect(chain.chat([])).rejects.toThrow('zhipu down');
     expect(primary.calls).toHaveLength(1);
     expect(fb.calls).toHaveLength(1);
+  });
+
+  it('AI-713 排查盲区回归：全部失败时错误 message 附逐 provider 明细，可区分谁失败', async () => {
+    const primary = fakeProvider({ name: 'Agnes AI', fail: true });
+    const fb = fakeProvider({ name: '智谱 GLM (系统默认)', fail: true });
+    const chain = new FallbackAiProvider([primary, fb]);
+    let thrown: Error | undefined;
+    try {
+      await chain.chat([]);
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).toBeDefined();
+    // 关键：聚合错误信息同时点名两个 provider，不再掩盖成单一笼统错误
+    expect(thrown!.message).toContain('Agnes AI');
+    expect(thrown!.message).toContain('智谱 GLM (系统默认)');
+    expect(thrown!.message).toContain('全部失败');
   });
 
   it('对 chatWithImage/transcribe/assess/synthesize 同样按顺序兜底', async () => {

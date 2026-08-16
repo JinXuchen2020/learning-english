@@ -21,8 +21,8 @@ export class AiCallLog {
   @Column({ type: 'varchar', length: 64, default: 'anonymous' })
   userId: string;
 
-  /** 实际 provider 标识（bigmodel / mock / nvidia / azure）。 */
-  @Column({ type: 'varchar', length: 32 })
+  /** 实际 provider 标识（链构成，如 `Agnes AI → 智谱 GLM (系统默认)`）；AI-713 后携带真实名以区分各 provider。 */
+  @Column({ type: 'varchar', length: 64 })
   provider: string;
 
   /** 调用方法名（chat / chatWithImage / transcribe / assessPronunciation / synthesize）。 */
@@ -54,6 +54,10 @@ export class AiCallLog {
   @Column({ type: 'text', nullable: true })
   errorMessage: string | null;
 
+  /** 失败堆栈（深度排查用，TEXT 存全文，截断到 4000 字符）；成功为 null。 */
+  @Column({ type: 'text', nullable: true })
+  errorStack: string | null;
+
   /** 请求摘要（已截断，敏感内容不写全量）；成功/失败均记录。 */
   @Column({ type: 'text', nullable: true })
   requestSnippet: string | null;
@@ -78,6 +82,7 @@ export interface AiCallLogEntry {
   durationMs: number;
   status: 'ok' | 'error';
   errorMessage?: string | null;
+  errorStack?: string | null;
   requestSnippet?: string | null;
   responseSnippet?: string | null;
 }

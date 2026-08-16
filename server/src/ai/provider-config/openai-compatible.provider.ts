@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -64,7 +63,7 @@ interface OaChatResponse {
  * `fetchFn` 可注入，便于单测 mock。
  */
 export class OpenAiCompatibleProvider implements AiProvider {
-  readonly name: ProviderName = 'bigmodel'; // 复用 bigmodel 通道标识（OpenAI 兼容同协议）
+  readonly name: string;
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -83,6 +82,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
       visionModel?: string;
       ttsModel?: string;
       extraBody?: Record<string, unknown>;
+      /** 运行时真实 provider 名（来自 DB `ProviderConfig.name`，如 `Agnes AI`），用于审计归因。缺省 `bigmodel`。 */
+      name?: string;
     } = {},
     fetchFn: FetchFn = globalThis.fetch.bind(globalThis),
   ) {
@@ -92,6 +93,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     this.visionModel = config.visionModel ?? config.chatModel ?? 'gpt-4o-mini';
     this.ttsModel = config.ttsModel ?? 'tts-1';
     this.extraBody = config.extraBody ?? {};
+    this.name = config.name ?? 'bigmodel';
     this.fetchFn = fetchFn;
   }
 

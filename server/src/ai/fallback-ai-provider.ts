@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -37,7 +36,8 @@ import {
  *   `chat()` 上抛「unsupported」，把真实错误（网络/5xx/配额）盖掉，导致排查困难。
  */
 export class FallbackAiProvider implements AiProvider {
-  readonly name: ProviderName;
+  /** 链标识：各 provider 真实名用 ` → ` 串联（如 `Agnes AI → 智谱 GLM (系统默认)`），审计可直接区分链构成。 */
+  readonly name: string;
 
   /**
    * @param providers    通用链：chat/transcribe/assess 等所有非 TTS 能力按顺序尝试。
@@ -48,15 +48,16 @@ export class FallbackAiProvider implements AiProvider {
     private readonly providers: AiProvider[],
     private readonly ttsProviders?: AiProvider[],
   ) {
-    this.name = providers[0]?.name ?? 'bigmodel';
+    this.name = providers.map((p) => p.name).join(' → ') || 'bigmodel';
   }
 
-  /** 按序尝试给定链上的 providers，返回首个成功；全失败抛最后一个真实错误。 */
+  /** 按序尝试给定链上的 providers，返回首个成功；全失败抛最后一个真实错误（并附各 provider 失败明细）。 */
   private async tryChain<T>(
     fn: (p: AiProvider) => Promise<T>,
     providers: AiProvider[] = this.providers,
   ): Promise<T> {
     let lastErr: unknown;
+    const attempts: string[] = [];
     for (const p of providers) {
       try {
         return await fn(p);
@@ -66,10 +67,17 @@ export class FallbackAiProvider implements AiProvider {
           // 不让 unsupported 盖掉真实错误，也不污染兜底链。
           continue;
         }
+        attempts.push(`${p.name}: ${(err as Error)?.message ?? String(err)}`);
         lastErr = err;
       }
     }
-    if (lastErr !== undefined) throw lastErr;
+    if (lastErr !== undefined) {
+      // 聚合错误：保留最后一个真实错误的类型与 `statusCode`，但在 message 中附上
+      // 整条链的逐 provider 失败明细，避免「真实上游错误被掩盖 / 无法区分谁失败」。
+      const base = lastErr as Error & { message: string };
+      base.message = `[AI 兜底链 ${this.name}] 全部失败 → ${attempts.join(' | ')}`;
+      throw base;
+    }
     // 所有 provider 都声明不支持此方法（极端情况），给出明确的 UnsupportedMethodError。
     throw new UnsupportedMethodError('没有任何 provider 支持该操作');
   }

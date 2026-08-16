@@ -48,6 +48,11 @@ describe('BigModelProvider', () => {
     expect(p.name).toBe('bigmodel');
   });
 
+  it('AI-713 排查盲区回归：name 接受真实 provider 名（默认 bigmodel）', () => {
+    expect(new BigModelProvider({ apiKey: 'k' }).name).toBe('bigmodel');
+    expect(new BigModelProvider({ apiKey: 'k', name: '智谱 GLM (系统默认)' }).name).toBe('智谱 GLM (系统默认)');
+  });
+
   describe('chat', () => {
     it('returns ChatResult with content, reasoning_content, usage and model', async () => {
       const { fn } = recordingFetch(() =>

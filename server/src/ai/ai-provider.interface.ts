@@ -172,8 +172,13 @@ export interface SynthesizeOptions {
  * DB 配置构建，业务模块通过 `AI_PROVIDER_TOKEN` 注入本接口。
  */
 export interface AiProvider {
-  /** Provider 标识，对应 `ProviderName`。 */
-  readonly name: ProviderName;
+  /**
+   * Provider 标识（运行时真实名，如 `Agnes AI` / `智谱 GLM (系统默认)`）。
+   * 早期写死为 `ProviderName` 联合类型（只能取 `'bigmodel'` 等值），导致 Agnes 与
+   * 智谱在 `ai_call_logs` 里无法区分（AI-713 排查盲区）。改为 `string` 以携带 DB
+   * 配置的真实 provider 名，便于审计归因。`ProviderName` 仍保留作品牌类型。
+   */
+  readonly name: string;
 
   /**
    * 通用文本对话（LLM）。

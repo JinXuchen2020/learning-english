@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -36,7 +35,7 @@ function extractTokens(result: ChatResult): number {
  * 不会被当作瞬时错误重试。
  */
 export class UsageLimitedAiProvider implements AiProvider {
-  readonly name: ProviderName;
+  readonly name: string;
 
   constructor(
     private readonly inner: AiProvider,

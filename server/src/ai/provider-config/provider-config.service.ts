@@ -174,6 +174,7 @@ export class ProviderConfigService {
           visionModel: models.vision,
           ttsModel: models.tts,
           extraBody: this.parseExtra(config.extraJson),
+          name: config.name,
         });
         break;
       case 'bigmodel':
@@ -182,7 +183,8 @@ export class ProviderConfigService {
           baseUrl: config.baseUrl ?? undefined,
           model: models.chat,
           visionModel: models.vision,
-      ttsModel: models.tts,
+          ttsModel: models.tts,
+          name: config.name,
         });
         break;
       default:

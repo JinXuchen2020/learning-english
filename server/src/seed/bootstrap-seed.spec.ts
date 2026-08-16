@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { appEntities } from '../config/database.config';
 import { ensureSeed } from './bootstrap-seed';
 import { ProviderConfig } from '../ai/provider-config/provider-config.entity';
+import { decryptSecret } from '../ai/provider-config/crypto.util';
 import { Course } from '../entities/course.entity';
 import { Word } from '../entities/word.entity';
 import { Sentence } from '../entities/sentence.entity';
@@ -111,6 +112,31 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
       process.env.AGNES_API_KEY = prevAgnes;
       process.env.ZHIPU_API_KEY = prevZhipu;
     } finally {
+      await ds.destroy();
+    }
+  });
+
+  it('AI-713 运维陷阱回归：env key 轮换后自举种子刷新系统 provider 的 apiKeyEnc', async () => {
+    const ds = makeDs();
+    await ds.initialize();
+    const prevAgnes = process.env.AGNES_API_KEY;
+    try {
+      process.env.AGNES_API_KEY = 'first-agnes-key';
+      await ensureSeed(ds);
+      const repo = ds.getRepository(ProviderConfig);
+      const before = await repo.findOne({ where: { name: 'Agnes AI' } });
+      expect(decryptSecret(before!.apiKeyEnc!)).toBe('first-agnes-key');
+
+      // 模拟运维轮换 key：改 env 后再次自举种子
+      process.env.AGNES_API_KEY = 'rotated-agnes-key';
+      await ensureSeed(ds);
+      const after = await repo.findOne({ where: { name: 'Agnes AI' } });
+      expect(after!.apiKeyEnc).not.toBe(before!.apiKeyEnc);
+      expect(decryptSecret(after!.apiKeyEnc!)).toBe('rotated-agnes-key');
+      // provider 数量不变（仍按 name 查重，不重复播种）
+      expect(await repo.count()).toBe(2);
+    } finally {
+      process.env.AGNES_API_KEY = prevAgnes;
       await ds.destroy();
     }
   });

@@ -58,8 +58,13 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
       );
       logger.info('[Seed] 已播种 Agnes AI 主 provider (type=openai-compatible, isDefault=true)');
     }
-  } else {
-    logger.info('[Seed] Agnes AI 主 provider 已存在，跳过播种');
+  } else if (agnesKey) {
+    // 已存在：env 为系统 provider 真源，刷新 key（修复「坏/过期 key 永不自愈」运维陷阱，AI-713）。
+    const enc = encryptSecret(agnesKey);
+    if (existingAgnes.apiKeyEnc !== enc) {
+      await providerConfigRepo.update(existingAgnes.id, { apiKeyEnc: enc });
+      logger.info('[Seed] 已用 env AGNES_API_KEY 刷新 Agnes AI provider key');
+    }
   }
 
   // 2) 兜底：智谱 GLM（历史 bigmodel 通道）；被降级为 systemFallbackRank=1。
@@ -94,10 +99,22 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
       );
       logger.info('[Seed] 已播种智谱兜底 provider (type=bigmodel, isDefault=false, systemFallbackRank=1)');
     }
-  } else if (existingZhipu.isDefault || existingZhipu.systemFallbackRank == null) {
-    // 兼容旧数据：曾作为系统默认播种的智谱 → 降级为兜底，确保 Agnes 为唯一系统默认。
-    await providerConfigRepo.update(existingZhipu.id, { isDefault: false, systemFallbackRank: 1 });
-    logger.info('[Seed] 已将既有智谱 provider 降级为系统兜底 (isDefault=false, systemFallbackRank=1)');
+  } else {
+    // 已存在：兼容旧数据降级 + 按需刷新 key（env 为系统 provider 真源）。
+    const updates: Partial<ProviderConfig> = {};
+    if (existingZhipu.isDefault || existingZhipu.systemFallbackRank == null) {
+      // 曾作为系统默认播种的智谱 → 降级为兜底，确保 Agnes 为唯一系统默认。
+      updates.isDefault = false;
+      updates.systemFallbackRank = 1;
+    }
+    if (zhipuKey) {
+      const enc = encryptSecret(zhipuKey);
+      if (existingZhipu.apiKeyEnc !== enc) updates.apiKeyEnc = enc;
+    }
+    if (Object.keys(updates).length) {
+      await providerConfigRepo.update(existingZhipu.id, updates);
+      logger.info('[Seed] 已更新智谱兜底 provider（key 刷新/降级为兜底）');
+    }
   }
 }
 
