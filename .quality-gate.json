@@ -4,11 +4,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "docs/quality/ai-provider-fallback-gate.md",
-  "notes": "AI-802 聊天语音输入：新增 features/ai-802.md 功能规格（纯前端，复用浏览器 Web Speech API，规划 useSpeechDictation hook + ChatComposer 麦克风按钮 + i18n），并在 features/backlog.md 增补 M10 里程碑。CI E2E 修复两处：①family-binding 解绑误报 — ParentPage.unlinkChild 缺前置等待，ChildrenSection 异步加载期间 evaluate 找不到 ChildItem，补 waitForChildItem 后再取 data-child-id；②plan-progress 完成全部任务 30s 超时 — 计划每日含 speaking 任务，completeAllTasks 驱动真实 POST /api/ai/speech/evaluate 而该场景未 mock 端点（CI 打不通云端 provider），在 completeAllTasks 兜底封闭该端点返回确定性通过分数（与“AI 端点 e2e 封闭 mock”约定一致）。改动仅 2 个 e2e page-object（被前端 tsconfig exclude），不影响双端 tsc。",
+  "notes": "修复 bigmodel.provider.spec.ts 三处过时断言，使其同步此前两个有意为之的源码修复（源码行为正确，不应回退）：①transcribe/assessPronunciation 改为抛 501（STT_NOT_SUPPORTED / PRONUNCIATION_NOT_SUPPORTED），让 FallbackAiProvider 继续尝试下一个 provider，否则返回空文本会被当“成功”消费 → STT 静默失败、分数恒 0；旧测试断言“不抛错返回降级结果”，现改为 rejects.toMatchObject({statusCode:501, code:...})。②synthesize 移除 response_format:'mp3'（智谱 glm-tts 收到会 400，音频兜底靠 EdgeTtsProvider），旧测试断言 body.response_format==='mp3'，现改为 toBeUndefined。验证：后端 jest bigmodel.provider.spec.ts 27/27 全绿；后端/前端 tsc --noEmit 均 0/0（Node 20，跑前须 NODE_OPTIONS= 清空被注入的 --use-system-ca）。",
   "gates": {
     "consistency": "PASSED (后端 tsc -p tsconfig.json --noEmit 0/0；前端 tsc -p tsconfig.json --noEmit 0/0；双端 tsc 均在 Node 20 通过；.quality-gate.json 随源码一并暂存)",
-    "tests": "PASSED (改动为 e2e page-object 与功能文档，无新增/修改单测；修正的 family-binding 与 plan-progress 两个 e2e 场景将在 CI 实跑验证；jest 其余模块沿用既有 spec)",
-    "review": "PASSED (0 open：语音输入为纯前端增强，复用既有 speech-recognition 类型声明；e2e 兜底 mock 不改动业务语义；.gitignore 与 secrets 无变动)",
-    "optimization": "PASSED (0 open：仅新增 feature 文档 + e2e page-object 的等待/兜底逻辑，无删除无 stub)"
+    "tests": "PASSED (bigmodel.provider.spec.ts 27/27 全绿；断言改为匹配 transcribe/assessPronunciation 抛 501 与 synthesize 不发 response_format；全仓 grep 确认无其它 spec 残留过时断言)",
+    "review": "PASSED (0 open：仅修正单测断言以匹配既定源码契约，未改动业务源码与 secrets)",
+    "optimization": "PASSED (0 open：纯测试断言更新，无删除无 stub)"
   }
 }
