@@ -44,6 +44,12 @@ import type {
   CreateProviderConfigDto,
   UpdateProviderConfigDto,
   ProviderTestResult,
+  ChildView,
+  ChildProgressSummary,
+  ChildProgressDetail,
+  CreateChildDto as CreateChildApiDto,
+  ClaimChildDto as ClaimChildApiDto,
+  SetChildProviderDto as SetChildProviderApiDto,
 } from "./types";
 
 /**
@@ -404,8 +410,10 @@ export function requestPictureBookTts(text: string): Promise<{ ttsUrl: string | 
 
 /**
  * 生成学习计划（AI-202/AI-207）。
- * 无 LLM key 时后端经 MockProvider 自动降级为内置模板计划，仍返回 200，
- * 响应 `degraded:true` 表示走了模板兜底（前端据此提示，而非解析失败）。
+ * 注意：自 AI-713 移除 MockProvider 后，后端不再有无 key 自动降级；缺 key / 不可达时
+ * provider 会抛错并由 service 向上传播（不返回 200）。e2e 通过该端点 `page.route`
+ * 封闭 mock，使计划向导测试不依赖外部 AI。响应 `degraded:true` 仅在后端模板兜底
+ * （如 LLM 输出校验失败）时出现，前端据此提示而非解析失败。
  */
 export function generatePlan(dto: GeneratePlanDto) {
   return request<GeneratePlanResponse>("/ai/plan/generate", {
@@ -475,6 +483,7 @@ export function evaluateSpeech(
   if (opts.referenceText) form.append("referenceText", opts.referenceText);
   if (opts.durationMs != null) form.append("durationMs", String(opts.durationMs));
   if (opts.userId) form.append("userId", opts.userId);
+  if (opts.clientTranscript) form.append("clientTranscript", opts.clientTranscript);
 
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -857,5 +866,104 @@ export function testProviderConfig(id: string): Promise<ProviderTestResult> {
   return request<ProviderTestResult>(
     `/provider-config/${encodeURIComponent(id)}/test`,
     { method: "POST" },
+  );
+}
+
+/* ----------------------- Family Binding (AI-710) ----------------------- */
+
+/**
+ * 列出当前家长名下全部孩子。`GET /api/parent/children`，需家长登录 JWT。
+ */
+export function listChildren(): Promise<ChildView[]> {
+  return request<ChildView[]>("/parent/children");
+}
+
+/**
+ * 家长创建孩子账号。`POST /api/parent/children`，需家长登录 JWT。
+ * @param dto { nickname, username, password, ageRange? }
+ */
+export function createChild(
+  dto: CreateChildApiDto,
+): Promise<ChildView> {
+  return request<ChildView>("/parent/children", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 家长认领已有孩子（密码校验）。`POST /api/parent/children/claim`，需家长登录 JWT。
+ * @param dto { username, password }
+ */
+export function claimChild(
+  dto: ClaimChildApiDto,
+): Promise<ChildView> {
+  return request<ChildView>("/parent/children/claim", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
+}
+
+/**
+ * 解除归属（仅清 parentId，不删账号）。`DELETE /api/parent/children/:childId`。
+ */
+export function unlinkChild(childId: string): Promise<void> {
+  return request<void>(
+    `/parent/children/${encodeURIComponent(childId)}`,
+    { method: "DELETE" },
+  );
+}
+
+/* ----------------------- AI-711: per-child provider override ----------------------- */
+
+/**
+ * 设置 / 清除孩子的 provider 覆盖。`PUT /api/parent/children/:childId/provider`，需家长登录 JWT。
+ * `providerConfigId` 为 null / 省略 → 清除覆盖，孩子回退家长默认；非 null 必须是家长名下配置。
+ * @param childId 孩子 id
+ * @param dto { providerConfigId?: string | null }
+ */
+export function setChildProvider(
+  childId: string,
+  dto: SetChildProviderApiDto,
+): Promise<ChildView> {
+  return request<ChildView>(
+    `/parent/children/${encodeURIComponent(childId)}/provider`,
+    { method: "PUT", body: JSON.stringify(dto) },
+  );
+}
+
+/**
+ * 列出家长名下可选 provider（供孩子下拉）。`GET /api/parent/children/:childId/provider-options`，需家长登录 JWT。
+ * 同时校验孩子归属；返回与 AI-705 同口径的掩码 `ProviderConfigView[]`。
+ * @param childId 孩子 id
+ */
+export function getChildProviderOptions(
+  childId: string,
+): Promise<ProviderConfigView[]> {
+  return request<ProviderConfigView[]>(
+    `/parent/children/${encodeURIComponent(childId)}/provider-options`,
+  );
+}
+
+/* ----------------------- Parent Dashboard (AI-712) ----------------------- */
+
+/**
+ * 家庭总览：列出当前家长名下每个孩子的进度摘要。`GET /api/parent/dashboard`，需家长登录 JWT。
+ * 返回 `ChildProgressSummary[]`（昵称/等级/星星/连续天数/计划完成度/独立配置标识）。
+ */
+export function getDashboard(): Promise<ChildProgressSummary[]> {
+  return request<ChildProgressSummary[]>("/parent/dashboard");
+}
+
+/**
+ * 单孩进度详情（薄弱词 Top / 技能掌握度 / 周趋势）。`GET /api/parent/children/:childId/progress`，需家长登录 JWT。
+ * 越权访问他人孩子 → 后端抛 404（ApiError）。返回 `ChildProgressDetail`。
+ * @param childId 孩子 id
+ */
+export function getChildProgress(
+  childId: string,
+): Promise<ChildProgressDetail> {
+  return request<ChildProgressDetail>(
+    `/parent/children/${encodeURIComponent(childId)}/progress`,
   );
 }

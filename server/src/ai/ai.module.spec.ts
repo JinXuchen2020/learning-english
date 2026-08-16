@@ -28,6 +28,8 @@ import { UserPoints } from '../rewards/user-points.entity';
 import { Reward } from '../rewards/reward.entity';
 import { RewardRedemption } from '../rewards/reward-redemption.entity';
 import { ProviderConfig } from './provider-config/provider-config.entity';
+import { StudyPlan } from '../plan/study-plan.entity';
+import { StudyPlanDay } from '../plan/study-plan-day.entity';
 
 /** 假 AiUsage 仓库：让 `AiUsageLimitService` 在无需真实 DB 的情况下完成 DI 装配。 */
 const fakeAiUsageRepo = {
@@ -187,6 +189,22 @@ const fakeProviderConfigRepo = {
   remove: jest.fn(async () => undefined),
 };
 
+/** 假 StudyPlan 仓库：让 `ProgressAggregationService`(AI-712, 经 ParentModule 被 AiModule 图间接加载) 完成 DI 装配。 */
+const fakeStudyPlanRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
+/** 假 StudyPlanDay 仓库：让 `ProgressAggregationService`(AI-712) 在无需真实 DB 的情况下完成 DI 装配。 */
+const fakeStudyPlanDayRepo = {
+  find: jest.fn(async () => []),
+  findOne: jest.fn(),
+  create: jest.fn((e) => e),
+  save: jest.fn(async (e) => e),
+};
+
 /** 构造并编译 AiModule（含仓库/服务覆盖），供各用例复用。 */
 async function compileAiModule() {
   return Test.createTestingModule({
@@ -230,6 +248,10 @@ async function compileAiModule() {
     .useValue(fakeLessonRepo)
     .overrideProvider(getRepositoryToken(ProviderConfig))
     .useValue(fakeProviderConfigRepo)
+    .overrideProvider(getRepositoryToken(StudyPlan))
+    .useValue(fakeStudyPlanRepo)
+    .overrideProvider(getRepositoryToken(StudyPlanDay))
+    .useValue(fakeStudyPlanDayRepo)
     .overrideProvider(EMAIL_SENDER_TOKEN)
     .useValue(fakeEmailSender)
     .overrideProvider(AiPronunciationScorerService)
@@ -238,50 +260,26 @@ async function compileAiModule() {
 }
 
 describe('AiModule (DI 动态装配)', () => {
-  const ORIGINAL = process.env.AI_PROVIDER;
-
-  afterEach(() => {
-    if (ORIGINAL === undefined) delete process.env.AI_PROVIDER;
-    else process.env.AI_PROVIDER = ORIGINAL;
-  });
-
-  it('injects a bigmodel-backed provider when AI_PROVIDER=bigmodel', async () => {
-    process.env.AI_PROVIDER = 'bigmodel';
+  it('注入系统默认兜底 provider（未 seed 时回退 BigModelProvider），name=bigmodel', async () => {
     const moduleRef = await compileAiModule();
     const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
+    expect(provider).toBeDefined();
     expect(provider.name).toBe('bigmodel');
   });
 
-  it('injects a mock-backed provider when AI_PROVIDER is unset (default)', async () => {
-    delete process.env.AI_PROVIDER;
-    const moduleRef = await compileAiModule();
-    const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
-    expect(provider.name).toBe('mock');
-  });
-
-  it('injects a mock-backed provider when AI_PROVIDER=mock', async () => {
-    process.env.AI_PROVIDER = 'mock';
-    const moduleRef = await compileAiModule();
-    const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
-    expect(provider.name).toBe('mock');
-  });
-
   it('also exposes AiUsageLimitService for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiUsageLimitService);
     expect(svc).toBeDefined();
   });
 
   it('also exposes AiCallLogService (AI-108) for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiCallLogService);
     expect(svc).toBeDefined();
   });
 
   it('also exposes AiSpeechFeedbackService (AI-306) for direct consumption', async () => {
-    delete process.env.AI_PROVIDER;
     const moduleRef = await compileAiModule();
     const svc = moduleRef.get(AiSpeechFeedbackService);
     expect(svc).toBeDefined();

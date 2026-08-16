@@ -4,9 +4,7 @@ Feature: Plan display and interaction (AI-208)
   Applying the plan persists it and returns the child to Home.
 
   Background:
-    Given I am on the login page
-    When I switch to "Sign Up" mode
-    And I register with a unique username and password "Passw0rd!23"
+    Given I am logged in as a new user
     Then I should be redirected to the home page
 
   Scenario: Generated plan shows colorized weekly cards with apply and regenerate actions

@@ -144,7 +144,10 @@ export class PictureBookService {
           }),
         },
       ],
-      { temperature: 0.85, maxTokens: 1200, timeoutMs: 60000 },
+      // 绘本端点设计上「AI 失败即降级模板绘本」（见 getOrGenerateBook 的 catch），
+      // 因此跳过重试（maxAttempts:1）并把超时收紧到 20s：智谱不可达时约 20s 即降级，
+      // 而非走全局 3 次重试 × 60s 超时（CI/弱网下会挂起 ~180s 才落模板）。
+      { temperature: 0.85, maxTokens: 1200, timeoutMs: 20000, maxAttempts: 1 },
     );
     return parsePictureBookOutput(result.text);
   }

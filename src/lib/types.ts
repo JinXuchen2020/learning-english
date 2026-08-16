@@ -281,6 +281,11 @@ export interface EvaluateSpeechOptions {
   durationMs?: number;
   /** 归属用户 id（缺省后端用 `anonymous` 占位）。 */
   userId?: string;
+  /**
+   * 客户端（浏览器 Web Speech API）预转写文本。
+   * 提供时后端跳过 STT 链，直接用此文本做发音评分。
+   */
+  clientTranscript?: string;
 }
 
 /* ----------------------- AI Chat (AI-407) ----------------------- */
@@ -696,8 +701,8 @@ export interface RewardsSummary {
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
-/** Provider 类型（与后端 `ProviderType` 对齐）。bigmodel 已并入 openai-compatible。 */
-export type ProviderType = "openai-compatible" | "mock";
+/** Provider 类型（与后端 `ProviderType` 对齐：openai-compatible 家长自建，bigmodel 系统默认智谱）。AI-713 已移除 mock。 */
+export type ProviderType = "openai-compatible" | "bigmodel";
 
 /** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";
@@ -732,7 +737,7 @@ export interface CreateProviderConfigDto {
   name: string;
   type: ProviderType;
   baseUrl?: string;
-  /** 明文 key（后端加密落库）；mock 可空。 */
+  /** 明文 key（后端加密落库，必填）。 */
   apiKey?: string;
   models?: ProviderModels;
   capabilities?: ProviderCapability[];
@@ -752,4 +757,85 @@ export interface UpdateProviderConfigDto {
 export interface ProviderTestResult {
   ok: boolean;
   message: string;
+}
+
+/* ----------------------- Family Binding (AI-710) ----------------------- */
+
+/** 孩子账号视图（与后端 `ChildView` 对齐，绝不包含 password）。 */
+export interface ChildView {
+  id: string;
+  nickname: string;
+  username: string;
+  role: 'child';
+  level: number;
+  totalStars: number;
+  streakDays: number;
+  /** AI-711 预留：孩子是否有独立 provider 覆盖。 */
+  hasProviderOverride: boolean;
+  /** AI-711：孩子当前 provider 覆盖配置 id（null = 沿用家长默认）。 */
+  providerConfigId: string | null;
+  createdAt: string;
+}
+
+/** `PUT /api/parent/children/:childId/provider` 请求体（与后端 `SetChildProviderDto` 对齐）。 */
+export interface SetChildProviderDto {
+  /** 覆盖配置 id；null / 省略 → 清除覆盖，回退家长默认。 */
+  providerConfigId?: string | null;
+}
+
+/* ----------------------- Parent Dashboard (AI-712) ----------------------- */
+
+/** 孩子进度摘要（与后端 `ChildProgressSummary` 对齐，家庭总览卡片）。 */
+export interface ChildProgressSummary {
+  childId: string;
+  nickname: string;
+  level: number;
+  totalStars: number;
+  streakDays: number;
+  /** 计划完成度 0..1（全部 applied 计划按天明细 isDone 比例）。 */
+  planCompletionRatio: number;
+  /** 最近活跃日期 YYYY-MM-DD，无则为 null。 */
+  lastActiveDate: string | null;
+  /** 是否使用独立 AI provider 覆盖（AI-711）。 */
+  hasProviderOverride: boolean;
+}
+
+/** 薄弱单词（含错次，供 UI 下钻到练习）。 */
+export interface WeakWord {
+  word: string;
+  wrongCount: number;
+}
+
+/** 技能掌握度（按 skillType 的完成度比例，0..1）。 */
+export interface SkillMastery {
+  skillType: string;
+  ratio: number;
+}
+
+/** 周趋势点（近 7 日每日活跃度）。 */
+export interface WeeklyTrendPoint {
+  date: string; // YYYY-MM-DD
+  stars: number;
+}
+
+/** 单孩进度详情（与后端 `ChildProgressDetail` 对齐，点开卡片后的详情页）。 */
+export interface ChildProgressDetail {
+  summary: ChildProgressSummary;
+  weakWords: WeakWord[];
+  skillMastery: SkillMastery[];
+  weeklyTrend: WeeklyTrendPoint[];
+}
+
+/** `POST /api/parent/children` 请求体（与后端 `CreateChildDto` 对齐）。 */
+export interface CreateChildDto {
+  nickname: string;
+  username: string;
+  password: string;
+  ageRange?: string;
+}
+
+/** `POST /api/parent/children/claim` 请求体（与后端 `ClaimChildDto` 对齐）。 */
+export interface ClaimChildDto {
+  username: string;
+  password: string;
 }

@@ -20,7 +20,6 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
-  const [role, setRole] = useState<'child' | 'parent'>('child');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +34,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // 按角色路由：家长账号直接进家长控制面板，孩子账号回首页。
+      // AI-710: 公开注册仅限家长账号。孩子账号由家长在家长面板创建。
       const authed =
         mode === "login"
           ? await login(username.trim(), password)
@@ -43,7 +42,7 @@ export default function LoginPage() {
               username.trim(),
               password,
               nickname.trim() || undefined,
-              role,
+              "parent",
             );
       router.push(authed.role === "parent" ? "/parent" : "/");
       router.refresh();
@@ -74,10 +73,10 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center gap-2">
           <Mascot expression="happy" size="large" />
           <h1 className="text-3xl">
-            {mode === "login" ? t("welcomeBack") : t("joinFoxy")}
+            {mode === "login" ? t("welcomeBack") : t("joinParent")}
           </h1>
           <p className="text-kids-muted">
-            {mode === "login" ? t("signInSub") : t("registerSub")}
+            {mode === "login" ? t("signInSub") : t("registerSubParent")}
           </p>
         </div>
 
@@ -135,40 +134,6 @@ export default function LoginPage() {
                   placeholder={t("nicknamePlaceholder")}
                   className="w-full rounded-control border-2 border-kids-secondary bg-white px-4 py-3 text-kids-title font-semibold focus:border-[var(--seed-primary)] focus:outline-none touch-target"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-kids-title mb-1.5">
-                  {t("roleLabel")}
-                </label>
-                <div className="grid grid-cols-2 gap-2 bg-kids-secondary rounded-control p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setRole("child")}
-                    className={`rounded-control py-2.5 font-bold transition-all touch-target ${
-                      role === "child"
-                        ? "bg-white text-[var(--seed-primary)] shadow-sm"
-                        : "text-kids-muted"
-                    }`}
-                    aria-pressed={role === "child"}
-                    data-testid="login-role-child"
-                  >
-                    {t("roleChild")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("parent")}
-                    className={`rounded-control py-2.5 font-bold transition-all touch-target ${
-                      role === "parent"
-                        ? "bg-white text-[var(--seed-primary)] shadow-sm"
-                        : "text-kids-muted"
-                    }`}
-                    aria-pressed={role === "parent"}
-                    data-testid="login-role-parent"
-                  >
-                    {t("roleParent")}
-                  </button>
-                </div>
               </div>
             </>
           )}

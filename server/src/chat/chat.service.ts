@@ -35,6 +35,7 @@ import { ChatError } from './chat.errors';
 import { buildChatSystemPrompt } from './chat-system-prompt';
 import { ChatSafetyService } from './chat-safety.service';
 import { SAFE_FALLBACK_REPLY } from './chat-safety.config';
+import { stripMetaMarkers } from './chat-text.util';
 import { computeStars, type StarAward } from './chat-stars';
 import {
   buildSessionSummaries,
@@ -118,7 +119,7 @@ export class ChatService {
         { role: 'user', content: dto.text },
       ];
       const reply = await this.generateReply(messages);
-      replyText = reply.text;
+      replyText = stripMetaMarkers(reply.text);
     }
 
     // 落库：用户发言 + 助手回复（audioPath 持久化留待 AI-407，详见设计文档 §3）。

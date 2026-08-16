@@ -365,6 +365,73 @@ function SpeechInner() {
     [],
   );
 
+  /**
+   * 用浏览器 Web Speech API 对录音做本地 STT 转写。
+   * 返回转写文本；若 API 不可用或转写失败，返回 null（后端会 fallback 到自己的 STT 链）。
+   * 与 chat/page.tsx 同源：解决云端 STT 不可达时 transcript 为空导致 score=0 的问题。
+   */
+  const transcribeWithBrowserApi = useCallback(
+    (blob: Blob): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+          ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+        if (!SR) {
+          resolve(null);
+          return;
+        }
+        const recognition = new SR();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event: Event) => {
+          const results = (event as SpeechRecognitionEvent).results;
+          if (results && results.length > 0) {
+            const text = results[0][0]?.transcript?.trim() || "";
+            resolve(text.length > 0 ? text : null);
+          } else {
+            resolve(null);
+          }
+        };
+
+        recognition.onerror = () => {
+          resolve(null);
+        };
+
+        recognition.onend = () => {
+          // 如果 onresult 未触发（静音/太短），resolve(null) 已在 onerror 或超时中处理
+        };
+
+        try {
+          recognition.start();
+          // 把录音 blob 播放到识别器（通过 AudioContext + MediaStream）
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          audio.onended = () => {
+            // 给识别器一点时间处理最终结果
+            setTimeout(() => {
+              recognition.stop();
+              URL.revokeObjectURL(audioUrl);
+            }, 500);
+          };
+          audio.onerror = () => {
+            recognition.stop();
+            URL.revokeObjectURL(audioUrl);
+            resolve(null);
+          };
+          audio.play().catch(() => {
+            recognition.stop();
+            URL.revokeObjectURL(audioUrl);
+            resolve(null);
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+    [],
+  );
+
   const handleSubmit = useCallback(async () => {
     if (!recording || evaluating) return;
     const current = items[currentIndex];
@@ -372,6 +439,15 @@ function SpeechInner() {
     setEvaluating(true);
     setCardError(null);
     try {
+      // 尝试用浏览器 Web Speech API 做本地 STT 转写（解决云端 STT 不可达问题）
+      let clientTranscript: string | undefined;
+      try {
+        const transcript = await transcribeWithBrowserApi(recording.blob);
+        if (transcript) clientTranscript = transcript;
+      } catch {
+        // Web Speech API 不可用或失败，静默降级到后端 STT
+      }
+
       // AI-309：句子模式携带 sentenceId，单词模式携带 wordId（互斥）。
       const opts =
         mode === "sentences"
@@ -381,6 +457,7 @@ function SpeechInner() {
         ...opts,
         durationMs: recording.durationMs,
         userId: user?.id,
+        clientTranscript,
       });
       setFeedback(fb);
       if (fb.passed) setStars((s) => s + 1);
@@ -394,7 +471,7 @@ function SpeechInner() {
     } finally {
       setEvaluating(false);
     }
-  }, [recording, evaluating, items, currentIndex, mode, user, t]);
+  }, [recording, evaluating, items, currentIndex, mode, user, t, transcribeWithBrowserApi]);
 
   const handleNext = useCallback(() => {
     if (currentIndex + 1 >= items.length) {

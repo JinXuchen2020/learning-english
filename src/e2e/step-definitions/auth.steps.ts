@@ -42,6 +42,26 @@ When("I go to the login page", async function (this: E2EWorld) {
 When("I log in with the registered user", async function (this: E2EWorld) {
   const login = new LoginPage(this.page, this.baseUrl);
   await login.login(this.testUser!.username, this.testUser!.password);
+  // 等登录真正落库（localStorage 中的用户就是刚登录的 testUser）再继续。
+  // AuthProvider 仅在 mount 时一次性从 localStorage rehydrate：若下游步骤
+  // `goto('/parent')` 整页重载时登录 POST 尚未写入，会读到上一任会话
+  // （child）→ 误显示 ParentUnauthorized / 角色错乱 → 等待超时。
+  // 按 username 匹配（角色无关），child 与 parent 重新登录均适用。
+  const expectedUsername = this.testUser!.username;
+  await this.page.waitForFunction(
+    (name: string) => {
+      try {
+        const u = JSON.parse(
+          window.localStorage.getItem("le_auth_user") || "null",
+        );
+        return !!u && u.username === name;
+      } catch {
+        return false;
+      }
+    },
+    expectedUsername,
+    { timeout: 15000 },
+  );
 });
 
 Then("I should be redirected to the home page", async function (this: E2EWorld) {

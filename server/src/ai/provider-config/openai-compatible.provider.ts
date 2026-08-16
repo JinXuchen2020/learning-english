@@ -71,6 +71,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
   private readonly chatModel: string;
   private readonly visionModel: string;
   private readonly ttsModel: string;
+  /** 透传额外请求体（如 chat_template_kwargs / enable_thinking）。 */
+  private readonly extraBody: Record<string, unknown>;
   private readonly fetchFn: FetchFn;
 
   constructor(
@@ -80,6 +82,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
       chatModel?: string;
       visionModel?: string;
       ttsModel?: string;
+      extraBody?: Record<string, unknown>;
     } = {},
     fetchFn: FetchFn = globalThis.fetch.bind(globalThis),
   ) {
@@ -88,6 +91,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     this.chatModel = config.chatModel ?? 'gpt-4o-mini';
     this.visionModel = config.visionModel ?? config.chatModel ?? 'gpt-4o-mini';
     this.ttsModel = config.ttsModel ?? 'tts-1';
+    this.extraBody = config.extraBody ?? {};
     this.fetchFn = fetchFn;
   }
 
@@ -98,6 +102,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: options?.temperature,
       max_tokens: options?.maxTokens ?? 512,
+      ...this.extraBody,
     };
     const data = await this.postJson(`${this.baseUrl}/chat/completions`, body, options?.timeoutMs);
     const choice = data?.choices?.[0]?.message;
@@ -133,6 +138,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
         },
       ],
       temperature: options?.temperature ?? 0.3,
+      ...this.extraBody,
     };
     const data = await this.postJson(`${this.baseUrl}/chat/completions`, body, options?.timeoutMs);
     const choice = data?.choices?.[0]?.message;

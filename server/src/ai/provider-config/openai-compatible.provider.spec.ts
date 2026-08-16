@@ -76,4 +76,24 @@ describe('OpenAiCompatibleProvider (AI-705)', () => {
     const p = new OpenAiCompatibleProvider({ baseUrl: 'https://api.test/v1' }, fetchFn);
     await expect(p.chat([{ role: 'user', content: 'x' }])).rejects.toThrow(/未配置/);
   });
+
+  it('extraBody 合并进 chat 请求体（如 chat_template_kwargs/enable_thinking）', async () => {
+    const fetchFn = jest.fn(
+      async (_url: string, init: RequestInit): Promise<Response> =>
+        jsonResponse({ model: 'agnes', choices: [{ message: { content: 'ok' } }] }),
+    );
+    const p = new OpenAiCompatibleProvider(
+      {
+        apiKey: 'k',
+        baseUrl: 'https://api.agnes-ai.cn/v1',
+        chatModel: 'agnes-2.5-flash',
+        extraBody: { chat_template_kwargs: { enable_thinking: true } },
+      },
+      fetchFn,
+    );
+    await p.chat([{ role: 'user', content: 'hi' }]);
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: true });
+    expect(body.model).toBe('agnes-2.5-flash');
+  });
 });

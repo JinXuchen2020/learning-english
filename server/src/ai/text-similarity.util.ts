@@ -112,6 +112,9 @@ export interface LlmAssessment {
 /**
  * 解析 LLM 评估文本。优先抽取 `{feedback, weakPhonemes, mascotExpr}` JSON（容错：
  * 非 JSON / 解析失败 → 全文作 feedback，弱音素为空，mascotExpr 忽略）。
+ *
+ * 额外处理 LLM 常见错误：feedback 文案里出现未转义的英文双引号（如 "think"）导致
+ * 整个 JSON 不合法。此时按已知字段边界手动提取，避免把整段 JSON 直接展示给孩子。
  * @param text LLM 返回文本
  */
 export function parseLlmAssessment(text: string): LlmAssessment {
@@ -121,24 +124,133 @@ export function parseLlmAssessment(text: string): LlmAssessment {
   const jsonStart = trimmed.indexOf('{');
   const jsonEnd = trimmed.lastIndexOf('}');
   if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    const rawJson = trimmed.slice(jsonStart, jsonEnd + 1);
     try {
-      const obj = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1));
-      const weakPhonemes = Array.isArray(obj.weakPhonemes)
-        ? obj.weakPhonemes.filter((x: unknown) => typeof x === 'string')
-        : [];
-      const mascotExpr = (['happy', 'encourage', 'thinking', 'cheer'] as const).includes(obj.mascotExpr)
-        ? obj.mascotExpr
-        : undefined;
-      return {
-        feedback: typeof obj.feedback === 'string' ? obj.feedback : undefined,
-        weakPhonemes,
-        mascotExpr,
-      };
+      return normalizeLlmAssessment(JSON.parse(rawJson));
     } catch {
-      // 解析失败，回退全文
+      // JSON 不合法（常见原因是 feedback 字段内有未转义双引号），尝试容错提取。
+      const fallback = extractLlmAssessmentFields(rawJson);
+      if (fallback.feedback !== undefined || fallback.weakPhonemes.length > 0 || fallback.mascotExpr) {
+        return fallback;
+      }
     }
   }
   return { feedback: trimmed, weakPhonemes: [] };
+}
+
+function normalizeLlmAssessment(obj: unknown): LlmAssessment {
+  const payload = obj as Record<string, unknown>;
+  const weakPhonemes = Array.isArray(payload.weakPhonemes)
+    ? payload.weakPhonemes.filter((x: unknown): x is string => typeof x === 'string')
+    : [];
+  const mascotExpr = (['happy', 'encourage', 'thinking', 'cheer'] as const).includes(
+    payload.mascotExpr as MascotExpression,
+  )
+    ? (payload.mascotExpr as MascotExpression)
+    : undefined;
+  return {
+    feedback: typeof payload.feedback === 'string' ? payload.feedback : undefined,
+    weakPhonemes,
+    mascotExpr,
+  };
+}
+
+/**
+ * 当 JSON.parse 失败时的兜底字段提取。
+ * 按 `"fieldName"` 定位，用下一个已知字段前面的引号作为字符串边界，
+ * 从而容忍 feedback 文案里出现未转义的英文双引号。
+ */
+function extractLlmAssessmentFields(text: string): LlmAssessment {
+  const result: LlmAssessment = { weakPhonemes: [] };
+
+  const feedback = extractQuotedFieldValue(text, 'feedback', ['weakPhonemes', 'mascotExpr']);
+  if (feedback !== undefined) result.feedback = feedback;
+
+  const weakPhonemes = extractArrayFieldValue(text, 'weakPhonemes', ['mascotExpr']);
+  if (weakPhonemes.length > 0) result.weakPhonemes = weakPhonemes;
+
+  const rawMascotExpr = extractLiteralFieldValue(text, 'mascotExpr');
+  const mascotExpr = rawMascotExpr
+    ? (['happy', 'encourage', 'thinking', 'cheer'] as const).find((v) => v === rawMascotExpr)
+    : undefined;
+  if (mascotExpr) result.mascotExpr = mascotExpr;
+
+  return result;
+}
+
+function extractQuotedFieldValue(
+  text: string,
+  fieldName: string,
+  nextKeys: string[],
+): string | undefined {
+  const keyIdx = text.indexOf(`"${fieldName}"`);
+  if (keyIdx < 0) return undefined;
+
+  let i = keyIdx + `"${fieldName}"`.length;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== ':') return undefined;
+  i++;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== '"') return undefined;
+  i++; // 跳过开头引号
+
+  // value 结束于下一个已知字段之前最近的 "
+  let endQuote = -1;
+  for (const nextKey of nextKeys) {
+    const nextIdx = text.indexOf(`"${nextKey}"`, i);
+    if (nextIdx > i) {
+      let q = nextIdx - 1;
+      while (q >= i && text[q] !== '"') q--;
+      if (q >= i && (endQuote < 0 || q < endQuote)) endQuote = q;
+    }
+  }
+
+  if (endQuote < 0) return undefined;
+  return text.slice(i, endQuote);
+}
+
+function extractArrayFieldValue(text: string, fieldName: string, nextKeys: string[]): string[] {
+  const keyIdx = text.indexOf(`"${fieldName}"`);
+  if (keyIdx < 0) return [];
+
+  let i = keyIdx + `"${fieldName}"`.length;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== ':') return [];
+  i++;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== '[') return [];
+  i++;
+
+  const endIdx = text.indexOf(']', i);
+  if (endIdx < 0) return [];
+
+  // 确保 ']' 后面跟着逗号或 }，避免把 feedback 里出现的 ']' 误当数组结束
+  const afterClose = text.slice(endIdx + 1).trimStart();
+  if (!afterClose.startsWith(',') && !afterClose.startsWith('}')) {
+    return [];
+  }
+
+  const inner = text.slice(i, endIdx);
+  return inner
+    .split(',')
+    .map((s) => s.trim().replace(/^["']|["']$/g, ''))
+    .filter((s) => s.length > 0);
+}
+
+function extractLiteralFieldValue(text: string, fieldName: string): string | undefined {
+  const keyIdx = text.indexOf(`"${fieldName}"`);
+  if (keyIdx < 0) return undefined;
+
+  let i = keyIdx + `"${fieldName}"`.length;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== ':') return undefined;
+  i++;
+  while (i < text.length && /\s/.test(text[i])) i++;
+
+  const quoted = text.slice(i).match(/^"([^"]*)"/);
+  if (quoted) return quoted[1];
+  const bare = text.slice(i).match(/^([a-zA-Z0-9_]+)/);
+  return bare ? bare[1] : undefined;
 }
 
 /**

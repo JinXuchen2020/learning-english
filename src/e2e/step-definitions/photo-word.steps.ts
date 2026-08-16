@@ -18,6 +18,8 @@ When("I upload a test image", async function (this: E2EWorld) {
 
 When("I click the scan button", async function (this: E2EWorld) {
   const page = new ScanPage(this.page, this.baseUrl);
+  // 封闭视觉识别 + 确认 + 生词本拉取，避免 e2e 依赖外部视觉 AI。
+  await page.mockRecognize();
   await page.clickScan();
 });
 

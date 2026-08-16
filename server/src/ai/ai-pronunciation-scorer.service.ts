@@ -39,6 +39,12 @@ export interface ScorePronunciationInput {
   referenceText: string;
   /** 评测可选参数（含策略强制开关）。 */
   opts?: AssessOptions & { strategy?: 'auto' | ScoringStrategy };
+  /**
+   * 客户端（浏览器 Web Speech API）预转写文本。
+   * 提供时跳过 provider STT 链，直接用此文本做相似度评分。
+   * 解决云端 STT 不可达时音频静默失败的问题。
+   */
+  clientTranscript?: string;
 }
 
 /** 评分产出：标准 {@link ScoreResult} + 策略标记（类型在 service 内定义，不污染 AI-101 接口）。 */
@@ -106,12 +112,27 @@ export class AiPronunciationScorerService {
 
   /**
    * 兜底：transcribe → 编辑距离相似度 → LLM 评估 → 综合 ScoreResult。
+   * 若 input.clientTranscript 已提供（浏览器 Web Speech API 预转写），
+   * 则跳过 provider STT 链，直接用客户端文本做评分。
    * transcribe / chat 任一失败均降级（不抛错）。
    */
   private async scoreBySimilarity(input: ScorePronunciationInput): Promise<ScoredResult> {
-    const transcript: TranscriptOutcome = await this.transcriber.transcribe(input.audio, {
-      language: input.opts?.language,
-    });
+    let transcript: TranscriptOutcome;
+
+    if (input.clientTranscript && input.clientTranscript.trim().length > 0) {
+      // 客户端已通过 Web Speech API 完成转写，跳过后端 STT 链
+      transcript = {
+        text: input.clientTranscript.trim(),
+        confidence: 1, // 浏览器本地识别，视为高置信
+        durationMs: undefined,
+        degraded: false,
+      };
+      logger.debug(`[AiPronunciationScorer] 使用客户端预转写: "${input.clientTranscript.trim()}"`);
+    } else {
+      transcript = await this.transcriber.transcribe(input.audio, {
+        language: input.opts?.language,
+      });
+    }
     const ratio = similarityRatio(input.referenceText, transcript.text);
     const score = scoreFromSimilarity(ratio);
 

@@ -65,6 +65,20 @@
 | AI-208 | **`/plan` 页面 — 计划展示与交互** — 周计划卡片视图 (每日颜色化), "重新生成"、"应用此计划"、单日任务勾选 | P0 | AI-206, AI-207 | done | 应用后跳转 Home 并看到新任务; 重新生成有 loading/降级提示 |
 | AI-209 | **计划进度回写** — 完成计划内任务时回写 planDay.isDone, Home 展示计划完成度 | P1 | AI-206, 现有 ProgressModule | done | 完成任务后计划完成度同步更新; Home PlanProgress 卡片显示已完成 X/Y 天 |
 
+## M9 — 学习计划→课程生成（用户新增, 2026-08-16）
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/courses` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | todo | 见 `features/ai-801.md` |
+
+---
+
+## M10 — 聊天语音输入（用户新增, 2026-08-16）
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | todo | 见 `features/ai-802.md` |
+
 ---
 
 ## M3 — AI 每日口语训练 (W3-W4)
@@ -148,9 +162,19 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-710 | **家庭绑定（家长创建/认领孩子账号）** — 公开注册**仅限家长账号**（`POST /auth/register` 强制 `role:'parent'`、忽略/拒 `role:'child'`，注册页无孩子选项、文案「创建家长账号」）；家长面板「我的孩子」：①新建孩子账号（`role:'child'`、`parentId=家长.id`，凭据家长设定）②认领已有孩子（密码校验后写 parentId）③列表/解除绑定；孩子登录后 AI 请求经 `AiProviderRouter` 自动走家长默认 provider（链路已通，无需改 router）；注册页留「家长邀请码」UI 槽位（本期不接逻辑） | P0 | AI-705, AI-707, 现有 AuthModule | backlog | 公开注册落库必为 parent（带 `role:'child'` 被忽略/拒）；注册页无孩子角色选项；家长可建/认领孩子并列表可见；孩子凭据可登录；孩子 AI 请求实测落到家长 provider（mock 验证）；认领冲突/密码错有清晰报错；解除绑定仅清 parentId 且回退 env 默认；儿童 JWT 不可访问 `/parent/children*`；后端单测 + BDD/E2E 覆盖（2026-08-13 用户确认方案 A，UI 设计规格见 ai-710.md §9） |
-| AI-711 | **每孩独立 AI provider 覆盖（可选）** — `User` 加 `childProviderConfigId`；路由层 `resolveForChild`：孩子有覆盖→用该配置，否则回退家长 `isDefault`（AI-705 逻辑）；家长面板每行下拉选「沿用默认」或自己名下某 provider；多层安全降级（child→家长默认→env）；目标 config 必须归属该家长 | P1 | AI-710, AI-705 | backlog | 家长可给某孩指定自己名下任一 provider 且实测生效；设 null 回退家长默认；指到非本人配置→403/404；删 provider 后曾指向的孩子自动回退默认无崩溃；后端单测 + BDD/E2E 覆盖 |
-| AI-712 | **家长仪表盘（多孩子进度总览）** — 家长面板「家庭总览」卡片网格（昵称/等级/星星/连续天数/计划完成度，复用 cozy-kids 原语）；点开某孩看薄弱词 Top/技能掌握度/周趋势（聚合 `ai_reports`/`word_progress`/`lesson_progress`/`task_completion`，复用 AI-507 形态抽 `ProgressAggregationService`）；`childId` 必须 `parentId===JWT.userId`；无孩子空态引导添加 | P1 | AI-710, AI-507 | backlog | 家长见全部孩子进度卡且数据与库一致；点开可见薄弱词/趋势；越权访问他人孩子→403/404；无孩子空态引导；后端单测 + BDD/E2E 覆盖 |
+| AI-710 | **家庭绑定（家长创建/认领孩子账号）** — 公开注册**仅限家长账号**（`POST /auth/register` 强制 `role:'parent'`、忽略/拒 `role:'child'`，注册页无孩子选项、文案「创建家长账号」）；家长面板「我的孩子」：①新建孩子账号（`role:'child'`、`parentId=家长.id`，凭据家长设定）②认领已有孩子（密码校验后写 parentId）③列表/解除绑定；孩子登录后 AI 请求经 `AiProviderRouter` 自动走家长默认 provider（链路已通，无需改 router）；注册页留「家长邀请码」UI 槽位（本期不接逻辑） | P0 | AI-705, AI-707, 现有 AuthModule | done | 公开注册落库必为 parent（带 `role:'child'` 被忽略/拒）；注册页无孩子角色选项；家长可建/认领孩子并列表可见；孩子凭据可登录；孩子 AI 请求实测落到家长 provider（mock 验证）；认领冲突/密码错有清晰报错；解除绑定仅清 parentId 且回退 env 默认；儿童 JWT 不可访问 `/parent/children*`；后端单测 + BDD/E2E 覆盖（2026-08-13 用户确认方案 A，UI 设计规格见 ai-710.md §9） |
+| AI-711 | **每孩独立 AI provider 覆盖（可选）** — `User` 加 `childProviderConfigId`；路由层 `resolveForChild`：孩子有覆盖→用该配置，否则回退家长 `isDefault`（AI-705 逻辑）；家长面板每行下拉选「沿用默认」或自己名下某 provider；多层安全降级（child→家长默认→env）；目标 config 必须归属该家长 | P1 | AI-710, AI-705 | done | 家长可给某孩指定自己名下任一 provider 且实测生效；设 null 回退家长默认；指到非本人配置→403/404；删 provider 后曾指向的孩子自动回退默认无崩溃；后端单测 + BDD/E2E 覆盖 |
+| AI-712 | **家长仪表盘（多孩子进度总览）** — 家长面板「家庭总览」卡片网格（昵称/等级/星星/连续天数/计划完成度，复用 cozy-kids 原语）；点开某孩看薄弱词 Top/技能掌握度/周趋势（聚合 `ai_reports`/`word_progress`/`lesson_progress`/`task_completion`，复用 AI-507 形态抽 `ProgressAggregationService`）；`childId` 必须 `parentId===JWT.userId`；无孩子空态引导添加 | P1 | AI-710, AI-507 | done | 家长见全部孩子进度卡且数据与库一致；点开可见薄弱词/趋势；越权访问他人孩子→403/404；无孩子空态引导；后端单测 + BDD/E2E 覆盖 |
+
+---
+
+## M9 — AI provider 去 env 化与系统默认 (W9+)
+
+> 来源: 用户决策（2026-08-14）— 去掉 `.env` 里所有 AI provider 字段，把智谱作为「系统默认」provider 种子入库；家长/孩子未配置时回退该系统默认；彻底去除 MockProvider 概念；e2e 改打真实智谱（走系统默认）。依赖 AI-705（provider-config 运行时解析）/ AI-710（家庭绑定）/ AI-711（每孩覆盖）。
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-713 | **AI provider 去 env 化 + 系统默认智谱种子 + 去 mock** — 移除 `.env` 全部 AI provider 字段（`AI_PROVIDER`/`BIGMODEL_*`/`NVIDIA_*`）；智谱配置作为「系统默认」种子插入 `provider_configs`（`ownerUserId=NULL, isDefault=true`，密钥 AES 加密落库）；家长/孩子未设配置时回退该系统默认；运行时不再读任何 AI env；删除 `MockAiProvider` 及所有 `'mock'` 类型（ProviderName 联合 / DTO / switch / e2e 步骤与 `provMock` i18n 键）；聊天内容安全分类器（`chat-safety`）去除 NVIDIA env，**复用系统默认智谱 provider** 做 LLM 安全判断（fail-open 兜底）；`seed.ts` 读 `ZHIPU_API_KEY`（仅播种用，运行时一律不读 AI env）插入系统默认；CI 注入 `ZHIPU_API_KEY` + `PROVIDER_ENC_KEY`。**e2e 范围修正（2026-08-14）**：仅去除 e2e 中的 `mock` provider 概念（provider 创建 step 改 `type:"openai-compatible"` 并带 baseUrl/apiKey；删除 `provMock` 键）；保留 `src/e2e/support/pages/{chat,speech,home}.ts` 中的 `page.route` **UI 确定性夹具**（scenes/stars/sessions/speech/report 等前端展示数据），因其非 pluggable 的 MockProvider 抽象、移除需真实智谱网络（沙箱受限）且会破坏音频断言——真实 AI 端到端验证交由 CI（注入 `ZHIPU_API_KEY`）完成 | P0 | AI-705, AI-710, AI-711 | done | `server/.env`/`.env.example` 无 AI_PROVIDER/BIGMODEL_*/NVIDIA_*（仅 `ZHIPU_API_KEY`+`PROVIDER_ENC_KEY`）；种子后 `provider_configs` 存在 `ownerUserId=NULL & isDefault=true` 的智谱配置（openai-compatible，密钥加密）；`resolveSystemDefault()`/`AiProviderRouter` 回退链路单测覆盖（家长/孩子未配→系统默认）；`MockAiProvider` 删除、`'mock'` 从所有联合/DTO/switch/e2e 移除；安全分类器无 NVIDIA env 依赖、复用默认 provider（fail-open）；e2e provider 创建步骤改 openai-compatible + provMock 键删除；后端 jest 全绿（含改写 spec）；前端 tsc 0；质量门四门 PASSED |
 
 ---
 
@@ -167,5 +191,7 @@
 | **Milestone 6** (W7+) | AI-601 ~ AI-606 | 自适应与内容生成增强 |
 | **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
+| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
+| **Milestone 10** (W10+) | AI-802 | 聊天语音输入（`/chat` 麦克风实时英文听写 + Firefox/非安全上下文降级） |
 
 > 每里程碑独立可交付, 验收通过 `lsp_diagnostics` 零错误 + `next build` 成功 + 真机演示。

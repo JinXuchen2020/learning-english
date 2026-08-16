@@ -76,6 +76,60 @@ export default class PlanPage {
     await this.page.waitForSelector('[data-component="PlanPreview"]', { timeout: 30000 });
   }
 
+  /**
+   * Mock `POST /api/ai/plan/generate` 使计划向导在 e2e 中封闭（不依赖外部 AI，
+   * 与 chat/speech/report 的 mock 约定一致）。返回一份结构合法的多周计划，确保
+   * PlanPreview / PlanWeekCard / PlanDayCard 以及 apply / toggle-day 按钮都能确定性渲染。
+   */
+  async mockGeneratePlan(): Promise<void> {
+    const body = {
+      plan: {
+        weeks: [
+          {
+            week: 1,
+            theme: "Animals",
+            days: [
+              {
+                day: 1,
+                skillType: "vocab",
+                title: "Meet the Animals",
+                lessons: [
+                  {
+                    type: "main",
+                    title: "Cat and Dog",
+                    skillType: "vocab",
+                    description: "Learn pet words",
+                  },
+                ],
+              },
+              {
+                day: 2,
+                skillType: "listen",
+                title: "Listen and Repeat",
+                lessons: [
+                  {
+                    type: "speaking",
+                    title: "Speak the Sounds",
+                    skillType: "speak",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      model: "mock-plan",
+      degraded: false,
+    };
+    await this.page.route("**/api/ai/plan/generate", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
   async previewWeekCount(): Promise<number> {
     return this.page.locator('[data-component="PlanWeekCard"]').count();
   }

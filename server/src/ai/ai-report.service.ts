@@ -86,41 +86,48 @@ export class AiReportService {
   /** 生成（或返回已有）每日报告。 */
   async generateDailyReport(userId: string, date?: string): Promise<DailyReportResponse> {
     const reportDate = date || todayUtc();
-
-    // 1) 幂等：同日已有报告直接返回（snapshot 语义，stats 置 null）。
-    const existing = await this.reportRepo.findOne({
-      where: { userId, date: reportDate },
-    });
-    if (existing) {
-      return this.toResponse(existing, false, undefined, null);
-    }
-
-    // 2) 聚合当日统计。
-    const stats = await this.getDailyStats(userId, reportDate);
-
-    const hasActivity =
-      stats.taskComplete > 0 ||
-      stats.wordsPracticed > 0 ||
-      stats.lessonsCompleted > 0 ||
-      stats.speechAttempts > 0;
-
-    // 3) 无活动 → 友好默认（持久化，保证当日幂等，省去无意义 AI 调用）。
-    if (!hasActivity) {
-      const def = this.buildDefaultReport(userId, reportDate);
-      const saved = await this.persistReport(def);
-      return this.toResponse(saved, true, 'encourage', stats);
-    }
-
-    // 4) 有活动 → 调 ReportAgent 生成真实小结。
     try {
-      const agentOut = await this.callReportAgent(stats);
-      const saved = await this.persistReport(this.toEntity(userId, reportDate, agentOut));
-      return this.toResponse(saved, false, agentOut.mascotExpr, stats);
+      // 1) 幂等：同日已有报告直接返回（snapshot 语义，stats 置 null）。
+      const existing = await this.reportRepo.findOne({
+        where: { userId, date: reportDate },
+      });
+      if (existing) {
+        return this.toResponse(existing, false, undefined, null);
+      }
+
+      // 2) 聚合当日统计。
+      const stats = await this.getDailyStats(userId, reportDate);
+
+      const hasActivity =
+        stats.taskComplete > 0 ||
+        stats.wordsPracticed > 0 ||
+        stats.lessonsCompleted > 0 ||
+        stats.speechAttempts > 0;
+
+      // 3) 无活动 → 友好默认（持久化，保证当日幂等，省去无意义 AI 调用）。
+      if (!hasActivity) {
+        const def = this.buildDefaultReport(userId, reportDate);
+        const saved = await this.persistReport(def);
+        return this.toResponse(saved, true, 'encourage', stats);
+      }
+
+      // 4) 有活动 → 调 ReportAgent 生成真实小结。
+      try {
+        const agentOut = await this.callReportAgent(stats);
+        const saved = await this.persistReport(this.toEntity(userId, reportDate, agentOut));
+        return this.toResponse(saved, false, agentOut.mascotExpr, stats);
+      } catch (err) {
+        // 5) AI 失败 → 降级友好默认（不持久化，避免缓存降级内容，下次可重试）。
+        logger.warn('[AI-502] ReportAgent 调用失败，降级为友好默认报告', err as Error);
+        const def = this.buildDefaultReport(userId, reportDate);
+        return this.toResponse(def, true, 'encourage', stats);
+      }
     } catch (err) {
-      // 5) AI 失败 → 降级友好默认（不持久化，避免缓存降级内容，下次可重试）。
-      logger.warn('[AI-502] ReportAgent 调用失败，降级为友好默认报告', err as Error);
+      // 6) 兜底：DB 聚合/幂等查等任何意外错误 → 返回默认报告，绝不 500
+      //    （与 AI-713 fail-open 哲学一致；该端点为非关键 AI 小结）。
+      logger.error('[AI-502] generateDailyReport 意外失败，返回兜底默认报告', err as Error);
       const def = this.buildDefaultReport(userId, reportDate);
-      return this.toResponse(def, true, 'encourage', stats);
+      return this.toResponse(def, true, 'encourage', null);
     }
   }
 

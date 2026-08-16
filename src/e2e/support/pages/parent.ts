@@ -1,4 +1,4 @@
-// Page object for the parent control panel (src/app/[locale]/parent/page.tsx,
+// Page object for the parent control panel (src/app/[locale]/parent/settings/page.tsx,
 // AuthGuard wrapped; role==='parent' renders the panel directly — no PIN gate).
 //
 // Regions & hooks:
@@ -26,7 +26,7 @@ function cssEscape(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-const PARENT_PATH = "/parent";
+const PARENT_PATH = "/parent/settings";
 
 export default class ParentPage {
   private page: Page;
@@ -38,6 +38,25 @@ export default class ParentPage {
   }
 
   async open(): Promise<void> {
+    // 先等登录态落地：上一步 "log in with the registered user" 的登录请求可能仍在飞行中，
+    // 若此处直接 goto('/parent/settings') 会中断在途的登录 fetch → applyAuth 永不执行 →
+    // localStorage 仍是孩子会话 → /parent/settings 渲染 ParentUnauthorized 而非 ParentPanel。
+    // 等 localStorage 中 le_auth_user.role==='parent' 就绪后再硬导航，可消除该竞态
+    // （CI 后端响应慢时稳定复现）。
+    await this.page.waitForFunction(
+      () => {
+        try {
+          const raw = localStorage.getItem("le_auth_user");
+          if (!raw) return false;
+          const u = JSON.parse(raw) as { role?: string } | null;
+          return !!u && u.role === "parent";
+        } catch {
+          return false;
+        }
+      },
+      undefined,
+      { timeout: 15000 },
+    );
     // JWT 已镜像到 localStorage，整页 goto 亦保留登录态；/parent 不在 TabNav，
     // 走 goto 兜底（middleware 重定向到默认 locale 前缀）。
     await this.page.goto(`${this.baseUrl}${PARENT_PATH}`);
@@ -97,7 +116,7 @@ export default class ParentPage {
     await this.page.waitForSelector('[data-component="ProviderConfigForm"]');
   }
 
-  /** 填充表单（type 取值 openai-compatible | bigmodel | mock）。 */
+  /** 填充表单（type 取值 openai-compatible | bigmodel；AI-713 起已无 mock 类型）。 */
   async fillProviderForm(opts: {
     name: string;
     type?: string;
@@ -239,6 +258,212 @@ export default class ParentPage {
           `[data-component="ProviderConfigItem"][data-config-name="${CSS.escape(n)}"] [data-component="ProviderTestResult"]`,
         ),
       name,
+      { timeout },
+    );
+  }
+
+  /* ---------------------- Children Management (AI-710) ---------------------- */
+
+  /** 等待「我的孩子」区块出现。 */
+  async waitForChildrenSection(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.querySelector('[data-component="ChildrenSection"]'),
+      undefined,
+      { timeout },
+    );
+  }
+
+  /** 点击「添加孩子」按钮，等待表单出现。 */
+  async clickAddChild(): Promise<void> {
+    await this.page.locator('[data-component="AddChildBtn"]').click();
+    await this.page.waitForSelector('[data-component="AddChildForm"]');
+  }
+
+  /** 切换到「新建账号」Tab。 */
+  async clickCreateTab(): Promise<void> {
+    await this.page.locator('[data-testid="add-child-tab-create"]').click();
+  }
+
+  /** 切换到「认领已有」Tab。 */
+  async clickClaimTab(): Promise<void> {
+    await this.page.locator('[data-testid="add-child-tab-claim"]').click();
+  }
+
+  /** 填充创建孩子表单（昵称/用户名/密码）。 */
+  async fillCreateChildForm(
+    nickname: string,
+    username: string,
+    password: string,
+  ): Promise<void> {
+    await this.page.locator('[data-component="ChildNicknameInput"]').fill(nickname);
+    await this.page.locator('[data-component="ChildUsernameInput"]').fill(username);
+    await this.page.locator('[data-component="ChildPasswordInput"]').fill(password);
+  }
+
+  /** 填充认领孩子表单（用户名/密码，无昵称字段）。 */
+  async fillClaimChildForm(username: string, password: string): Promise<void> {
+    await this.page.locator('[data-component="ChildUsernameInput"]').fill(username);
+    await this.page.locator('[data-component="ChildPasswordInput"]').fill(password);
+  }
+
+  /** 点击提交按钮并等待表单关闭（成功后表单卸载）。 */
+  async submitChildForm(): Promise<void> {
+    await this.page.locator('[data-component="SubmitChildBtn"]').click();
+    await this.page.waitForFunction(
+      () => !document.querySelector('[data-component="AddChildForm"]'),
+      undefined,
+      { timeout: 15000 },
+    );
+  }
+
+  /**
+   * 等待指定昵称的孩子项出现。ChildItem 的昵称是文本内容（非 data 属性），
+   * 所以用 evaluate 在所有 ChildItem 中按文本匹配。
+   */
+  async waitForChildItem(nickname: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        return Array.from(items).some(
+          (el) => (el.textContent || "").includes(nick),
+        );
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /** 等待指定昵称的孩子项消失（解除绑定后）。 */
+  async waitForChildItemGone(nickname: string, timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        return !Array.from(items).some(
+          (el) => (el.textContent || "").includes(nick),
+        );
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /**
+   * 解除指定昵称孩子的绑定。先找到匹配的 ChildItem，点击 UnlinkChildBtn 打开
+   * 内联二次确认，再点击 UnlinkConfirmYesBtn 真正解绑。
+   * （不再使用 window.confirm —— Playwright 默认自动 dismiss 会导致解绑无效。）
+   */
+  async unlinkChild(nickname: string): Promise<void> {
+    // 先等匹配昵称的孩子项真正渲染出来。ChildrenSection 的 listChildren 是
+    // 异步拉取，ParentPanel 挂载后孩子项才会出现；若直接从「打开家长面板」跳到
+    // 解绑而不同步等待，下面的 evaluate 会找不到元素 → 误报 "not found"。
+    await this.waitForChildItem(nickname);
+    // 找到匹配昵称的 ChildItem 的 data-child-id
+    const childId = await this.page.evaluate((nick: string) => {
+      const items = document.querySelectorAll('[data-component="ChildItem"]');
+      const found = Array.from(items).find(
+        (el) => (el.textContent || "").includes(nick),
+      );
+      return found ? found.getAttribute("data-child-id") : null;
+    }, nickname);
+    if (!childId) {
+      throw new Error(`Child item with nickname "${nickname}" not found`);
+    }
+    // 1) 打开内联确认
+    await this.page
+      .locator(`[data-component="UnlinkChildBtn"][data-child-id="${childId}"]`)
+      .click();
+    // 2) 等待确认区出现并点击「确认解绑」
+    const yesBtn = this.page.locator(
+      `[data-component="UnlinkConfirmYesBtn"][data-child-id="${childId}"]`,
+    );
+    await yesBtn.waitFor({ state: "visible", timeout: 5000 });
+    await yesBtn.click();
+  }
+
+  /* ---------------------- Per-child provider (AI-711) ---------------------- */
+
+  /** 等待指定昵称孩子项内出现 provider 下拉区。 */
+  async waitForChildProviderSelect(
+    nickname: string,
+    timeout = 15000,
+  ): Promise<void> {
+    await this.page.waitForFunction(
+      (nick: string) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        const found = Array.from(items).find(
+          (el) => (el.textContent || "").includes(nick),
+        );
+        return !!found && !!found.querySelector('[data-component="ChildProviderSelectWrap"]');
+      },
+      nickname,
+      { timeout },
+    );
+  }
+
+  /**
+   * 在指定昵称孩子项的下拉中选择某个 provider（按 value=configId；"" 表示沿用家长默认）。
+   * 点击自定义 Select 的 trigger → 点对应 data-value 的 SelectOption →
+   * 等待 ChildItem 的 data-child-override 同步为该 value。
+   */
+  async selectChildProviderByValue(
+    nickname: string,
+    value: string,
+  ): Promise<void> {
+    const childId = await this.page.evaluate((nick: string) => {
+      const items = document.querySelectorAll('[data-component="ChildItem"]');
+      const found = Array.from(items).find(
+        (el) => (el.textContent || "").includes(nick),
+      );
+      return found ? found.getAttribute("data-child-id") : null;
+    }, nickname);
+    if (!childId) {
+      throw new Error(`Child item with nickname "${nickname}" not found`);
+    }
+    const trigger = this.page.locator(
+      `[data-component="ChildItem"][data-child-id="${childId}"] [data-component="ChildProviderSelect"]`,
+    );
+    await trigger.click();
+    const option = this.page.locator(
+      `[data-component="ChildItem"][data-child-id="${childId}"] [data-component="SelectOption"][data-value="${value}"]`,
+    );
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
+    // 等待 data-child-override 同步为新值（"" = 沿用默认）
+    await this.page.waitForFunction(
+      (args: { id: string; val: string }) => {
+        const el = document.querySelector(
+          `[data-component="ChildItem"][data-child-id="${args.id}"]`,
+        );
+        return !!el && (el.getAttribute("data-child-override") || "") === args.val;
+      },
+      { id: childId, val: value },
+      { timeout: 15000 },
+    );
+  }
+
+  /**
+   * 断言指定昵称孩子项的 data-child-override 等于期望 value（"" = 沿用家长默认）。
+   * 语言无关：直接比对 child provider config id 属性。
+   */
+  async expectChildOverride(
+    nickname: string,
+    value: string,
+    timeout = 15000,
+  ): Promise<void> {
+    await this.page.waitForFunction(
+      (args: { nick: string; val: string }) => {
+        const items = document.querySelectorAll('[data-component="ChildItem"]');
+        const found = Array.from(items).find(
+          (el) => (el.textContent || "").includes(args.nick),
+        );
+        if (!found) return false;
+        const override = found.getAttribute("data-child-override") || "";
+        if (args.val === "") {
+          return override === "";
+        }
+        return override === args.val;
+      },
+      { nick: nickname, val: value },
       { timeout },
     );
   }

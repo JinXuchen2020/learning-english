@@ -1,12 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { ProviderConfig, ProviderType, ProviderCapability, ProviderModels } from './provider-config.entity';
 import { CreateProviderConfigDto, UpdateProviderConfigDto } from './provider-config.dto';
 import { encryptSecret, decryptSecret, maskSecret } from './crypto.util';
 import { OpenAiCompatibleProvider } from './openai-compatible.provider';
 import { BigModelProvider } from '../bigmodel.provider';
-import { MockAiProvider } from '../mock-ai.provider';
 import { createRetryableProvider } from '../retryable-ai-provider';
 import { AiProvider } from '../ai-provider.interface';
 import { User } from '../../entities/user.entity';
@@ -14,7 +13,7 @@ import { User } from '../../entities/user.entity';
 /** 前端视图（绝不返回明文 apiKey）。 */
 export interface ProviderConfigView {
   id: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
   name: string;
   type: ProviderType;
   baseUrl: string | null;
@@ -53,6 +52,7 @@ export class ProviderConfigService {
       apiKeyEnc: dto.apiKey ? encryptSecret(dto.apiKey) : null,
       modelsJson: dto.models ? JSON.stringify(dto.models) : null,
       capabilitiesJson: dto.capabilities ? JSON.stringify(dto.capabilities) : null,
+      extraJson: dto.extraBody ? JSON.stringify(dto.extraBody) : null,
       isDefault: false,
     });
     const saved = await this.repo.save(entity);
@@ -71,11 +71,14 @@ export class ProviderConfigService {
     if (dto.apiKey !== undefined) entity.apiKeyEnc = dto.apiKey ? encryptSecret(dto.apiKey) : null;
     if (dto.models !== undefined) entity.modelsJson = JSON.stringify(dto.models);
     if (dto.capabilities !== undefined) entity.capabilitiesJson = JSON.stringify(dto.capabilities);
+    if (dto.extraBody !== undefined) {
+      entity.extraJson = dto.extraBody ? JSON.stringify(dto.extraBody) : null;
+    }
     const saved = await this.repo.save(entity);
     return this.toView(saved);
   }
 
-  /** 删除：所有权校验；删默认则后续解析回退 env 默认。 */
+  /** 删除：所有权校验；删默认则后续解析回退系统默认。 */
   async remove(id: string, ownerUserId: string): Promise<void> {
     const entity = await this.requireOwned(id, ownerUserId);
     await this.repo.remove(entity);
@@ -101,6 +104,62 @@ export class ProviderConfigService {
     return this.repo.findOne({ where: { ownerUserId, isDefault: true } });
   }
 
+  /** 解析系统默认配置（ownerUserId=NULL 且 isDefault=true）。无则 null。 */
+  async resolveSystemDefault(): Promise<ProviderConfig | null> {
+    return this.repo.findOne({ where: { ownerUserId: IsNull(), isDefault: true } });
+  }
+
+  /**
+   * 解析系统 provider 链（AI-713 续）：按「主用 → 兜底」排序的全部系统 provider。
+   * - 主用：`isDefault=true`（排序最前）；
+   * - 兜底：其余系统 provider，按 `systemFallbackRank` 升序（NULL 排最后）。
+   * 返回空数组表示未配置任何系统 provider（上层回退空 key 兜底 provider）。
+   */
+  async resolveSystemChain(): Promise<ProviderConfig[]> {
+    const all = await this.repo.find({ where: { ownerUserId: IsNull() } });
+    return all.sort((a, b) => {
+      const rank = (e: ProviderConfig): number =>
+        e.isDefault ? -1 : e.systemFallbackRank ?? Number.MAX_SAFE_INTEGER;
+      return rank(a) - rank(b);
+    });
+  }
+
+  /**
+   * 解析孩子的生效 provider 配置（AI-711）。
+   *
+   * 优先级：child.childProviderConfigId 覆盖 → 家长 `resolveDefault`（回退基准）。
+   * 多层安全降级：
+   * - 孩子无 parentId（孤儿）→ null（上层回退系统默认）；
+   * - 覆盖配置不存在 / 不归属孩子的家长 → 忽略覆盖，回退家长默认；
+   * - 任何异常 → null（绝不抛错，调用方回退系统默认）。
+   */
+  async resolveForChild(childUserId: string): Promise<ProviderConfig | null> {
+    if (!childUserId) return null;
+    try {
+      const child = await this.usersRepo.findOne({
+        where: { id: childUserId, role: 'child' },
+      });
+      if (!child || !child.parentId) return null;
+
+      // 孩子有 provider 覆盖，且配置归属孩子的家长 → 直接用该配置
+      if (child.childProviderConfigId) {
+        const override = await this.repo.findOne({
+          where: {
+            id: child.childProviderConfigId,
+            ownerUserId: child.parentId,
+          },
+        });
+        if (override) return override;
+        // 配置已删 / 不归属 → 忽略覆盖，落入下方家长默认回退
+      }
+
+      // 回退：家长默认配置
+      return this.resolveDefault(child.parentId);
+    } catch {
+      return null;
+    }
+  }
+
   /** 从配置构建运行时 provider（解密 key）。解密失败抛错交由上层回退。 */
   buildProvider(config: ProviderConfig): AiProvider {
     const models = this.parseModels(config.modelsJson);
@@ -114,6 +173,7 @@ export class ProviderConfigService {
           chatModel: models.chat,
           visionModel: models.vision,
           ttsModel: models.tts,
+          extraBody: this.parseExtra(config.extraJson),
         });
         break;
       case 'bigmodel':
@@ -125,10 +185,8 @@ export class ProviderConfigService {
       ttsModel: models.tts,
         });
         break;
-      case 'mock':
       default:
-        inner = new MockAiProvider();
-        break;
+        throw new BadRequestException(`不支持的 provider 类型: ${config.type}`);
     }
     return createRetryableProvider(inner);
   }
@@ -155,7 +213,7 @@ export class ProviderConfigService {
    * 把请求上下文解析为 effective parent：
    * - parent 角色 → 自身 userId；
    * - child / 无角色 → 查 `User.parentId`（null 则 undefined）；
-   * - 任何异常 → undefined（调用方回退 env 默认）。
+   * - 任何异常 → undefined（调用方回退系统默认）。
    */
   async resolveEffectiveParentId(userId: string | undefined, role?: string): Promise<string | undefined> {
     if (!userId) return undefined;
@@ -182,6 +240,17 @@ export class ProviderConfigService {
     if (!json) return {};
     try {
       return JSON.parse(json) as ProviderModels;
+    } catch {
+      return {};
+    }
+  }
+
+  /** 解析透传额外请求体（chat_template_kwargs 等）。非法 JSON → 空对象。 */
+  private parseExtra(json?: string | null): Record<string, unknown> {
+    if (!json) return {};
+    try {
+      const parsed = JSON.parse(json);
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
     } catch {
       return {};
     }

@@ -64,6 +64,33 @@ describe('AuthService', () => {
     expect(res.user.nickname).toBe('foo');
   });
 
+  it('register: forces role=parent when no role given (AI-710)', async () => {
+    (bcrypt.hash as jest.Mock).mockResolvedValue('h');
+    usersRepo.findOne.mockResolvedValue(null);
+    await service.register('foo', 'pw', 'Nick');
+    expect(usersRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'parent' }),
+    );
+  });
+
+  it('register: forces role=parent even when role=child passed (AI-710)', async () => {
+    (bcrypt.hash as jest.Mock).mockResolvedValue('h');
+    usersRepo.findOne.mockResolvedValue(null);
+    await service.register('foo', 'pw', 'Nick', 'child');
+    expect(usersRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'parent' }),
+    );
+  });
+
+  it('register: forces role=parent when role=parent passed (AI-710)', async () => {
+    (bcrypt.hash as jest.Mock).mockResolvedValue('h');
+    usersRepo.findOne.mockResolvedValue(null);
+    await service.register('foo', 'pw', 'Nick', 'parent');
+    expect(usersRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'parent' }),
+    );
+  });
+
   it('register: throws Conflict when username taken', async () => {
     usersRepo.findOne.mockResolvedValue(mockUser());
     await expect(service.register('foo', 'pw')).rejects.toBeInstanceOf(ConflictException);

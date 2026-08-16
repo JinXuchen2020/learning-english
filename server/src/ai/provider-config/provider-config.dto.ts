@@ -8,7 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
-export type ProviderTypeDto = 'openai-compatible' | 'mock';
+export type ProviderTypeDto = 'openai-compatible';
 export type ProviderCapabilityDto = 'chat' | 'vision' | 'stt' | 'tts' | 'pronunciation';
 
 /** 前端传参用模型映射（均可选）。 */
@@ -35,14 +35,14 @@ export class CreateProviderConfigDto {
   @MaxLength(120)
   name: string;
 
-  @IsIn(['openai-compatible', 'mock'])
+  @IsIn(['openai-compatible'])
   type: ProviderTypeDto;
 
   @IsOptional()
   @IsUrl({ require_tld: false })
   baseUrl?: string;
 
-  /** 明文 key（后端加密落库）；mock 可空。 */
+  /** 明文 key（后端加密落库）；创建/修改均可选，前端 UI 要求填写。 */
   @IsOptional()
   @IsString()
   apiKey?: string;
@@ -55,6 +55,11 @@ export class CreateProviderConfigDto {
   @IsArray()
   @IsIn(['chat', 'vision', 'stt', 'tts', 'pronunciation'], { each: true })
   capabilities?: ProviderCapabilityDto[];
+
+  /** 透传额外请求体（如 OpenAI 兼容的 chat_template_kwargs / enable_thinking）。 */
+  @IsOptional()
+  @IsObject()
+  extraBody?: Record<string, unknown>;
 }
 
 /** 修改 provider 配置；apiKey 可空表示不修改。 */
@@ -81,4 +86,9 @@ export class UpdateProviderConfigDto {
   @IsArray()
   @IsIn(['chat', 'vision', 'stt', 'tts', 'pronunciation'], { each: true })
   capabilities?: ProviderCapabilityDto[];
+
+  /** 透传额外请求体（如 OpenAI 兼容的 chat_template_kwargs / enable_thinking）。 */
+  @IsOptional()
+  @IsObject()
+  extraBody?: Record<string, unknown>;
 }

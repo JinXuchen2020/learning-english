@@ -24,6 +24,21 @@ export default class E2EWorld extends World {
   // AI-704: 补学种子写入的弱词文本 / 未完成计划日 id，跨 step 共享。
   makeupWordText: string | null = null;
   makeupPlanDayId: string | null = null;
+  // AI-710: family-binding step 创建的孩子凭据（供 claim 场景跨 step 使用）。
+  childCredentials: TestUser | null = null;
+  // AI-712: family-dashboard step 创建的孩子（含 id，供下钻 / 跨 step 断言）。
+  createdChildren: {
+    nickname: string;
+    username: string;
+    password: string;
+    id: string;
+  }[] = [];
+  // AI-712: 跨家长越权访问断言用的「上次 API 状态码」。
+  lastApiStatus: number | null = null;
+  // AI-711: 场景中创建的 provider 配置（name → id），跨 step 共享。
+  providerConfigs: { name: string; id: string }[] = [];
+  // AI-711: setChildProvider 的 HTTP 状态码（供断言 403 等）。
+  assignStatus: number | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

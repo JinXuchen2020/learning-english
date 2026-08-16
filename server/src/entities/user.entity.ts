@@ -54,6 +54,15 @@ export class User {
   parentId: string | null;
 
   /**
+   * 孩子独立 AI provider 覆盖（AI-711）。
+   * 指向 `provider_configs.id`，必须归属该孩子的家长（应用层校验，非物理外键）。
+   * 为空（默认）→ 孩子 AI 请求回退家长 `isDefault`（AI-705/710 逻辑）。
+   * 向前兼容：初始全 null（零回归）。
+   */
+  @Column({ type: 'uuid', nullable: true })
+  childProviderConfigId: string | null;
+
+  /**
    * 账号角色（AI-707 角色化导航）。
    * 'child' = 孩子端（学习功能）；'parent' = 家长端（周报 / 家长中心）。
    * 注册时由客户端选择并落库；登录 JWT 携带 `role` 供前端分流，

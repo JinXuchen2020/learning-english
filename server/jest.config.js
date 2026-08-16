@@ -10,6 +10,9 @@ module.exports = {
     '!src/**/*.spec.ts',
     '!src/main.ts',
     '!src/seed.ts',
+    // 部署入口（等同 main.ts）与一次性脚本（等同 seed.ts），均非单元可测的应用逻辑
+    '!src/vercel-entry.ts',
+    '!src/scripts/**',
   ],
   coverageDirectory: './coverage',
   testEnvironment: 'node',

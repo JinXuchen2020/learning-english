@@ -61,6 +61,25 @@ describe('RetryableAiProvider', () => {
     await expect(p.chat([])).rejects.toMatchObject({ statusCode: 0, code: 'NETWORK' });
   });
 
+  it('honors per-call maxAttempts=1 override (no retry on transient error)', async () => {
+    let n = 0;
+    const inner = fakeInner({
+      chat: async () => {
+        n += 1;
+        throw new AiProviderException('503', { statusCode: 503 });
+      },
+    });
+    const p = createRetryableProvider(
+      inner,
+      { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 10, factor: 2, delay: noDelay },
+      new ConcurrencyLimiter(2),
+    );
+    await expect(p.chat([] as ChatMessage[], { maxAttempts: 1 })).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    expect(n).toBe(1);
+  });
+
   it('does NOT retry chat on an access error', async () => {
     let n = 0;
     const inner = fakeInner({
@@ -114,9 +133,9 @@ describe('RetryableAiProvider', () => {
   });
 
   it('passes through the inner provider name', () => {
-    const inner = fakeInner({ name: 'mock' });
+    const inner = fakeInner({ name: 'bigmodel' });
     const p = createRetryableProvider(inner, { maxAttempts: 3, delay: noDelay }, new ConcurrencyLimiter(2));
-    expect(p.name).toBe('mock');
+    expect(p.name).toBe('bigmodel');
   });
 
   it('uses a default limiter when none is supplied', async () => {

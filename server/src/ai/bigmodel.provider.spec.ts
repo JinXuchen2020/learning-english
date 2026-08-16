@@ -215,19 +215,19 @@ describe('BigModelProvider', () => {
   describe('degraded capabilities (AI-102 scope-out)', () => {
     const p = new BigModelProvider({ apiKey: 'k' });
 
-    it('transcribe returns degraded result without throwing', async () => {
-      const res = await p.transcribe({ data: Buffer.from('x'), mimeType: 'audio/wav' });
-      expect(res).toEqual({ text: '', confidence: 0, durationMs: 0 });
+    // BigModel STT 不在范围内：必须抛 501 让 FallbackAiProvider 继续尝试下一个 provider。
+    // 若返回空文本（不抛错），FallbackAiProvider 会把空结果当"成功"消费，导致 STT 静默失败（分数恒为 0）。
+    it('transcribe throws 501 STT_NOT_SUPPORTED (out of scope, lets fallback continue)', async () => {
+      await expect(
+        p.transcribe({ data: Buffer.from('x'), mimeType: 'audio/wav' }),
+      ).rejects.toMatchObject({ statusCode: 501, code: 'STT_NOT_SUPPORTED' });
     });
 
-    it('assessPronunciation returns degraded result echoing reference text', async () => {
-      const res = await p.assessPronunciation(
-        { data: 'y', mimeType: 'audio/wav' },
-        'cat',
-      );
-      expect(res.score).toBe(0);
-      expect(res.readableText).toBe('cat');
-      expect(res.mascotExpr).toBe('thinking');
+    // 同理，发音评测未接入也必须抛错，由 EdgeTts/浏览器 Web Speech API 兜底。
+    it('assessPronunciation throws 501 PRONUNCIATION_NOT_SUPPORTED (out of scope, lets fallback continue)', async () => {
+      await expect(
+        p.assessPronunciation({ data: 'y', mimeType: 'audio/wav' }, 'cat'),
+      ).rejects.toMatchObject({ statusCode: 501, code: 'PRONUNCIATION_NOT_SUPPORTED' });
     });
   });
 
@@ -249,7 +249,9 @@ describe('BigModelProvider', () => {
       expect(body.model).toBe('glm-tts');
       expect(body.input).toBe('Hello little fox');
       expect(body.voice).toBe('tongtong');
-      expect(body.response_format).toBe('mp3');
+      // 注意：刻意不发送 response_format。智谱 glm-tts 收到 response_format:'mp3' 会返回 400，
+      // TTS 兜底的音频格式由 EdgeTtsProvider（链末兜底）保证，BigModel 自身不强制。
+      expect(body.response_format).toBeUndefined();
       expect(body.speed).toBe(1.0);
       expect(body.stream).toBe(false);
     });
