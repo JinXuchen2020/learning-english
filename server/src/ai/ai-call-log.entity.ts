@@ -21,9 +21,13 @@ export class AiCallLog {
   @Column({ type: 'varchar', length: 64, default: 'anonymous' })
   userId: string;
 
-  /** 实际 provider 标识（链构成，如 `Agnes AI → 智谱 GLM (系统默认)`）；AI-713 后携带真实名以区分各 provider。 */
-  @Column({ type: 'varchar', length: 64 })
-  provider: string;
+  /**
+   * 实际 provider 标识（链构成，如 `Agnes AI → 智谱 GLM (系统默认)`）；AI-713 后携带真实名以区分各 provider。
+   * 注：设 nullable 以兼容历史行（旧版日志可能留 NULL），避免 Postgres synchronize 在已有表上加 NOT NULL 报
+   * "column provider contains null values"。新写入恒定非空。
+   */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  provider: string | null;
 
   /** 调用方法名（chat / chatWithImage / transcribe / assessPronunciation / synthesize）。 */
   @Column({ type: 'varchar', length: 32 })
@@ -73,7 +77,7 @@ export class AiCallLog {
 /** 写入 `AiCallLog` 的入参（不含自动字段 id/createdAt）。 */
 export interface AiCallLogEntry {
   userId: string;
-  provider: string;
+  provider: string | null;
   operation: string;
   moduleTag: string;
   promptTokens?: number;
