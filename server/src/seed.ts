@@ -47,7 +47,7 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
           ownerUserId: null,
           name: agnesName,
           type: 'openai-compatible',
-          baseUrl: 'https://api.agnes-ai.cn/v1',
+          baseUrl: process.env.AGNES_API_URL || 'https://apihub.agnes-ai.com/v1',
           apiKeyEnc: encryptSecret(agnesKey),
           modelsJson: JSON.stringify({ chat: 'agnes-2.5-flash', vision: 'agnes-2.5-flash' }),
           capabilitiesJson: JSON.stringify(['chat', 'vision']),
