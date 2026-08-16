@@ -92,10 +92,22 @@ function ReadAlongPanel({
   const transcribeWithBrowserApi = useCallback(
     (blob: Blob): Promise<string | null> => {
       return new Promise((resolve) => {
+        // 防御：headless/部分 Chromium 中 SpeechRecognition 可能构造成功却永远不
+        // 回调 onresult/onerror/onend，导致 Promise 永不 resolve、卡死跟读提交。
+        // 设硬超时，到点即放弃浏览器预转写（降级到后端 STT / 空 transcript）。
+        let settled = false;
+        const finish = (v: string | null) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(guard);
+          resolve(v);
+        };
+        const guard = setTimeout(() => finish(null), 5000);
+
         const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
           ?? (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
         if (!SR) {
-          resolve(null);
+          finish(null);
           return;
         }
         const recognition = new SR();
@@ -107,18 +119,18 @@ function ReadAlongPanel({
           const results = (event as SpeechRecognitionEvent).results;
           if (results && results.length > 0) {
             const text = results[0][0]?.transcript?.trim() || "";
-            resolve(text.length > 0 ? text : null);
+            finish(text.length > 0 ? text : null);
           } else {
-            resolve(null);
+            finish(null);
           }
         };
 
         recognition.onerror = () => {
-          resolve(null);
+          finish(null);
         };
 
         recognition.onend = () => {
-          // 如果 onresult 未触发（静音/太短），resolve(null) 已在 onerror 或超时中处理
+          // 如果 onresult 未触发（静音/太短），finish(null) 已在 onerror 或超时中处理
         };
 
         try {
@@ -136,15 +148,15 @@ function ReadAlongPanel({
           audio.onerror = () => {
             recognition.stop();
             URL.revokeObjectURL(audioUrl);
-            resolve(null);
+            finish(null);
           };
           audio.play().catch(() => {
             recognition.stop();
             URL.revokeObjectURL(audioUrl);
-            resolve(null);
+            finish(null);
           });
         } catch {
-          resolve(null);
+          finish(null);
         }
       });
     },

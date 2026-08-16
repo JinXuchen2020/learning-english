@@ -86,13 +86,10 @@ export class EdgeTtsProvider implements AiProvider {
       // 缓存目录创建失败不致命；synthesize 仍会尝试写临时文件
     }
     // 启动时同步探测一次，避免拖慢首个 TTS 请求。
+    // 注意：探测失败（如 CI / 未安装 python）不在此打 WARN——这是可选兜底能力，
+    // 启动期告警会污染 CI 日志且不影响对话；仅在真实 TTS 请求失败时才告警（见 synthesize）。
     this.python = detectPythonSync();
     this.pythonResolved = true;
-    if (!this.python) {
-      logger.warn(
-        '[EdgeTts] 未探测到可用的 python/edge-tts，TTS 将降级为纯文本（不影响对话）',
-      );
-    }
   }
 
   private resolvePython(): string | null {
@@ -110,6 +107,9 @@ export class EdgeTtsProvider implements AiProvider {
   ): Promise<AudioResult> {
     const py = this.resolvePython();
     if (!py) {
+      logger.warn(
+        '[EdgeTts] 未探测到可用的 python/edge-tts，TTS 请求降级为纯文本（不影响对话）',
+      );
       throw new Error('[EdgeTts] python/edge-tts 不可用，无法合成语音');
     }
     const safe = (text || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_LEN);
