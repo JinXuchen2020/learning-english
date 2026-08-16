@@ -26,6 +26,7 @@ import { ScannedWord } from '../entities/scanned-word.entity';
 import { UserPoints } from '../rewards/user-points.entity';
 import { Reward } from '../rewards/reward.entity';
 import { RewardRedemption } from '../rewards/reward-redemption.entity';
+import { InitSchema20260816200000 } from '../migrations/InitSchema';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -98,8 +99,18 @@ export function getDbType(): DbType {
  */
 export function buildDataSourceOptions(): DataSourceOptions {
   const type = getDbType();
+  const isProd = type === 'postgres';
 
-  if (type === 'postgres') {
+  // 生产(Postgres/Vercel)默认关闭 synchronize，改用 migration（启动期自动 run）；
+  // 显式 DB_SYNCHRONIZE=true 可临时回退到 synchronize（仅应急，不推荐长期使用）。
+  // dev(sqlite)保留 synchronize 方便本地零配置开发，不跑 migration。
+  const synchronize = isProd
+    ? process.env.DB_SYNCHRONIZE === 'true'
+    : process.env.DB_SYNCHRONIZE !== 'false';
+  const migrationsRun = isProd ? process.env.DB_SYNCHRONIZE !== 'true' : false;
+  const migrations = [InitSchema20260816200000];
+
+  if (isProd) {
     // Neon / Vercel / Supabase hand out a single connection string; prefer it.
     const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
     // Managed Postgres always forces TLS — honor it (set DB_SSL=false to opt out,
@@ -112,7 +123,9 @@ export function buildDataSourceOptions(): DataSourceOptions {
         url: cleanPostgresUrl(url),
         ssl,
         entities: appEntities,
-        synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production
+        migrations,
+        synchronize,
+        migrationsRun,
       };
     }
 
@@ -136,7 +149,9 @@ export function buildDataSourceOptions(): DataSourceOptions {
         'kids_english',
       ssl,
       entities: appEntities,
-      synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production
+      migrations,
+      synchronize,
+      migrationsRun,
     };
   }
 
@@ -144,7 +159,9 @@ export function buildDataSourceOptions(): DataSourceOptions {
     type: 'better-sqlite3',
     database: process.env.SQLITE_PATH || 'dev.sqlite',
     entities: appEntities,
-    synchronize: process.env.DB_SYNCHRONIZE !== 'false', // dev only — use migrations in production
+    migrations,
+    synchronize,
+    migrationsRun,
   };
 }
 
