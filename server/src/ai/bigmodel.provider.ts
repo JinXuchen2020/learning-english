@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -66,6 +65,8 @@ export interface BigModelConfig {
   ttsModel?: string;
   /** 默认 TTS 音色（狐狸吉祥物音色）。缺省 `DEFAULT_TTS_VOICE`（tongtong）。 */
   ttsVoice?: string;
+  /** 运行时真实 provider 名（来自 DB `ProviderConfig.name`，如 `智谱 GLM (系统默认)`），用于审计归因。缺省 `bigmodel`。 */
+  name?: string;
 }
 
 /** 注入型 fetch 签名（与全局 `fetch` 一致），便于单测 mock。 */
@@ -121,7 +122,7 @@ interface BigModelChatResponse {
  * - 失败统一抛 {@link AiProviderException}（清晰 `statusCode`/`code`），重试/降级由 AI-106 编排。
  */
 export class BigModelProvider implements AiProvider {
-  readonly name: ProviderName = 'bigmodel';
+  readonly name: string;
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -141,6 +142,7 @@ export class BigModelProvider implements AiProvider {
     this.visionModel = config.visionModel ?? DEFAULT_VISION_MODEL;
     this.ttsModel = config.ttsModel ?? DEFAULT_TTS_MODEL;
     this.ttsVoice = config.ttsVoice ?? DEFAULT_TTS_VOICE;
+    this.name = config.name ?? 'bigmodel';
     this.fetchFn = fetchFn;
   }
 

@@ -35,7 +35,7 @@ export class AiProviderRouter implements AiProvider {
   ) {}
 
   /** 当前生效 provider 的名称（默认 provider 之名；自定义 provider 透明代理）。 */
-  get name(): ProviderName {
+  get name(): string {
     return this.defaultProvider.name;
   }
 

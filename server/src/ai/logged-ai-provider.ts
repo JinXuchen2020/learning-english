@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -17,8 +16,8 @@ import { AiCallLogService } from './ai-call-log.service';
 import { UserIdResolver } from './usage-limited-ai-provider';
 import { logger } from '../common/logger/logger';
 
-/** 解析「当前调用属于哪个业务模块」的钩子；未来由请求级 provider 注入真实 moduleTag。 */
-export type ModuleTagResolver = () => string;
+/** 解析「当前调用属于哪个业务模块」的钩子；入参为本次 AI 操作名（chat/transcribe/...），便于按能力归因。 */
+export type ModuleTagResolver = (operation: string) => string;
 
 /** DI token：默认返回 `'global'`（尚无 AI 控制器时，所有调用计入同一全局桶）。 */
 export const AI_MODULE_TAG_RESOLVER_TOKEN = 'AI_MODULE_TAG_RESOLVER';
@@ -62,13 +61,13 @@ function tokensFromUnknown(r: unknown): {
  * `name` 透传内层 provider，消费方契约不变。
  */
 export class LoggedAiProvider implements AiProvider {
-  readonly name: ProviderName;
+  readonly name: string;
 
   constructor(
     private readonly inner: AiProvider,
     private readonly callLog: AiCallLogService,
     private readonly resolveUserId: UserIdResolver = () => 'anonymous',
-    private readonly resolveModuleTag: ModuleTagResolver = () => 'global',
+    private readonly resolveModuleTag: ModuleTagResolver = (op: string) => op,
   ) {
     this.name = inner.name;
   }
@@ -86,12 +85,13 @@ export class LoggedAiProvider implements AiProvider {
     extractTokens: (r: T) => { promptTokens: number; completionTokens: number; totalTokens: number },
   ): Promise<T> {
     const userId = this.resolveUserId();
-    const moduleTag = this.resolveModuleTag();
+    const moduleTag = this.resolveModuleTag(operation);
     const provider = this.name;
     const requestSnippet = truncate(buildRequest());
     const start = Date.now();
     let status: 'ok' | 'error' = 'ok';
     let errorMessage: string | null = null;
+    let errorStack: string | null = null;
     let responseSnippet: string | null = null;
     let result: T;
 
@@ -102,6 +102,7 @@ export class LoggedAiProvider implements AiProvider {
     } catch (err) {
       status = 'error';
       errorMessage = truncate((err as Error)?.message ?? String(err), ERROR_MAX);
+      errorStack = (err as Error)?.stack ?? null;
       throw err;
     } finally {
       const durationMs = Date.now() - start;
@@ -119,6 +120,7 @@ export class LoggedAiProvider implements AiProvider {
         request: requestSnippet,
         response: responseSnippet,
         error: errorMessage,
+        errorStack,
       });
       await this.callLog
         .record({
@@ -130,6 +132,7 @@ export class LoggedAiProvider implements AiProvider {
           status,
           ...tokens,
           errorMessage,
+          errorStack,
           requestSnippet,
           responseSnippet,
         })
@@ -205,7 +208,7 @@ export function createLoggedProvider(
   inner: AiProvider,
   callLog: AiCallLogService,
   resolveUserId: UserIdResolver = () => 'anonymous',
-  resolveModuleTag: ModuleTagResolver = () => 'global',
+  resolveModuleTag: ModuleTagResolver = (op: string) => op,
 ): LoggedAiProvider {
   return new LoggedAiProvider(inner, callLog, resolveUserId, resolveModuleTag);
 }

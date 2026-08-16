@@ -113,7 +113,7 @@ function fallbackProvider(): AiProvider {
   controllers: [AiController, AiReportController, AiWeeklyReportController, MascotStoryController, PictureBookController],
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
-    { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: (() => 'global') as ModuleTagResolver },
+    { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: ((op: string) => op) as ModuleTagResolver },
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,
@@ -142,12 +142,15 @@ function fallbackProvider(): AiProvider {
         // 不再从 env 读取。缺失则兜底空 key provider（调用失败但可启动）。
         // AI-713 续：系统 provider 链（主用 Agnes AI → 兜底智谱）。为空则回退空 key provider。
         const sysChain = await providerConfigService.resolveSystemChain();
-        const innerProviders = sysChain.length
+        const generalProviders = sysChain.length
           ? sysChain.map((cfg) => providerConfigService.buildProvider(cfg))
           : [fallbackProvider()];
-        // AI-407 修复：本地免费 edge-tts 作为 synthesize 链最终兜底（付费 provider 均无可用 TTS 通道）。
-        innerProviders.push(new EdgeTtsProvider());
-        const chain = new FallbackAiProvider(innerProviders);
+        // AI-407 修复：本地免费 edge-tts 仅作为 synthesize（TTS）链最终兜底
+        // （付费 provider 均无可用 TTS 通道）。注意：EdgeTts 严禁进入通用链
+        // （chat/transcribe 等），否则上游 chat 失败时会被链的 chat() 抛「unsupported」
+        // 盖掉真实错误（网络/5xx/配额）。因此 TTS provider 只挂到 ttsProviders 链。
+        const ttsProviders = [...generalProviders, new EdgeTtsProvider()];
+        const chain = new FallbackAiProvider(generalProviders, ttsProviders);
         const defaultProvider = createAuditedProvider(chain, usage, resolveUserId, resolveModuleTag, callLog);
         // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认链。
         return new AiProviderRouter(defaultProvider, providerConfigService);

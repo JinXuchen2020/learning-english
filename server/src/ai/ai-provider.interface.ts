@@ -172,8 +172,13 @@ export interface SynthesizeOptions {
  * DB 配置构建，业务模块通过 `AI_PROVIDER_TOKEN` 注入本接口。
  */
 export interface AiProvider {
-  /** Provider 标识，对应 `ProviderName`。 */
-  readonly name: ProviderName;
+  /**
+   * Provider 标识（运行时真实名，如 `Agnes AI` / `智谱 GLM (系统默认)`）。
+   * 早期写死为 `ProviderName` 联合类型（只能取 `'bigmodel'` 等值），导致 Agnes 与
+   * 智谱在 `ai_call_logs` 里无法区分（AI-713 排查盲区）。改为 `string` 以携带 DB
+   * 配置的真实 provider 名，便于审计归因。`ProviderName` 仍保留作品牌类型。
+   */
+  readonly name: string;
 
   /**
    * 通用文本对话（LLM）。
@@ -224,3 +229,15 @@ export type ProviderName = 'bigmodel' | 'nvidia' | 'azure' | 'edge-tts';
 
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
 export const AI_PROVIDER_TOKEN = 'AI_PROVIDER';
+
+/**
+ * 标记「该 provider 不实现当前能力」（如 EdgeTts 仅支持 TTS，对 chat/transcribe
+ * 等调用应抛此错误）。`FallbackAiProvider.tryChain` 会据此**跳过**该 provider，
+ * 而非当作失败冒泡——避免 TTS-only 的 provider 污染通用兜底链导致非 TTS 调用 500。
+ */
+export class UnsupportedMethodError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedMethodError';
+  }
+}

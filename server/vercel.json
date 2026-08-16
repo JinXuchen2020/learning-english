@@ -13,7 +13,6 @@
   ],
   "env": {
     "DB_TYPE": "postgres",
-    "AI_PROVIDER": "mock",
     "LOG_DIR": "/tmp/logs",
     "EMAIL_LOG_DIR": "/tmp/emails",
     "FRONTEND_ORIGIN": "https://learning-english-ui.vercel.app"

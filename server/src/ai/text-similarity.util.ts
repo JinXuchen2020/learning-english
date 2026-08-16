@@ -10,7 +10,7 @@
  * @module ai/text-similarity.util
  */
 
-import { MascotExpression, ProviderName } from './ai-provider.interface';
+import { MascotExpression } from './ai-provider.interface';
 import { normalizeTranscript } from './transcribe-result.util';
 
 /** 评分策略：音素级（首选）/ 转写相似度兜底。 */
@@ -20,8 +20,9 @@ export type ScoringStrategy = 'phoneme' | 'similarity';
 export interface StrategySelection {
   /** 显式强制策略（非空则覆盖自动推断）。 */
   strategy?: 'auto' | ScoringStrategy;
-  /** 当前 provider 名称（auto 模式下决定首选路径）。 */
-  providerName?: ProviderName;
+  /** 当前 provider 名称（auto 模式下决定首选路径）。AI-713：放宽到 string，
+   * 因为运行时真实 provider 名（如「智谱 GLM (系统默认)」）超出原 ProviderName 联合类型。 */
+  providerName?: string;
 }
 
 /**

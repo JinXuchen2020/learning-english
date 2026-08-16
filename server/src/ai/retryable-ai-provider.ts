@@ -1,6 +1,5 @@
 import {
   AiProvider,
-  ProviderName,
   ChatMessage,
   ChatOptions,
   ChatResult,
@@ -28,7 +27,7 @@ const DEFAULT_MAX_CONCURRENCY = 4;
  * 业务层注入的仍是 `AiProvider` 抽象（经 `AI_PROVIDER_TOKEN`），无需感知重试存在。
  */
 export class RetryableAiProvider implements AiProvider {
-  readonly name: ProviderName;
+  readonly name: string;
 
   constructor(
     private readonly inner: AiProvider,

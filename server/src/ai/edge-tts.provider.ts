@@ -10,8 +10,10 @@
  * → base64，由上层 `ChatService.synthesizeTtsUrl` 包成 `data:audio/mp3;base64,...`
  * 返回前端（前端 `playTts` / `<audio>` 已原生支持 data URI，无需静态资源服务、无跨域）。
  *
- * 非 TTS 能力（chat / transcribe 等）不支持，调用即抛错——但本 provider 仅被置于
- * `FallbackAiProvider` 链末尾，chat 链前序 Agnes/智谱 已成功，不会触发这些方法。
+ * 非 TTS 能力（chat / transcribe 等）不支持，调用即抛错——本 provider 只被置于
+ * `FallbackAiProvider` 的 **TTS 链**（`ttsProviders`）末尾，仅参与 `synthesize` 兜底；
+ * 通用链（chat/transcribe 等）不含本 provider，因此上游 chat 失败时不会落到这里。
+ * 下面的 `unsupported` 仅为接口契约兜底，正常流程不会被触发。
  *
  * @module ai/edge-tts.provider
  */
@@ -33,6 +35,7 @@ import {
   AudioResult,
   SynthesizeOptions,
   AudioInput,
+  UnsupportedMethodError,
 } from './ai-provider.interface';
 import { logger } from '../common/logger/logger';
 
@@ -143,9 +146,9 @@ export class EdgeTtsProvider implements AiProvider {
     }
   }
 
-  /** 非 TTS 能力占位：本 provider 不实现，调用即抛错（仅作 synthesize 兜底接入）。 */
+  /** 非 TTS 能力占位：本 provider 不实现，抛专用错误让兜底链跳过（而非当失败冒泡）。 */
   private unsupported(method: string): never {
-    throw new Error(`[EdgeTts] ${method} 不受支持（EdgeTts 仅提供 TTS）`);
+    throw new UnsupportedMethodError(`[EdgeTts] ${method} 不受支持（EdgeTts 仅提供 TTS）`);
   }
 
   async chat(_messages: ChatMessage[], _options?: ChatOptions): Promise<ChatResult> {

@@ -1,7 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 import { logger } from './common/logger/logger';
+import { ensureSeed } from './seed/bootstrap-seed';
 
 /**
  * Creates and initializes the Nest application and returns the underlying
@@ -39,5 +41,19 @@ export async function createNestServer() {
   );
 
   await app.init();
+
+  // 自举种子：Vercel 等无构建期 seed 的环境，启动即确保 provider 配置与初始内容存在
+  // （幂等、不 clear）。test 环境跳过，避免污染测试 DB / 拖慢测试。
+  const shouldBootstrapSeed =
+    process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID;
+  if (shouldBootstrapSeed) {
+    try {
+      const ds = app.get(DataSource);
+      await ensureSeed(ds);
+    } catch (err) {
+      logger.error('[Bootstrap] ensureSeed 调用失败（不影响启动）:', err);
+    }
+  }
+
   return app.getHttpAdapter().getInstance();
 }

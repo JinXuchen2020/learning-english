@@ -6,6 +6,8 @@ import { logger } from '../common/logger/logger';
 
 /** 失败原因摘要截断长度（对应 `ai_call_logs.errorMessage` 列 TEXT，预留 1 字符给省略号）。 */
 const MAX_ERROR_MESSAGE = 255;
+/** 失败堆栈截断长度（对应 `errorStack` 列 TEXT，存全文但限制规模）。 */
+const MAX_ERROR_STACK = 4000;
 /** 请求/响应摘要截断长度（对应 `requestSnippet`/`responseSnippet` 列 TEXT）。 */
 const MAX_SNIPPET = 200;
 
@@ -47,6 +49,7 @@ export class AiCallLogService {
         durationMs: entry.durationMs,
         status: entry.status,
         errorMessage: truncate(entry.errorMessage, MAX_ERROR_MESSAGE),
+        errorStack: truncate(entry.errorStack, MAX_ERROR_STACK),
         requestSnippet: truncate(entry.requestSnippet, MAX_SNIPPET),
         responseSnippet: truncate(entry.responseSnippet, MAX_SNIPPET),
       });
