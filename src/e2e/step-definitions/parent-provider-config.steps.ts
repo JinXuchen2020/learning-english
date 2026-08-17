@@ -13,12 +13,57 @@ Then("I should see the AI provider config section", async function (this: E2EWor
 });
 
 When(
-  "I add an OpenAI-compatible provider named {string} with base url {string} and api key {string}",
-  async function (this: E2EWorld, name: string, baseUrl: string, apiKey: string) {
+  "I add an OpenAI-compatible provider named {string} with base url {string}, api key {string}, and model {string}",
+  async function (this: E2EWorld, name: string, baseUrl: string, apiKey: string, model: string) {
     const p = parent(this);
     await p.clickAddProvider();
-    await p.fillProviderForm({ name, type: "openai-compatible", baseUrl, apiKey });
+    await p.fillProviderForm({ name, type: "openai-compatible", baseUrl, apiKey, model });
     await p.saveProvider();
+  }
+);
+
+When("I open the add provider form", async function (this: E2EWorld) {
+  await parent(this).clickAddProvider();
+});
+
+When(
+  "I fill the provider form name {string} base url {string} api key {string} without a model",
+  async function (this: E2EWorld, name: string, baseUrl: string, apiKey: string) {
+    await parent(this).fillProviderForm({ name, baseUrl, apiKey });
+  }
+);
+
+When(
+  "I fill the provider form name {string} base url {string} api key {string} and model {string}",
+  async function (this: E2EWorld, name: string, baseUrl: string, apiKey: string, model: string) {
+    await parent(this).fillProviderForm({ name, baseUrl, apiKey, model });
+  }
+);
+
+When(
+  "I select provider capabilities {string}",
+  async function (this: E2EWorld, capsCsv: string) {
+    const caps = capsCsv.split(",").map((c) => c.trim()).filter(Boolean);
+    await parent(this).selectProviderCapabilities(caps);
+  }
+);
+
+When("I click save on the provider form", async function (this: E2EWorld) {
+  await parent(this).clickSaveProvider();
+});
+
+Then("the provider config form should still be open", async function (this: E2EWorld) {
+  await parent(this).waitForProviderForm();
+});
+
+Then("I should see the capability validation result", async function (this: E2EWorld) {
+  await parent(this).waitForValidationResult();
+});
+
+Then(
+  "the capability {string} should be marked not ok",
+  async function (this: E2EWorld, cap: string) {
+    await parent(this).waitForCapabilityNotOk(cap);
   }
 );
 

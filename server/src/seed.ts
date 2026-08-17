@@ -49,7 +49,7 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
           type: 'openai-compatible',
           baseUrl: process.env.AGNES_API_URL || 'https://apihub.agnes-ai.com/v1',
           apiKeyEnc: encryptSecret(agnesKey),
-          modelsJson: JSON.stringify({ chat: 'agnes-2.5-flash', vision: 'agnes-2.5-flash' }),
+          model: 'agnes-2.5-flash',
           capabilitiesJson: JSON.stringify(['chat', 'vision']),
           extraJson: JSON.stringify({ chat_template_kwargs: { enable_thinking: true } }),
           isDefault: true,
@@ -61,8 +61,12 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
   } else if (agnesKey) {
     // 已存在：env 为系统 provider 真源，刷新 key（修复「坏/过期 key 永不自愈」运维陷阱，AI-713）。
     const enc = encryptSecret(agnesKey);
-    if (existingAgnes.apiKeyEnc !== enc) {
-      await providerConfigRepo.update(existingAgnes.id, { apiKeyEnc: enc });
+    const updates: Partial<ProviderConfig> = {};
+    if (existingAgnes.apiKeyEnc !== enc) updates.apiKeyEnc = enc;
+    // AI-714 backfill：历史行可能无 model 列值，补默认模型。
+    if (!existingAgnes.model) updates.model = 'agnes-2.5-flash';
+    if (Object.keys(updates).length) {
+      await providerConfigRepo.update(existingAgnes.id, updates);
       logger.info('[Seed] 已用 env AGNES_API_KEY 刷新 Agnes AI provider key');
     }
   }
@@ -86,11 +90,7 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
           type: 'bigmodel',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
           apiKeyEnc: encryptSecret(zhipuKey),
-          modelsJson: JSON.stringify({
-            chat: 'glm-4.7-flash',
-            vision: 'glm-4.6v-flash',
-            tts: 'glm-tts',
-          }),
+          model: 'glm-4.7-flash',
           capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
           extraJson: null,
           isDefault: false,
@@ -111,6 +111,8 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
       const enc = encryptSecret(zhipuKey);
       if (existingZhipu.apiKeyEnc !== enc) updates.apiKeyEnc = enc;
     }
+    // AI-714 backfill：历史行可能无 model 列值，补默认模型。
+    if (!existingZhipu.model) updates.model = 'glm-4.7-flash';
     if (Object.keys(updates).length) {
       await providerConfigRepo.update(existingZhipu.id, updates);
       logger.info('[Seed] 已更新智谱兜底 provider（key 刷新/降级为兜底）');

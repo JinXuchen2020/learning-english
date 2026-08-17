@@ -1,14 +1,18 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
-import { ProviderConfig, ProviderType, ProviderCapability, ProviderModels } from './provider-config.entity';
+import { ProviderConfig, ProviderType, ProviderCapability } from './provider-config.entity';
 import { CreateProviderConfigDto, UpdateProviderConfigDto } from './provider-config.dto';
 import { encryptSecret, decryptSecret, maskSecret } from './crypto.util';
-import { OpenAiCompatibleProvider } from './openai-compatible.provider';
+import { OpenAiCompatibleProvider, FetchFn } from './openai-compatible.provider';
 import { BigModelProvider } from '../bigmodel.provider';
 import { createRetryableProvider } from '../retryable-ai-provider';
 import { AiProvider } from '../ai-provider.interface';
 import { User } from '../../entities/user.entity';
+
+/** 1×1 透明 PNG（base64），供 vision 能力验证用极小图。 */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
 
 /** 前端视图（绝不返回明文 apiKey）。 */
 export interface ProviderConfigView {
@@ -17,7 +21,7 @@ export interface ProviderConfigView {
   name: string;
   type: ProviderType;
   baseUrl: string | null;
-  models: ProviderModels;
+  model: string;
   capabilities: ProviderCapability[];
   isDefault: boolean;
   hasKey: boolean;
@@ -42,15 +46,31 @@ export class ProviderConfigService {
     private readonly usersRepo: Repository<User>,
   ) {}
 
-  /** 新增：加密 apiKey，默认非默认。 */
+  /** 新增：加密 apiKey，默认非默认；保存前按 model 真验证所有勾选能力（硬拒绝）。 */
   async create(ownerUserId: string, dto: CreateProviderConfigDto): Promise<ProviderConfigView> {
+    if (dto.capabilities && dto.capabilities.length > 0) {
+      const { ok, results } = await this.validateCapabilities({
+        type: dto.type,
+        baseUrl: dto.baseUrl ?? null,
+        apiKey: dto.apiKey,
+        model: dto.model,
+        capabilities: dto.capabilities,
+      });
+      if (!ok) {
+        const failed = Object.entries(results)
+          .filter(([, r]) => !r.ok)
+          .map(([cap, r]) => `${cap}(${r.reason ?? '未知原因'})`)
+          .join('; ');
+        throw new BadRequestException(`模型 ${dto.model} 能力不足，无法保存：${failed}`);
+      }
+    }
     const entity = this.repo.create({
       ownerUserId,
       name: dto.name,
       type: dto.type,
       baseUrl: dto.baseUrl ?? null,
       apiKeyEnc: dto.apiKey ? encryptSecret(dto.apiKey) : null,
-      modelsJson: dto.models ? JSON.stringify(dto.models) : null,
+      model: dto.model,
       capabilitiesJson: dto.capabilities ? JSON.stringify(dto.capabilities) : null,
       extraJson: dto.extraBody ? JSON.stringify(dto.extraBody) : null,
       isDefault: false,
@@ -69,10 +89,28 @@ export class ProviderConfigService {
     if (dto.name !== undefined) entity.name = dto.name;
     if (dto.baseUrl !== undefined) entity.baseUrl = dto.baseUrl ?? null;
     if (dto.apiKey !== undefined) entity.apiKeyEnc = dto.apiKey ? encryptSecret(dto.apiKey) : null;
-    if (dto.models !== undefined) entity.modelsJson = JSON.stringify(dto.models);
+    if (dto.model !== undefined) entity.model = dto.model;
     if (dto.capabilities !== undefined) entity.capabilitiesJson = JSON.stringify(dto.capabilities);
     if (dto.extraBody !== undefined) {
       entity.extraJson = dto.extraBody ? JSON.stringify(dto.extraBody) : null;
+    }
+    // 模型或能力有变更时，用最终状态按 model 真验证（硬拒绝）。
+    const finalCaps = this.parseCapabilities(entity.capabilitiesJson);
+    if (dto.model !== undefined || dto.capabilities !== undefined) {
+      const { ok, results } = await this.validateCapabilities({
+        type: entity.type,
+        baseUrl: entity.baseUrl,
+        apiKey: entity.apiKeyEnc ? decryptSecret(entity.apiKeyEnc) : undefined,
+        model: entity.model,
+        capabilities: finalCaps,
+      });
+      if (!ok) {
+        const failed = Object.entries(results)
+          .filter(([, r]) => !r.ok)
+          .map(([cap, r]) => `${cap}(${r.reason ?? '未知原因'})`)
+          .join('; ');
+        throw new BadRequestException(`模型 ${entity.model} 能力不足，无法保存：${failed}`);
+      }
     }
     const saved = await this.repo.save(entity);
     return this.toView(saved);
@@ -162,17 +200,16 @@ export class ProviderConfigService {
 
   /** 从配置构建运行时 provider（解密 key）。解密失败抛错交由上层回退。 */
   buildProvider(config: ProviderConfig): AiProvider {
-    const models = this.parseModels(config.modelsJson);
     const apiKey = config.apiKeyEnc ? decryptSecret(config.apiKeyEnc) : '';
+    const capabilities = this.parseCapabilities(config.capabilitiesJson);
     let inner: AiProvider;
     switch (config.type) {
       case 'openai-compatible':
         inner = new OpenAiCompatibleProvider({
           apiKey,
           baseUrl: config.baseUrl ?? undefined,
-          chatModel: models.chat,
-          visionModel: models.vision,
-          ttsModel: models.tts,
+          model: config.model,
+          capabilities,
           extraBody: this.parseExtra(config.extraJson),
           name: config.name,
         });
@@ -181,9 +218,8 @@ export class ProviderConfigService {
         inner = new BigModelProvider({
           apiKey,
           baseUrl: config.baseUrl ?? undefined,
-          model: models.chat,
-          visionModel: models.vision,
-          ttsModel: models.tts,
+          model: config.model,
+          capabilities,
           name: config.name,
         });
         break;
@@ -209,6 +245,98 @@ export class ProviderConfigService {
   async testConnectionById(id: string, ownerUserId: string): Promise<{ ok: boolean; message: string }> {
     const entity = await this.requireOwned(id, ownerUserId);
     return this.testConnection(entity);
+  }
+
+  /**
+   * 能力验证（AI-714 核心）：按 `model` 真发最小请求，确认该模型确实具备每个勾选能力。
+   * - chat → 极小 messages ping；
+   * - vision → 1×1 png（base64）走 image_url；
+   * - tts → synthesize('hi') 取音频；
+   * - stt → whisper-1 transcribe 静音 wav（测端点连通+鉴权）；
+   * - pronunciation → 通用 OpenAI 兼容端点不支持，直接标不支持。
+   * 返回分能力结果（不落库）。任一失败 → ok=false（供 create/update 硬拒绝）。
+   * `fetchFn` 仅供单测注入 mock。
+   */
+  async validateCapabilities(
+    input: {
+      type: ProviderType;
+      baseUrl?: string | null;
+      apiKey?: string;
+      model: string;
+      capabilities: ProviderCapability[];
+    },
+    fetchFn?: FetchFn,
+  ): Promise<{ ok: boolean; results: Record<string, { ok: boolean; reason?: string }> }> {
+    const results: Record<string, { ok: boolean; reason?: string }> = {};
+    const caps = input.capabilities ?? [];
+    if (caps.length === 0) return { ok: true, results };
+
+    if (!input.apiKey) {
+      for (const cap of caps) results[cap] = { ok: false, reason: '未提供 API Key，无法验证' };
+      return { ok: false, results };
+    }
+
+    const provider = new OpenAiCompatibleProvider(
+      {
+        apiKey: input.apiKey,
+        baseUrl: input.baseUrl ?? undefined,
+        model: input.model,
+        capabilities: caps,
+        name: 'validation',
+      },
+      fetchFn,
+    );
+
+    const silentWav = this.buildSilentWavBase64();
+    const tinyPng = TINY_PNG_BASE64;
+    for (const cap of caps) {
+      try {
+        switch (cap) {
+          case 'chat':
+            await provider.chat([{ role: 'user', content: 'ping' }], { maxTokens: 1 });
+            break;
+          case 'vision':
+            await provider.chatWithImage('ping', { mimeType: 'image/png', data: tinyPng }, { maxTokens: 1 });
+            break;
+          case 'tts':
+            await provider.synthesize('hi');
+            break;
+          case 'stt':
+            await provider.transcribe({ mimeType: 'audio/wav', data: silentWav }, { language: 'en' });
+            break;
+          case 'pronunciation':
+            throw new Error('通用 OpenAI 兼容端点不支持发音评测能力，需专有 provider');
+        }
+        results[cap] = { ok: true };
+      } catch (e) {
+        const err = e as Error;
+        results[cap] = { ok: false, reason: err?.message ?? 'unknown' };
+      }
+    }
+    const ok = Object.values(results).every((r) => r.ok);
+    return { ok, results };
+  }
+
+  /** 构造 0.1s 静音 WAV（16bit PCM / 8kHz / 单声道）base64，供 STT 验证。 */
+  private buildSilentWavBase64(): string {
+    const sampleRate = 8000;
+    const numSamples = 800;
+    const dataSize = numSamples * 2;
+    const buffer = Buffer.alloc(44 + dataSize);
+    buffer.write('RIFF', 0);
+    buffer.writeUInt32LE(36 + dataSize, 4);
+    buffer.write('WAVE', 8);
+    buffer.write('fmt ', 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(1, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(sampleRate * 2, 28);
+    buffer.writeUInt16LE(2, 32);
+    buffer.writeUInt16LE(16, 34);
+    buffer.write('data', 36);
+    buffer.writeUInt32LE(dataSize, 40);
+    return buffer.toString('base64');
   }
 
   /**
@@ -238,15 +366,6 @@ export class ProviderConfigService {
     return entity;
   }
 
-  private parseModels(json?: string | null): ProviderModels {
-    if (!json) return {};
-    try {
-      return JSON.parse(json) as ProviderModels;
-    } catch {
-      return {};
-    }
-  }
-
   /** 解析透传额外请求体（chat_template_kwargs 等）。非法 JSON → 空对象。 */
   private parseExtra(json?: string | null): Record<string, unknown> {
     if (!json) return {};
@@ -258,7 +377,8 @@ export class ProviderConfigService {
     }
   }
 
-  private parseCapabilities(json?: string | null): ProviderCapability[] {
+  /** 解析 capabilitiesJson（null/非法 → 空数组）；模块装配 TTS 链时用它过滤。 */
+  parseCapabilities(json?: string | null): ProviderCapability[] {
     if (!json) return [];
     try {
       return JSON.parse(json) as ProviderCapability[];
@@ -283,7 +403,7 @@ export class ProviderConfigService {
       name: e.name,
       type: e.type,
       baseUrl: e.baseUrl,
-      models: this.parseModels(e.modelsJson),
+      model: e.model,
       capabilities: this.parseCapabilities(e.capabilitiesJson),
       isDefault: e.isDefault,
       hasKey: !!e.apiKeyEnc,

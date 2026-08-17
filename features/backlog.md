@@ -1,7 +1,7 @@
 # AI 集成功能 Backlog
 
 > 来源: `docs/ai-integration.md`
-> 更新: 2026-08-10
+> 更新: 2026-08-17
 > 说明: 按实施阶段(M1-M6)细分为可独立验收的 feature。每个 feature 有唯一 ID、优先级、依赖、验收标准。
 
 ## 状态图例
@@ -28,6 +28,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
+| AI-714 | **Provider 配置必填 model + 基于具体 model 的能力多选验证** — 添加/编辑 AI provider 时 `model` 为**必填**字段（能力是模型级属性，非 provider 级）；能力 chat/vision/stt/tts/pronunciation **多选**；**保存前按该具体 model 真发请求验证所有勾选能力**，任一不被支持 → **400 硬拒绝保存**（后端 create/update 双重保险 + 前端 `POST /provider-config/validate` 保存前分能力预览）；前端聊天页 `ttsUrl` 为空时**永远用浏览器 Web Speech API 朗读兜底**（方案 A）；`EdgeTtsProvider` 仅探测到 Python 时挂 TTS 链末尾（Vercel 自动不挂）；移除废弃的 `ProviderModelsDto`/`modelsJson`，统一为单一 `model` 字段驱动所有能力 | P0 | AI-705, AI-713 | done | 见 `features/ai-714.md`（注意：全量 E2E 中 `word-cards`(需真实 AI key) 与 `family-dashboard`(星级读取) 两场景为本地无 key/预存环境问题失败，与本次无关，待 CI 实跑；AI-714 专属场景均通过） |
 | TEST-101 | **现有功能单元测试全覆盖** — 为 `server/src` 下所有已实现模块 (entities / modules / providers / guards / pipes / 工具函数) 补齐 `*.spec.ts`; 用 Jest + `@nestjs/testing` 建测试脚手架; 可注入替换 MockProvider / ConfigModule; 覆盖正常路径 + 边界 + 异常分支 | P0 | — | done | `npm run test` (jest) 全绿; 核心逻辑分支覆盖 (provider 重试/降级/异常映射、class-validator DTO、实体关联); 生成覆盖率报告 (statement ≥ 70%, 核心 ≥ 80%) |
 | TEST-102 | **BDD 驱动 E2E 测试** — 用 BDD 场景 (Gherkin `.feature`) 描述端到端用户旅程 (注册/登录 → 生成学习计划 → 跟读口语训练 → 查看每日 AI 小结), 以 BDD 框架 (如 `@cucumber/cucumber`) + E2E 驱动 (如 Playwright) 串联真实/模拟前后端; ⚠️ **不为纯后端 API 设计 BDD** (禁止 "Given API key / When POST /api/... / Then 200" 这类 API 级场景), BDD 仅面向用户可感知的端到端流程 | P0 | — | done | 4 features / 6 scenarios / 27 steps 全绿 (浏览器复用本机 Edge, 免 Chromium 下载); 覆盖现有 4 页面核心旅程; plan/speech/report 旅程留待对应 feature 建页时自带 |
 | LOG-101 | **统一日志基建 (Logger + 日志文件)** — 移除应用代码生产路径中的裸 `console.error/console.log/...` 调用, 统一接入 Logger; 后端 `Logger` 写入 `server/logs/app-YYYY-MM-DD.log` (级别 error/warn/info/debug, 异步 append + 镜像 console), 并提供 `POST /api/log` 接口接收前端日志、汇总进同一文件; 前端 `Logger` 封装 console 并 best-effort `POST ${API_BASE}/log`; **约定: 之后所有新 feature 仅允许用 Logger (禁用裸 console)**; 顺带修复 `src/lib/api.ts` 的 `let body: any = null` 为精确类型; E2E 测试夹具 (`src/e2e/**`) 的 console 输出属测试基础设施, 不在本次范围 | P0 | — | done | 应用生产代码 (`src/app`、`src/lib`、`server/src` 除 `seed.ts`/`main.ts` 启动横幅) 无裸 console.*; 后端日志文件可检索且含前端转发的错误; jest 单测覆盖 Logger 纯函数 (serializeMeta/formatLine/文件写入/级别过滤) ≥90%; 前端 Logger 有单测 (fetch 失败静默不抛); 通过 CI 四门 + 质量门 (E2E console 沿用测试豁免) |

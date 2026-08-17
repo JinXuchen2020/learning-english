@@ -42,6 +42,21 @@ export class ProviderConfigController {
     return this.service.create(req.user!.userId, dto);
   }
 
+  /** 保存前能力预览验证（不落库）：按 model 真发请求，返回分能力结果。 */
+  @Post('validate')
+  validate(@Body() dto: CreateProviderConfigDto): Promise<{
+    ok: boolean;
+    results: Record<string, { ok: boolean; reason?: string }>;
+  }> {
+    return this.service.validateCapabilities({
+      type: dto.type,
+      baseUrl: dto.baseUrl ?? null,
+      apiKey: dto.apiKey,
+      model: dto.model,
+      capabilities: dto.capabilities ?? [],
+    });
+  }
+
   @Put(':id')
   update(
     @Req() req: ParentRequest,

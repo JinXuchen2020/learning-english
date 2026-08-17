@@ -68,6 +68,15 @@ function detectPythonSync(): string | null {
   return null;
 }
 
+/**
+ * 公开探测：是否有可用的 python + edge_tts（AI-714）。
+ * 用于模块装配时决定是否把 EdgeTts 挂到 TTS 链末尾——
+ * Vercel 等无 Python 环境自动不挂，依赖用户配置的 TTS provider + 前端 Web Speech 兜底。
+ */
+export function edgeTtsAvailable(): boolean {
+  return detectPythonSync() !== null;
+}
+
 /** 单次 TTS 最大文本长度（儿童短句足够；超长截断避免 edge-tts 报错）。 */
 const MAX_TEXT_LEN = 500;
 

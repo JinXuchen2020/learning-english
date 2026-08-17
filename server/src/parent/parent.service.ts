@@ -10,7 +10,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User } from '../entities/user.entity';
-import { ProviderConfig, ProviderModels, ProviderCapability } from '../ai/provider-config/provider-config.entity';
+import { ProviderConfig, ProviderCapability } from '../ai/provider-config/provider-config.entity';
 import type { ProviderConfigView } from '../ai/provider-config/provider-config.service';
 import { decryptSecret, maskSecret } from '../ai/provider-config/crypto.util';
 import { CreateChildDto } from './dto/create-child.dto';
@@ -229,7 +229,7 @@ export class ParentService {
       name: config.name,
       type: config.type,
       baseUrl: config.baseUrl,
-      models: this.parseModels(config.modelsJson),
+      model: config.model ?? '',
       capabilities: this.parseCapabilities(config.capabilitiesJson),
       isDefault: config.isDefault,
       hasKey: !!config.apiKeyEnc,
@@ -237,15 +237,6 @@ export class ParentService {
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
     };
-  }
-
-  private parseModels(json?: string | null): ProviderModels {
-    if (!json) return {};
-    try {
-      return JSON.parse(json) as ProviderModels;
-    } catch {
-      return {};
-    }
   }
 
   private parseCapabilities(json?: string | null): ProviderCapability[] {

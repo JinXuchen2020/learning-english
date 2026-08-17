@@ -206,6 +206,10 @@ Then(
   async function (this: E2EWorld, nickA: string, nickB: string) {
     const a = findChild(this, nickA);
     const b = findChild(this, nickB);
+    // 概览页卡片是异步 getDashboard 拉取后渲染，必须先等卡片出现再读星数，
+    // 否则卡片未挂载 → getCardStars 返回 -1（AI-712 预存 flaky）。
+    await dashPage(this).waitForCardById(a.id);
+    await dashPage(this).waitForCardById(b.id);
     const starsA = await dashPage(this).getCardStars(a.id);
     const starsB = await dashPage(this).getCardStars(b.id);
     if (starsA < 0 || starsB < 0) {

@@ -18,15 +18,12 @@ export type ProviderCapability =
   | 'tts'
   | 'pronunciation';
 
-/** 模型映射（各能力可选覆盖）。 */
-export interface ProviderModels {
-  chat?: string;
-  vision?: string;
-  tts?: string;
-}
-
 /**
- * Provider 配置实体（AI-705）。
+ * Provider 配置实体（AI-705 / AI-714）。
+ *
+ * AI-714 变更：移除 `modelsJson`（多模型映射），改为单一必填 `model` 字段——
+ * 一个 provider 配置对应一个模型，能力（chat/vision/stt/tts/pronunciation）由该
+ * 模型实际支持情况决定，保存时按 `model` 真验证。
  *
  * 按 `ownerUserId`（家长 `User.id`）隔离；apiKey 以 AES-256-GCM 密文落库，
  * 绝不存明文。同账号 `isDefault` 互斥。
@@ -57,9 +54,16 @@ export class ProviderConfig {
   @Column({ type: 'text', nullable: true })
   apiKeyEnc: string | null;
 
-  /** 模型映射 JSON。 */
-  @Column({ type: 'text', nullable: true })
-  modelsJson: string | null;
+  /**
+   * 模型名称。能力验证基于此模型真发请求（如 gpt-4o / tts-1 / whisper-1）。
+   * AI-714 起为单一模型字段，替代旧的 modelsJson 多模型映射。
+   * 经 DTO 新建/修改的 provider 必填（class-validator 强制），缺省由
+   * `buildProvider` 回退默认模型。DB 列保留 nullable 以兼容 `synchronize`
+   * 对历史行（旧 seed/测试数据）的零停机迁移；TS 侧按非空 `string` 处理
+   * （新建行恒有 model，旧 null 行由运行时回退兜底，不会传入必填契约）。
+   */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  model: string;
 
   /** 能力数组 JSON。 */
   @Column({ type: 'text', nullable: true })

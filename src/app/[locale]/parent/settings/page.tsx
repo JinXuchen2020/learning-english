@@ -15,6 +15,7 @@ import type {
   CreateProviderConfigDto,
   UpdateProviderConfigDto,
   ProviderTestResult,
+  ProviderValidateResult,
   ProviderType,
   ProviderCapability,
   ChildView,
@@ -255,13 +256,17 @@ function ProviderConfigSection() {
   const [formType, setFormType] = useState<ProviderType>("openai-compatible");
   const [formBaseUrl, setFormBaseUrl] = useState("");
   const [formApiKey, setFormApiKey] = useState("");
-  const [formCapabilities, setFormCapabilities] = useState<ProviderCapability[]>([
-    "chat",
-    "tts",
-  ]);
+  const [formModel, setFormModel] = useState("");
+  // 能力默认不勾选（AI-714）：能力是模型级、需用户按实际模型勾选并验证；
+  // 空数组 ≡ 该 provider 具备全部能力（assertCapability 对空数组放行），
+  // 避免默认勾选 tts 导致 gpt-4o-mini 等不支持 tts 的模型被保存前验证拦截。
+  const [formCapabilities, setFormCapabilities] = useState<ProviderCapability[]>([]);
 
   // 连通性探测结果（按配置 id）
   const [testResults, setTestResults] = useState<Record<string, ProviderTestResult>>({});
+
+  // 保存前能力验证预览（按 model 真发请求的分能力结果）
+  const [validateResult, setValidateResult] = useState<ProviderValidateResult | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -288,7 +293,9 @@ function ProviderConfigSection() {
     setFormType("openai-compatible");
     setFormBaseUrl("");
     setFormApiKey("");
-    setFormCapabilities(["chat", "tts"]);
+    setFormModel("");
+    setFormCapabilities([]);
+    setValidateResult(null);
   }, []);
 
   const openAdd = useCallback(() => {
@@ -302,7 +309,9 @@ function ProviderConfigSection() {
     setFormType(c.type);
     setFormBaseUrl(c.baseUrl ?? "");
     setFormApiKey(""); // 编辑不回显明文 key；留空表示沿用原值
-    setFormCapabilities(c.capabilities.length ? c.capabilities : ["chat", "tts"]);
+    setFormModel(c.model ?? "");
+    setFormCapabilities(c.capabilities.length ? c.capabilities : []);
+    setValidateResult(null);
     setShowForm(true);
   }, []);
 
@@ -322,19 +331,43 @@ function ProviderConfigSection() {
       setError(t("baseUrlRequired"));
       return;
     }
+    if (!formModel.trim()) {
+      setError(t("modelRequired"));
+      return;
+    }
     setBusy(true);
     setError(null);
-    const dto: CreateProviderConfigDto & UpdateProviderConfigDto = {
+    const dto: CreateProviderConfigDto = {
       name: formName.trim(),
       type: formType,
+      model: formModel.trim(),
       baseUrl: formBaseUrl.trim() || undefined,
       // 仅当填写了 key 才传：新增非 mock 必填，编辑留空=不改
       apiKey: formApiKey.trim() || undefined,
       capabilities: formCapabilities,
     };
     try {
+      // AI-714：保存前按 model 真验证所有勾选能力，预览分能力结果；任一失败则不保存。
+      const v = await api.validateProviderConfig(dto);
+      setValidateResult(v);
+      if (!v.ok) {
+        const failed = Object.entries(v.results)
+          .filter(([, r]) => !r.ok)
+          .map(([cap, r]) => `${t(CAPABILITY_LABEL_KEY[cap as ProviderCapability])}(${r.reason ?? ""})`)
+          .join("; ");
+        setError(`${t("capabilityVerifyFailed")} ${failed}`);
+        setBusy(false);
+        return;
+      }
       if (editingId) {
-        await api.updateProviderConfig(editingId, dto);
+        const updateDto: UpdateProviderConfigDto = {
+          name: formName.trim() || undefined,
+          baseUrl: formBaseUrl.trim() || undefined,
+          model: formModel.trim() || undefined,
+          apiKey: formApiKey.trim() || undefined,
+          capabilities: formCapabilities,
+        };
+        await api.updateProviderConfig(editingId, updateDto);
       } else {
         await api.createProviderConfig(dto);
       }
@@ -346,7 +379,7 @@ function ProviderConfigSection() {
     } finally {
       setBusy(false);
     }
-  }, [busy, formName, formType, formBaseUrl, formApiKey, formCapabilities, editingId, resetForm, load, t]);
+  }, [busy, formName, formType, formBaseUrl, formApiKey, formModel, formCapabilities, editingId, resetForm, load, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -586,6 +619,20 @@ function ProviderConfigSection() {
             />
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold text-kids-title">
+              {t("modelLabel")}{t("required")}
+            </label>
+            <input
+              data-component="ProviderModelInput"
+              value={formModel}
+              onChange={(e) => setFormModel(e.target.value)}
+              placeholder={t("modelPlaceholder")}
+              autoComplete="off"
+              className="rounded-control border border-kids-border px-3 py-2"
+            />
+            <p className="text-xs text-kids-muted">{t("modelHint")}</p>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">{t("capabilitiesLabel")}</label>
             <div className="flex flex-wrap gap-3" data-component="ProviderCapabilitiesForm">
               {ALL_CAPABILITIES.map((cap) => (
@@ -603,6 +650,30 @@ function ProviderConfigSection() {
               ))}
             </div>
           </div>
+          {validateResult && (
+            <div className="flex flex-col gap-1" data-component="ProviderValidateResult">
+              <p className="text-sm font-semibold text-kids-title">{t("capabilityVerifyTitle")}</p>
+              <ul className="flex flex-col gap-1">
+                {Object.entries(validateResult.results).map(([cap, r]) => (
+                  <li
+                    key={cap}
+                    data-component="CapabilityCheck"
+                    data-capability={cap}
+                    data-ok={r.ok ? "true" : "false"}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    {r.ok ? (
+                      <Check size={16} className="text-[var(--color-success)]" />
+                    ) : (
+                      <X size={16} className="text-kids-orange" />
+                    )}
+                    <span className="font-semibold text-kids-title">{t(CAPABILITY_LABEL_KEY[cap as ProviderCapability])}</span>
+                    {!r.ok && <span className="text-kids-muted">{r.reason}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               data-component="SaveProviderBtn"

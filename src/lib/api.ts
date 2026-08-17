@@ -44,6 +44,7 @@ import type {
   CreateProviderConfigDto,
   UpdateProviderConfigDto,
   ProviderTestResult,
+  ProviderValidateResult,
   ChildView,
   ChildProgressSummary,
   ChildProgressDetail,
@@ -867,6 +868,19 @@ export function testProviderConfig(id: string): Promise<ProviderTestResult> {
     `/provider-config/${encodeURIComponent(id)}/test`,
     { method: "POST" },
   );
+}
+
+/**
+ * 保存前能力预览验证（不落库）：按 `model` 真发请求，返回分能力结果。
+ * `POST /api/provider-config/validate`。
+ */
+export function validateProviderConfig(
+  dto: CreateProviderConfigDto,
+): Promise<ProviderValidateResult> {
+  return request<ProviderValidateResult>("/provider-config/validate", {
+    method: "POST",
+    body: JSON.stringify(dto),
+  });
 }
 
 /* ----------------------- Family Binding (AI-710) ----------------------- */

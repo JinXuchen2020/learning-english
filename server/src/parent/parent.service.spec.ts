@@ -43,7 +43,7 @@ describe('ParentService (AI-710 + AI-711)', () => {
       type: 'openai-compatible',
       baseUrl: 'https://api.openai.com/v1',
       apiKeyEnc: null,
-      modelsJson: JSON.stringify({ chat: 'gpt-4o', vision: 'gpt-4o', tts: 'tts-1' }),
+      model: 'gpt-4o',
       capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
       isDefault: true,
       createdAt: new Date('2026-01-01'),
@@ -290,7 +290,7 @@ describe('ParentService (AI-710 + AI-711)', () => {
     expect(res).toHaveLength(1);
     expect(res[0].id).toBe('cfg-1');
     expect(res[0].isDefault).toBe(true);
-    expect(res[0].models.chat).toBe('gpt-4o');
+    expect(res[0].model).toBe('gpt-4o');
     expect(res[0].capabilities).toEqual(['chat', 'vision', 'tts']);
     expect((res[0] as any).apiKeyEnc).toBeUndefined();
     expect((res[0] as any).password).toBeUndefined();

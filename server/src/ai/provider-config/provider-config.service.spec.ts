@@ -1,6 +1,7 @@
 import { ProviderConfigService } from './provider-config.service';
 import { ProviderConfig } from './provider-config.entity';
 import { encryptSecret, decryptSecret } from './crypto.util';
+import { BadRequestException } from '@nestjs/common';
 
 function makeRepo() {
   return {
@@ -33,7 +34,7 @@ function mkSys(p: Partial<ProviderConfig>): ProviderConfig {
     type: 'openai-compatible',
     baseUrl: null,
     apiKeyEnc: null,
-    modelsJson: null,
+    model: 'gpt-4o-mini',
     capabilitiesJson: null,
     isDefault: false,
     systemFallbackRank: null,
@@ -62,19 +63,18 @@ describe('ProviderConfigService (AI-705)', () => {
     else process.env.PROVIDER_ENC_KEY = ORIGINAL;
   });
 
-  it('create 加密 apiKey 并回掩码视图（isDefault=false）', async () => {
+  it('create 加密 apiKey 并回掩码视图（含 model，isDefault=false）', async () => {
     const view = await svc.create(OWNER, {
       name: 'My GPU',
       type: 'openai-compatible',
       baseUrl: 'https://api.test/v1',
       apiKey: 'sk-secret1234',
-      models: { chat: 'gpt-4o-mini' },
-      capabilities: ['chat', 'tts'],
+      model: 'gpt-4o-mini',
     });
     expect(view.hasKey).toBe(true);
     expect(view.masked).toBe('****1234');
     expect(view.isDefault).toBe(false);
-    expect(view.models.chat).toBe('gpt-4o-mini');
+    expect(view.model).toBe('gpt-4o-mini');
     // 落库的是密文，不是明文
     const saved = repo.save.mock.calls[0][0];
     expect(saved.apiKeyEnc).not.toContain('sk-secret1234');
@@ -89,7 +89,7 @@ describe('ProviderConfigService (AI-705)', () => {
       type: 'openai-compatible',
       baseUrl: 'https://api.test/v1',
       apiKeyEnc: 'enc-old',
-      modelsJson: null,
+      model: 'gpt-4o-mini',
       capabilitiesJson: null,
       isDefault: false,
       createdAt: new Date(),
@@ -120,7 +120,7 @@ describe('ProviderConfigService (AI-705)', () => {
   it('setDefault 同账号互斥', async () => {
     const entity: ProviderConfig = {
       id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
-      baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+      baseUrl: null, apiKeyEnc: null, model: 'gpt-4o-mini', capabilitiesJson: null,
       isDefault: false, createdAt: new Date(), updatedAt: new Date(),
     };
     repo.findOne.mockResolvedValue(entity);
@@ -132,7 +132,7 @@ describe('ProviderConfigService (AI-705)', () => {
   it('resolveDefault 命中默认配置', async () => {
     const def: ProviderConfig = {
       id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
-      baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+      baseUrl: null, apiKeyEnc: null, model: 'gpt-4o-mini', capabilitiesJson: null,
       isDefault: true, createdAt: new Date(), updatedAt: new Date(),
     };
     repo.findOne.mockResolvedValue(def);
@@ -158,7 +158,7 @@ describe('ProviderConfigService (AI-705)', () => {
   it('buildProvider: openai-compatible 透传 extraJson 为 extraBody', async () => {
     const cfg: ProviderConfig = mkSys({
       id: 'agnes', type: 'openai-compatible', baseUrl: 'https://api.agnes-ai.cn/v1',
-      apiKeyEnc: encryptSecret('sk-agnes'), modelsJson: JSON.stringify({ chat: 'agnes-2.5-flash' }),
+      apiKeyEnc: encryptSecret('sk-agnes'), model: 'agnes-2.5-flash',
       extraJson: JSON.stringify({ chat_template_kwargs: { enable_thinking: true } }),
       isDefault: true,
     });
@@ -174,7 +174,7 @@ describe('ProviderConfigService (AI-705)', () => {
       {
         apiKey: decryptSecret(cfg.apiKeyEnc!),
         baseUrl: cfg.baseUrl ?? undefined,
-        chatModel: 'agnes-2.5-flash',
+        model: 'agnes-2.5-flash',
         extraBody: svc['parseExtra'](cfg.extraJson),
       },
       fetchFn,
@@ -187,7 +187,7 @@ describe('ProviderConfigService (AI-705)', () => {
   it('buildProvider 按 type 构建（解密 key）', async () => {
     const cfg: ProviderConfig = {
       id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
-      baseUrl: 'https://api.test/v1', apiKeyEnc: 'enc', modelsJson: null, capabilitiesJson: null,
+      baseUrl: 'https://api.test/v1', apiKeyEnc: 'enc', model: 'gpt-4o-mini', capabilitiesJson: null,
       isDefault: true, createdAt: new Date(), updatedAt: new Date(),
     };
     // 用真实加密写入 apiKeyEnc
@@ -214,12 +214,12 @@ describe('ProviderConfigService (AI-705)', () => {
   });
   const overrideCfg = (): ProviderConfig => ({
     id: 'cfg-override', ownerUserId: 'p1', name: 'Override', type: 'openai-compatible',
-    baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+    baseUrl: null, apiKeyEnc: null, model: 'gpt-4o-mini', capabilitiesJson: null,
     isDefault: false, createdAt: new Date(), updatedAt: new Date(),
   });
   const parentDefaultCfg = (): ProviderConfig => ({
     id: 'cfg-default', ownerUserId: 'p1', name: 'Parent Default', type: 'openai-compatible',
-    baseUrl: null, apiKeyEnc: null, modelsJson: null, capabilitiesJson: null,
+    baseUrl: null, apiKeyEnc: null, model: 'gpt-4o-mini', capabilitiesJson: null,
     isDefault: true, createdAt: new Date(), updatedAt: new Date(),
   });
 
@@ -273,7 +273,7 @@ describe('ProviderConfigService (AI-705)', () => {
   it('testConnection 成功/失败路径', async () => {
     const cfg: ProviderConfig = {
       id: 'c1', ownerUserId: OWNER, name: 'A', type: 'openai-compatible',
-      baseUrl: 'https://api.test/v1', apiKeyEnc: encryptSecret('sk-test'), modelsJson: null, capabilitiesJson: null,
+      baseUrl: 'https://api.test/v1', apiKeyEnc: encryptSecret('sk-test'), model: 'gpt-4o-mini', capabilitiesJson: null,
       isDefault: true, createdAt: new Date(), updatedAt: new Date(),
     };
     repo.findOne.mockResolvedValue(cfg);
@@ -294,5 +294,173 @@ describe('ProviderConfigService (AI-705)', () => {
     expect(fail.ok).toBe(false);
     expect(fail.message).toContain('连通失败');
     fetchSpy2.mockRestore();
+  });
+
+  /* ---------- AI-714: validateCapabilities ---------- */
+
+  describe('validateCapabilities (AI-714)', () => {
+    const base = {
+      type: 'openai-compatible' as const,
+      baseUrl: 'https://api.test/v1',
+      apiKey: 'sk-x',
+      model: 'gpt-4o',
+    };
+
+    /** 按 URL 路由的最小 fetch 桩：默认全 200；可按能力注入 4xx。 */
+    function makeFetch(opts: { ttsStatus?: number; sttStatus?: number; chatStatus?: number } = {}) {
+      return jest.fn(async (url: string) => {
+        const u = String(url);
+        if (u.includes('/audio/speech')) {
+          const s = opts.ttsStatus ?? 200;
+          if (s !== 200) {
+            return new Response(JSON.stringify({ error: { message: 'tts not supported' } }), {
+              status: s,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          return new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          });
+        }
+        if (u.includes('/audio/transcriptions')) {
+          const s = opts.sttStatus ?? 200;
+          if (s !== 200) {
+            return new Response(JSON.stringify({ error: { message: 'stt fail' } }), {
+              status: s,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          return new Response(JSON.stringify({ text: 'hello' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        const s = opts.chatStatus ?? 200;
+        if (s !== 200) {
+          return new Response(JSON.stringify({ error: { message: 'chat fail' } }), {
+            status: s,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+    }
+
+    it('chat/tts/vision/stt 全 200 → 返回全 ok 且整体 ok:true', async () => {
+      const fetchFn = makeFetch();
+      const { ok, results } = await svc.validateCapabilities(
+        { ...base, capabilities: ['chat', 'tts', 'vision', 'stt'] },
+        fetchFn,
+      );
+      expect(ok).toBe(true);
+      expect(results.chat.ok).toBe(true);
+      expect(results.tts.ok).toBe(true);
+      expect(results.vision.ok).toBe(true);
+      expect(results.stt.ok).toBe(true);
+    });
+
+    it('tts 返回 400 → 该能力 ok:false 且整体 ok:false', async () => {
+      const fetchFn = makeFetch({ ttsStatus: 400 });
+      const { ok, results } = await svc.validateCapabilities(
+        { ...base, capabilities: ['chat', 'tts'] },
+        fetchFn,
+      );
+      expect(results.chat.ok).toBe(true);
+      expect(results.tts.ok).toBe(false);
+      expect(results.tts.reason).toMatch(/tts/i);
+      expect(ok).toBe(false);
+    });
+
+    it('pronunciation 通用 OpenAI 端点不支持 → ok:false', async () => {
+      const fetchFn = makeFetch();
+      const { ok, results } = await svc.validateCapabilities(
+        { ...base, capabilities: ['pronunciation'] },
+        fetchFn,
+      );
+      expect(results.pronunciation.ok).toBe(false);
+      expect(ok).toBe(false);
+    });
+
+    it('无 apiKey → 全部 ok:false 且未发起任何请求', async () => {
+      const fetchFn = makeFetch();
+      const { ok, results } = await svc.validateCapabilities(
+        { ...base, apiKey: undefined, capabilities: ['chat', 'tts'] },
+        fetchFn,
+      );
+      expect(ok).toBe(false);
+      expect(results.chat.ok).toBe(false);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('空 capabilities → 直接 ok:true 不发起请求', async () => {
+      const fetchFn = makeFetch();
+      const { ok, results } = await svc.validateCapabilities(
+        { ...base, capabilities: [] },
+        fetchFn,
+      );
+      expect(ok).toBe(true);
+      expect(Object.keys(results)).toHaveLength(0);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ---------- AI-714: create 能力硬拒绝 ---------- */
+
+  describe('create 能力验证（AI-714）', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    function spyFetch(ttsStatus = 200) {
+      return jest.spyOn(globalThis, 'fetch').mockImplementation(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        if (u.includes('/audio/speech')) {
+          if (ttsStatus !== 200) {
+            return new Response(JSON.stringify({ error: { message: 'tts not supported' } }), {
+              status: ttsStatus,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          return new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          });
+        }
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+    }
+
+    it('capabilities 全部通过 → 正常创建并回 model', async () => {
+      spyFetch(200);
+      const view = await svc.create(OWNER, {
+        name: 'M',
+        type: 'openai-compatible',
+        baseUrl: 'https://api.test/v1',
+        apiKey: 'sk-x',
+        model: 'gpt-4o',
+        capabilities: ['chat', 'tts'],
+      });
+      expect(view.model).toBe('gpt-4o');
+    });
+
+    it('tts 验证失败 → 抛 BadRequestException 且不落库', async () => {
+      spyFetch(400);
+      await expect(
+        svc.create(OWNER, {
+          name: 'M',
+          type: 'openai-compatible',
+          baseUrl: 'https://api.test/v1',
+          apiKey: 'sk-x',
+          model: 'gpt-4o',
+          capabilities: ['chat', 'tts'],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
   });
 });
