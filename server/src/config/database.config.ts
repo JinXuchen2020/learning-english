@@ -27,6 +27,7 @@ import { UserPoints } from '../rewards/user-points.entity';
 import { Reward } from '../rewards/reward.entity';
 import { RewardRedemption } from '../rewards/reward-redemption.entity';
 import { InitSchema20260816200000 } from '../migrations/InitSchema';
+import { ProviderConfigReconcile20260817000000 } from '../migrations/ProviderConfigReconcile20260817000000';
 
 /**
  * All entities registered in one place so both the NestJS module and the
@@ -108,7 +109,7 @@ export function buildDataSourceOptions(): DataSourceOptions {
     ? process.env.DB_SYNCHRONIZE === 'true'
     : process.env.DB_SYNCHRONIZE !== 'false';
   const migrationsRun = isProd ? process.env.DB_SYNCHRONIZE !== 'true' : false;
-  const migrations = [InitSchema20260816200000];
+  const migrations = [InitSchema20260816200000, ProviderConfigReconcile20260817000000];
 
   if (isProd) {
     // Neon / Vercel / Supabase hand out a single connection string; prefer it.
