@@ -69,35 +69,11 @@ describe('createLogger', () => {
     fs.mkdirSync(TMP_BASE, { recursive: true });
     dir = fs.mkdtempSync(path.join(TMP_BASE, 'case-'));
   });
-  // 日志写入是异步的（ensureDir Promise 链 + appendFile），每次写完才关闭句柄。
-  // Windows 下若句柄仍打开，删除会被 EPERM 阻塞；目录非空则 ENOTEMPTY。
-  // 改为 async + 重试：短暂等待 appendFile 完成并释放句柄后再删，消除竞态。
-  afterEach(async () => {
-    const deadline = Date.now() + 2000;
-    while (Date.now() < deadline) {
-      try {
-        fs.rmSync(dir, { recursive: true, force: true });
-        return;
-      } catch (e) {
-        const code = (e as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT') return; // 已删除
-        if (code === 'EPERM' || code === 'ENOTEMPTY') {
-          await new Promise((r) => setTimeout(r, 50)); // 句柄未释放 → 等一会儿重试
-          continue;
-        }
-        throw e;
-      }
-    }
-    // 兜底：超过重试窗口仍失败则忽略（清理失败不应影响测试结论）
-    try {
-      fs.rmSync(dir, { recursive: true, force: true });
-    } catch {
-      /* ignore */
-    }
-  });
 
   // 日志文件写入是异步的（ensureDir 的 Promise 链 + appendFile）。在并行测试负载下
   // 固定 50ms 等待偶发不足 → files.length 为 0。改为轮询直到文件出现（≤1s），消除竞态。
+  // 注：每个用例用 mkdtempSync 生成唯一 case-xxx 目录，天然隔离；不在 afterEach 删除，
+  // 以免在带 safe-delete 守卫的沙箱里触发批量删除拦截（CI 上无害，本地会假红）。
   const waitForFile = async (): Promise<void> => {
     const end = Date.now() + 1000;
     while (Date.now() < end) {

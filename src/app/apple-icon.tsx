@@ -29,6 +29,11 @@ const foxDataUri = "data:image/svg+xml;base64," + Buffer.from(foxSvg).toString("
 export const size = 180;
 export const contentType = "image/png";
 
+// OG image routes can't be statically prerendered on Windows: `@vercel/og`
+// calls fileURLToPath on a relative URL during build and throws "Invalid URL".
+// Render on-demand instead. No visual/behavior change on Linux/CI.
+export const dynamic = "force-dynamic";
+
 export default function AppleIcon() {
   return new ImageResponse(
     (

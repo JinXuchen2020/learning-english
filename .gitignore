@@ -30,6 +30,11 @@ tsconfig.tsbuildinfo
 coverage/
 *.lcov
 
+# --- Local E2E verification artifacts (feature-builder 质量门本地产物，勿入库) ---
+.e2e-skipped-by-user
+.quality-evidence.json
+server/src/.tmp/
+
 # --- Databases ---
 *.sqlite
 *.sqlite3

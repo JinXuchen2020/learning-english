@@ -1,6 +1,17 @@
 #!/bin/sh
 # feature-builder 质量门 pre-commit 强执 hook（自动安装，跨平台）
 # 暂存区含源码改动时，要求 .quality-gate.json 已暂存 + cleared:true + gates（consistency/tests/review/optimization）四字段 PASSED。
+#
+# 强执要点（防“私自自报 tests:PASSED”）：
+#   当 gates.tests 为 PASSED 时，必须满足二者之一，否则阻断提交：
+#     (A) .quality-gate.json 本身带有验证戳 testsVerifiedCommit，且其值 ==
+#         当前 HEAD（即本次 E2E 确在该代码态跑通）；该戳由
+#         scripts/run-e2e-local.sh 在 本地 jest + cucumber E2E 全绿后直接写入
+#         gates.tests=PASSED 时一并写入。无戳 / 戳过期 → 阻断。
+#     (B) 用户【手动】创建 .e2e-skipped-by-user 标记文件（agent 禁止创建），且
+#         gates.tests 字符串含 "user-accepted-ci"（表明用户显式接受“本地无法跑
+#         E2E，交 CI e2e job 兜底”）。
+#   不满足任一条件 → 阻断，并打印如何补戳 / 如何交用户决定。
 set -e
 
 staged=$(git diff --cached --name-only --diff-filter=ACM)
@@ -45,5 +56,42 @@ for g in consistency tests review optimization; do
     exit 1
   fi
 done
+
+# ── tests:PASSED 强执：E2E 必须实际跑通，禁止私自自报 ──
+ROOT="$(git rev-parse --show-toplevel)"
+SKIP="$ROOT/.e2e-skipped-by-user"
+tests_line=$(printf '%s\n' "$gate" | grep -E '"tests"[[:space:]]*:[[:space:]]*".*"' | head -1)
+
+if printf '%s\n' "$tests_line" | grep -q 'PASSED'; then
+  if [ -f "$SKIP" ]; then
+    # 用户显式接受 CI 兜底：要求 tests 标注 user-accepted-ci，避免 agent 偷偷滥用
+    if ! printf '%s\n' "$tests_line" | grep -q 'user-accepted-ci'; then
+      echo "质量门未通过：存在 .e2e-skipped-by-user（用户接受 CI 兜底），但 gates.tests 未标注 'user-accepted-ci'。" >&2
+      echo "请将 tests 写为如：PASSED (user-accepted-ci: E2E 交 CI e2e job 验证)" >&2
+      exit 1
+    fi
+    echo "(质量门) 检测到 .e2e-skipped-by-user：E2E 由用户显式接受交 CI 兜底（tests 已标注 user-accepted-ci）。"
+  else
+    # 必须存在“真跑过”的验证戳：scripts/run-e2e-local.sh 在本地 jest+E2E 全绿后
+    # 直接把 gates.tests 写为 PASSED，并一并写入 testsVerifiedCommit / testsVerifiedAt。
+    cur_commit=$(git rev-parse HEAD)
+    stamp_line=$(printf '%s\n' "$gate" | grep -E '"testsVerifiedCommit"[[:space:]]*:[[:space:]]*".*"' | head -1)
+    stamp_commit=$(printf '%s\n' "$stamp_line" | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')
+    if [ -z "$stamp_commit" ]; then
+      echo "质量门未通过：gates.tests=PASSED 但 .quality-gate.json 缺少 testsVerifiedCommit 验证戳。" >&2
+      echo "feature-builder 规则：未经本地实际跑通，禁止自报 tests:PASSED。" >&2
+      echo "  ① 本地跑通（推荐）：bash scripts/run-e2e-local.sh  （全绿后会直接把 tests:PASSED 写回本文件）" >&2
+      echo "  ② 交 CI 兜底：由【用户】手动创建 .e2e-skipped-by-user，并把 tests 标注为" >&2
+      echo "     'PASSED (user-accepted-ci: E2E 交 CI e2e job 验证)'。" >&2
+      exit 1
+    fi
+    if [ "$stamp_commit" != "$cur_commit" ]; then
+      echo "质量门未通过：testsVerifiedCommit ($stamp_commit) 与当前 HEAD ($cur_commit) 不一致（E2E 验证戳过期）。" >&2
+      echo "请重新运行 bash scripts/run-e2e-local.sh 后再提交。" >&2
+      exit 1
+    fi
+    echo "(质量门) 检测到本地 E2E 验证戳（commit=$stamp_commit，jest+E2E 全绿）。"
+  fi
+fi
 
 exit 0
