@@ -47,6 +47,7 @@ async function createProviderConfig(
       type: "openai-compatible",
       baseUrl: E2E_PROVIDER_BASE_URL,
       apiKey: E2E_PROVIDER_API_KEY,
+      model: "gpt-4o-mini",
     }),
   });
   if (!res.ok) {

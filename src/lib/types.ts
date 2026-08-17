@@ -707,13 +707,6 @@ export type ProviderType = "openai-compatible" | "bigmodel";
 /** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";
 
-/** 模型映射（各能力可选覆盖，与后端 `ProviderModels` 对齐）。 */
-export interface ProviderModels {
-  chat?: string;
-  vision?: string;
-  tts?: string;
-}
-
 /** Provider 配置视图（与后端 `ProviderConfigView` 对齐，绝不含明文 apiKey）。 */
 export interface ProviderConfigView {
   id: string;
@@ -721,7 +714,8 @@ export interface ProviderConfigView {
   name: string;
   type: ProviderType;
   baseUrl: string | null;
-  models: ProviderModels;
+  /** 模型名称（AI-714 起必填，单一模型驱动所有能力）。 */
+  model: string;
   capabilities: ProviderCapability[];
   isDefault: boolean;
   /** 是否已配置 key（前端据此提示「未填密钥」）。 */
@@ -736,10 +730,11 @@ export interface ProviderConfigView {
 export interface CreateProviderConfigDto {
   name: string;
   type: ProviderType;
+  /** 模型名称（AI-714 必填）：能力验证基于此模型真发请求。 */
+  model: string;
   baseUrl?: string;
   /** 明文 key（后端加密落库，必填）。 */
   apiKey?: string;
-  models?: ProviderModels;
   capabilities?: ProviderCapability[];
 }
 
@@ -747,9 +742,10 @@ export interface CreateProviderConfigDto {
 export interface UpdateProviderConfigDto {
   name?: string;
   baseUrl?: string;
+  /** 传则更新模型（重新验证能力）。 */
+  model?: string;
   /** 传则更新（重新加密）；省略则不改动原 key。 */
   apiKey?: string;
-  models?: ProviderModels;
   capabilities?: ProviderCapability[];
 }
 
@@ -757,6 +753,18 @@ export interface UpdateProviderConfigDto {
 export interface ProviderTestResult {
   ok: boolean;
   message: string;
+}
+
+/** 单能力验证结果（与后端 `validateCapabilities` 对齐）。 */
+export interface ProviderCapabilityCheck {
+  ok: boolean;
+  reason?: string;
+}
+
+/** `POST /api/provider-config/validate` 响应（保存前分能力预览，不落库）。 */
+export interface ProviderValidateResult {
+  ok: boolean;
+  results: Record<string, ProviderCapabilityCheck>;
 }
 
 /* ----------------------- Family Binding (AI-710) ----------------------- */

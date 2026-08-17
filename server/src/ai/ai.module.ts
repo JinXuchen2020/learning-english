@@ -5,7 +5,7 @@ import { BigModelProvider } from './bigmodel.provider';
 import { logger } from '../common/logger/logger';
 import { createRetryableProvider } from './retryable-ai-provider';
 import { FallbackAiProvider } from './fallback-ai-provider';
-import { EdgeTtsProvider } from './edge-tts.provider';
+import { EdgeTtsProvider, edgeTtsAvailable } from './edge-tts.provider';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import {
@@ -145,11 +145,19 @@ function fallbackProvider(): AiProvider {
         const generalProviders = sysChain.length
           ? sysChain.map((cfg) => providerConfigService.buildProvider(cfg))
           : [fallbackProvider()];
-        // AI-407 修复：本地免费 edge-tts 仅作为 synthesize（TTS）链最终兜底
-        // （付费 provider 均无可用 TTS 通道）。注意：EdgeTts 严禁进入通用链
-        // （chat/transcribe 等），否则上游 chat 失败时会被链的 chat() 抛「unsupported」
-        // 盖掉真实错误（网络/5xx/配额）。因此 TTS provider 只挂到 ttsProviders 链。
-        const ttsProviders = [...generalProviders, new EdgeTtsProvider()];
+        // AI-714：TTS 链仅纳入「声明含 tts 能力」的 provider（空 capabilities 视为全能力，
+        // 向后兼容 seed 系统 provider）；EdgeTts 仅探测到 Python 时挂到链末尾
+        // （Vercel 等无 Python 环境自动不挂，依赖用户 TTS provider + 前端 Web Speech 兜底）。
+        const ttsCandidates = sysChain.filter((cfg) => {
+          const caps = providerConfigService.parseCapabilities(cfg.capabilitiesJson);
+          return caps.length === 0 || caps.includes('tts');
+        });
+        const ttsProviders = [
+          ...(ttsCandidates.length
+            ? ttsCandidates.map((cfg) => providerConfigService.buildProvider(cfg))
+            : generalProviders),
+          ...(edgeTtsAvailable() ? [new EdgeTtsProvider()] : []),
+        ];
         const chain = new FallbackAiProvider(generalProviders, ttsProviders);
         const defaultProvider = createAuditedProvider(chain, usage, resolveUserId, resolveModuleTag, callLog);
         // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认链。

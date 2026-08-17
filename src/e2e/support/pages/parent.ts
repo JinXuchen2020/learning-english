@@ -122,6 +122,7 @@ export default class ParentPage {
     type?: string;
     baseUrl?: string;
     apiKey?: string;
+    model?: string;
   }): Promise<void> {
     await this.page
       .locator('[data-component="ProviderNameInput"]')
@@ -156,6 +157,11 @@ export default class ParentPage {
         .locator('[data-component="ProviderApiKeyInput"]')
         .fill(opts.apiKey);
     }
+    if (opts.model !== undefined) {
+      await this.page
+        .locator('[data-component="ProviderModelInput"]')
+        .fill(opts.model);
+    }
   }
 
   /** 保存表单，并等待模态表单关闭（ProviderConfigForm 卸载）。 */
@@ -165,6 +171,58 @@ export default class ParentPage {
       () => !document.querySelector('[data-component="ProviderConfigForm"]'),
       undefined,
       { timeout: 15000 },
+    );
+  }
+
+  /** 仅点击保存按钮（不等待表单关闭；用于「保存被拦截、表单应保持打开」的断言）。 */
+  async clickSaveProvider(): Promise<void> {
+    await this.page.locator('[data-component="SaveProviderBtn"]').click();
+  }
+
+  /** 等待新增/编辑表单处于打开状态（ProviderConfigForm 已挂载）。 */
+  async waitForProviderForm(timeout = 15000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.querySelector('[data-component="ProviderConfigForm"]'),
+      undefined,
+      { timeout },
+    );
+  }
+
+  /**
+   * 勾选指定能力（AI-714）。cap 取值 chat|vision|stt|tts|pronunciation；
+   * 点击对应 [data-component="ProviderCapabilityCheckbox"][data-capability=...]。
+   * 幂等：若已勾选则不再点击（受控 checkbox 点击会切换）。
+   */
+  async selectProviderCapabilities(caps: string[]): Promise<void> {
+    for (const cap of caps) {
+      const checkbox = this.page.locator(
+        `[data-component="ProviderCapabilityCheckbox"][data-capability="${cssEscape(cap)}"]`,
+      );
+      const checked = await checkbox.isChecked();
+      if (!checked) {
+        await checkbox.click();
+      }
+    }
+  }
+
+  /** 等待能力验证结果块出现（ProviderValidateResult；保存前预览分能力 ✓/✗）。 */
+  async waitForValidationResult(timeout = 20000): Promise<void> {
+    await this.page.waitForFunction(
+      () => !!document.querySelector('[data-component="ProviderValidateResult"]'),
+      undefined,
+      { timeout },
+    );
+  }
+
+  /** 等待某能力被标记为验证失败（data-ok="false"）。 */
+  async waitForCapabilityNotOk(cap: string, timeout = 20000): Promise<void> {
+    await this.page.waitForFunction(
+      (c: string) =>
+        !!document.querySelector(
+          `[data-component="CapabilityCheck"][data-capability="${CSS.escape(c)}"][data-ok="false"]`,
+        ),
+      cap,
+      { timeout },
     );
   }
 

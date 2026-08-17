@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { playTts } from "@/lib/audio";
+import { speakText } from "@/lib/speech";
 import { logger } from "@/lib/logger";
 import type {
   ChatScene,
@@ -748,9 +749,20 @@ function ChatInner() {
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-kids-muted">
-                      {t("noVoice")}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-kids-muted">
+                        {t("noVoice")}
+                      </span>
+                      {/* AI-714 方案 A：无服务端音频时，浏览器 Web Speech API 朗读兜底，保证任何环境都有声音 */}
+                      <button
+                        onClick={() => speakText(msg.text, { lang: "en-US" })}
+                        className="shrink-0 rounded-full bg-kids-secondary px-2 py-1 text-xs font-bold text-[var(--seed-primary)] hover:bg-kids-secondary/70"
+                        aria-label={t("browserReadAloud")}
+                        data-action="web-speech-read"
+                      >
+                        🔊 {t("browserReadAloud")}
+                      </button>
+                    </div>
                   )}
 
                   {!msg.isOpening && (

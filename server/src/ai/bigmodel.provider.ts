@@ -12,8 +12,10 @@ import {
   SynthesizeOptions,
   AudioInput,
   TokenUsage,
+  UnsupportedMethodError,
 } from './ai-provider.interface';
 import { logger } from '../common/logger/logger';
+import { ProviderCapability } from './provider-config/provider-config.entity';
 
 /**
  * BigModel provider 抛出的异常，携带可被上层（AI-106 重试/降级）识别的
@@ -65,6 +67,8 @@ export interface BigModelConfig {
   ttsModel?: string;
   /** 默认 TTS 音色（狐狸吉祥物音色）。缺省 `DEFAULT_TTS_VOICE`（tongtong）。 */
   ttsVoice?: string;
+  /** 声明的能力（AI-714）：非空时未声明能力直接抛 UnsupportedMethodError。 */
+  capabilities?: ProviderCapability[] | null;
   /** 运行时真实 provider 名（来自 DB `ProviderConfig.name`，如 `智谱 GLM (系统默认)`），用于审计归因。缺省 `bigmodel`。 */
   name?: string;
 }
@@ -130,6 +134,8 @@ export class BigModelProvider implements AiProvider {
   private readonly visionModel: string;
   private readonly ttsModel: string;
   private readonly ttsVoice: string;
+  /** 显式声明的能力集；null/空 → 视为全能力（向后兼容 seed 系统 provider）。 */
+  private readonly capabilities: ProviderCapability[] | null;
   private readonly fetchFn: FetchFn;
 
   constructor(
@@ -142,11 +148,20 @@ export class BigModelProvider implements AiProvider {
     this.visionModel = config.visionModel ?? DEFAULT_VISION_MODEL;
     this.ttsModel = config.ttsModel ?? DEFAULT_TTS_MODEL;
     this.ttsVoice = config.ttsVoice ?? DEFAULT_TTS_VOICE;
+    this.capabilities = config.capabilities ?? null;
     this.name = config.name ?? 'bigmodel';
     this.fetchFn = fetchFn;
   }
 
+  /** 能力边界断言（AI-714）：capabilities 为非空数组且未声明该能力 → 抛 UnsupportedMethodError。空数组/null 视为「全部能力」（向后兼容 seed 系统 provider，且与 AI 模块「空 caps=全部」约定一致）。 */
+  private assertCapability(cap: ProviderCapability): void {
+    if (this.capabilities && this.capabilities.length > 0 && !this.capabilities.includes(cap)) {
+      throw new UnsupportedMethodError(`provider ${this.name} 未声明能力 ${cap}`);
+    }
+  }
+
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
+    this.assertCapability('chat');
     const model = options?.model ?? this.model;
     const body = {
       model,
@@ -174,6 +189,7 @@ export class BigModelProvider implements AiProvider {
     image: ImageInput,
     options?: ChatOptions,
   ): Promise<ChatResult> {
+    this.assertCapability('vision');
     const model = options?.model ?? this.visionModel;
     const dataUrl = `data:${image.mimeType};base64,${image.data}`;
     const body = {
@@ -203,6 +219,7 @@ export class BigModelProvider implements AiProvider {
   }
 
   async transcribe(_audio: AudioInput, _options?: TranscribeOptions): Promise<TranscriptResult> {
+    this.assertCapability('stt');
     // BigModel STT 暂未接入（AI-102 范围外），必须抛错让 FallbackAiProvider 继续尝试下一个 provider。
     // 若返回空文本（不抛错），FallbackAiProvider 会把空结果当"成功"消费，导致 STT 静默失败（分数恒为 0）。
     throw new AiProviderException('智谱 GLM 暂不支持语音转写（STT），请配置支持 whisper 的 provider', {
@@ -216,6 +233,7 @@ export class BigModelProvider implements AiProvider {
     _referenceText: string,
     _options?: AssessOptions,
   ): Promise<ScoreResult> {
+    this.assertCapability('pronunciation');
     // BigModel 发音评测暂未接入，必须抛错让 FallbackAiProvider 继续尝试下一个 provider。
     throw new AiProviderException('智谱 GLM 暂不支持发音评测', {
       statusCode: 501,
@@ -228,6 +246,7 @@ export class BigModelProvider implements AiProvider {
     voice?: string,
     options?: SynthesizeOptions,
   ): Promise<AudioResult> {
+    this.assertCapability('tts');
     if (!this.apiKey) {
       throw new AiProviderException('BigModel API key 未配置（请通过家长设置或 seed 系统默认配置）', {
         statusCode: 401,
