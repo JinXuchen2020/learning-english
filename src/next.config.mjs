@@ -1,31 +1,37 @@
 import createNextIntlPlugin from "next-intl/plugin";
+import { fileURLToPath } from "node:url";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
-// Polyfill the SWC-injected `__name` helper.
-// Root cause: Next 14.2's SWC transform emits `__name(fn, name)` calls in client
-// chunks but, under some build conditions, fails to define the helper — causing
-// runtime `__name is not defined`, React failing to mount, and page navigation
-// RSC requests aborted. The earlier `swcMinify: false` workaround was unreliable
-// (the option is ignored in some Next 14.2 builds, and the helper is emitted by
-// the transform, not just the minifier). Defining `__name` as a global on
-// `globalThis` at the top of every chunk guarantees any reference resolves,
-// regardless of which minifier runs.
-const NAME_HELPER_POLYFILL = `(function(){if(typeof globalThis.__name==="undefined"){globalThis.__name=function(fn,name){try{return Object.defineProperty(fn,"name",{value:name,configurable:true});}catch(e){return fn;}};}}})();`;
+// Polyfill the SWC-injected `__name` helper via webpack entry injection.
+// See src/__name-polyfill.js for the full root-cause analysis. We prepend that
+// module to every entry so `globalThis.__name` is defined before any transpiled
+// chunk calls it — WITHOUT corrupting file syntax the way a raw BannerPlugin
+// banner did (which made Next's Terser throw "Expected ',', got '}'" while
+// parsing the injected files). The polyfill is a self-contained valid module,
+// so Terser parses it cleanly and the global helper resolves at runtime.
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // NOTE: `swcMinify` left at Next default. The `NAME_HELPER_POLYFILL` below is
-  // the real fix; disabling minification here is ineffective and only slows CI.
-  webpack: (config, { webpack }) => {
-    config.plugins.push(
-      new webpack.BannerPlugin({
-        banner: NAME_HELPER_POLYFILL,
-        raw: true,
-        entryOnly: false,
-      })
+  webpack: (config) => {
+    const polyfillPath = fileURLToPath(
+      new URL("./__name-polyfill.js", import.meta.url)
     );
+    const originalEntry = config.entry;
+    config.entry = async () => {
+      const entries = await originalEntry();
+      for (const key of Object.keys(entries)) {
+        const entry = entries[key];
+        if (Array.isArray(entry)) {
+          entries[key] = [polyfillPath, ...entry];
+        } else if (typeof entry === "string") {
+          entries[key] = [polyfillPath, entry];
+        }
+        // function / object-form entries are left untouched (Next handles them).
+      }
+      return entries;
+    };
     return config;
   },
   env: {
