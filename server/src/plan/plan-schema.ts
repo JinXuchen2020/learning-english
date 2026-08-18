@@ -7,8 +7,9 @@ import { STUDY_PLAN_SKILL_TYPES, StudyPlanSkillType } from './study-plan.entity'
  * 校验 LLM 输出「结构」与「lesson 引用格式有效性」：
  *  - 结构：根对象 → weeks[] 非空 → 每 week 含数字 week 字段 + days[] 非空 → 每 day
  *    含数字 day 字段 + lessons[] 非空 → 每 lesson 为对象。
- *  - lesson 引用格式：若携带 `type`/`skillType`/`title`/`courseId`/`lessonId`，须为
- *    合法取值/非空字符串（格式层校验）；**id 存在性**需真实目录，随注入留 AI-206。
+ *  - lesson 引用格式：若携带 `type`/`skillType`/`title`，须为合法取值；`courseId`/
+ *    `lessonId` 为「推荐计划」占位，未注入真实目录时**允许空字符串**（如 `""`），
+ *    真实 id 由 AI-206 落库时解析/校验；仅当字段存在且类型非字符串时才报错。
  *
  * 不校验「内容完整性」（如每天必须恰好 4 节、必须覆盖四技能），那属于提示词约束，
  * 结构层只保证可安全渲染，避免过度拒绝可用计划。
@@ -52,11 +53,13 @@ function validateLesson(raw: unknown, path: string, errors: string[]): void {
   if (lesson.title !== undefined && typeof lesson.title !== 'string') {
     errors.push(`${path}.title 必须是字符串`);
   }
-  if (lesson.courseId !== undefined && !isNonEmptyString(lesson.courseId)) {
-    errors.push(`${path}.courseId 必须是非空字符串`);
+  // courseId/lessonId 为「推荐计划」占位：未注入目录时允许空字符串（如 ""），
+  // 真实 id 由 AI-206 落库时解析/校验；仅当字段存在但类型非字符串时才报错。
+  if (lesson.courseId !== undefined && typeof lesson.courseId !== 'string') {
+    errors.push(`${path}.courseId 必须是字符串`);
   }
-  if (lesson.lessonId !== undefined && !isNonEmptyString(lesson.lessonId)) {
-    errors.push(`${path}.lessonId 必须是非空字符串`);
+  if (lesson.lessonId !== undefined && typeof lesson.lessonId !== 'string') {
+    errors.push(`${path}.lessonId 必须是字符串`);
   }
 }
 

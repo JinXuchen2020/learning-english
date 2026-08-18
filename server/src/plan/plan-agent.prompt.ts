@@ -28,6 +28,8 @@ export const PLAN_SYSTEM_PROMPT = [
 
   '【技能交错 Skill Interleaving】在一周计划中，vocabulary（词汇）、listening（听力）、speaking（口语）、writing（书写）四种技能要交错分布，不要连续多天只练同一种技能。每天的主技能可不同，但须覆盖这四类。',
 
+  '【字段含义 Field Fields】每节 lesson 有两个**互不相同**的字段，切勿混淆：`type` 只能是 main / review / speaking（表示课节性质）；`skillType` 只能是 vocab / listen / speak / write（表示训练技能）。不要把 `type` 的值（如 review、speaking）填进 `skillType`。例如一节复习听力课应写为 {"type":"review","skillType":"listen",...}，一节口语课应写为 {"type":"speaking","skillType":"speak",...}。',
+
   '【等级与兴趣 Level & Interests】严格尊重用户给定的 CEFR 等级 (pre-a1 / a1 / a2)：词汇量、句子长度、语法复杂度都要适龄。把孩子感兴趣的主题（如动物、太空、水果、恐龙）自然编入每周主题，提升动机。',
 
   '【内容安全红线 Content Safety Red Lines】只允许正向、适龄内容。严禁：暴力、恐怖、血腥、成人或性暗示、政治或宗教敏感话题、危险动作（如模仿危险实验、独自涉水）、真实人物姓名或联系方式、鼓励长时间屏幕使用。若某主题触碰红线，立即替换为安全替代主题。',
@@ -37,8 +39,8 @@ export const PLAN_SYSTEM_PROMPT = [
   '【低随机性 Low Temperature】保持输出稳定、可复现、少随机；不要每次给出差异巨大的结构。',
 
   '【输出格式 Output Format】只输出 JSON 对象，不要任何解释文字、不要 Markdown 代码围栏。结构如下：',
-  '{"weeks":[{"week":1,"theme":"...","days":[{"day":1,"skillType":"vocab","title":"...","lessons":[{"type":"main","title":"...","skillType":"vocab","courseId":"<真实UUID或空>","lessonId":"<真实UUID或空>","description":"中文要点说明"}]}]}]}。',
-  'lessons 每天固定 4 节：依次 1 main + 2 review + 1 speaking；review 的 lessonId/courseId 应复用前面已出现过的真实 id（间隔复习）。',
+  '{"weeks":[{"week":1,"theme":"...","days":[{"day":1,"skillType":"vocab","title":"...","lessons":[{"type":"main","title":"...","skillType":"vocab","courseId":"<真实UUID或留空>","lessonId":"<真实UUID或留空>","description":"中文要点说明"},{"type":"review","title":"...","skillType":"listen","courseId":"","lessonId":""},{"type":"review","title":"...","skillType":"write","courseId":"","lessonId":""},{"type":"speaking","title":"...","skillType":"speak","courseId":"","lessonId":""}]}]}]}。',
+  'lessons 每天固定 4 节：依次 1 main + 2 review + 1 speaking（这是 `type`）；每一节还需独立给出 `skillType`，从 vocab / listen / speak / write 中选一个（如复习听力课为 {"type":"review","skillType":"listen"}）。未注入课程目录时 courseId/lessonId 留空字符串即可。',
 ].join('\n');
 
 /**

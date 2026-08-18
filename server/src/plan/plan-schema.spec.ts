@@ -94,12 +94,20 @@ describe('validatePlan (AI-204)', () => {
     expect(r.errors.join('; ')).toContain('title');
   });
 
-  it('lesson.courseId / lessonId 空字符串 → 失败', () => {
+  it('lesson.courseId / lessonId 空字符串（推荐计划占位）→ 通过', () => {
     const r = validatePlan({
-      weeks: [{ week: 1, days: [{ day: 1, lessons: [{ courseId: '', lessonId: 'l1' }] }] }],
+      weeks: [{ week: 1, days: [{ day: 1, lessons: [{ courseId: '', lessonId: '' }] }] }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('lesson.courseId / lessonId 非字符串 → 失败', () => {
+    const r = validatePlan({
+      weeks: [{ week: 1, days: [{ day: 1, lessons: [{ courseId: 123, lessonId: {} }] }] }],
     });
     expect(r.ok).toBe(false);
     expect(r.errors.join('; ')).toContain('courseId');
+    expect(r.errors.join('; ')).toContain('lessonId');
   });
 
   it('lesson 携带合法 courseId/lessonId → 通过', () => {

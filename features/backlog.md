@@ -1,7 +1,7 @@
 # AI 集成功能 Backlog
 
 > 来源: `docs/ai-integration.md`
-> 更新: 2026-08-17
+> 更新: 2026-08-18
 > 说明: 按实施阶段(M1-M6)细分为可独立验收的 feature。每个 feature 有唯一 ID、优先级、依赖、验收标准。
 
 ## 状态图例
@@ -79,6 +79,17 @@
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
 | AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | todo | 见 `features/ai-802.md` |
+
+---
+
+## M11 — 学习计划驱动学习（计划→真实课程引用与导航, 2026-08-18）
+
+> 来源: 用户提问（2026-08-18）—「生成的学习计划不会自动生成对应的课程然后落库吗？孩子是如何根据学习计划去学习的」。代码查证结论：当前 `PlanService` 落库仅 `StudyPlan` + `StudyPlanDay`（lessons 序列化进 `content` 文本列）+ `DailyTask`（仅 title/description/icon/date），**`courseId`/`lessonId` 从不作为列持久化、保存时不校验真实存在、前端 daily task 不据此跳转**——计划本质是一份「主题化排期清单」，孩子要自行从 `/course`、`/practice` 进内容页。本 feature 把「计划引用真实课程」从提示词意图端到端落地。
+> **与 AI-801 的边界**: AI-801 是「计划 → 生成全新 Course+Lesson+Word」（写路径，无目录依赖）；本 feature 是「计划 → 引用**已有**目录课程并驱动导航」（读路径，强依赖 `CoursesService` 目录）。二者互补、互不冲突：AI-801 生成的课程可被本 feature 的引用/导航机制复用。
+
+| ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
+|---|---|---|---|---|---|
+| AI-803 | **学习计划→真实课程引用落地与学习导航** — 把计划内每节 lesson 的 `courseId`/`lessonId` 从 `StudyPlanDay.content` 文本里**提为正式引用并落库**；`savePlan`/`applyPlan` 按注入目录（`CoursesService`）校验 id 真实存在（**缺失则降级为无深链的通用任务，不整计划失败**，符合「出错即抛」仅限生成期、保存期容错）；`StudyPlanDay`/`DailyTask` 新增 `courseId`/`lessonId`/`skillType` 列；前端每日任务按 `skillType`+id 深链到对应课时（`vocab/listen/write` → `/practice?lessonId=` 或 `/course/<courseId>`、`speak` → `/speech`），让孩子「点哪天就上那节课」而非孤立排期 | P1 | AI-206, 现有 CoursesModule, AI-209, AI-707 | todo | 见 `features/ai-803.md` |
 
 ---
 
@@ -194,5 +205,6 @@
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
 | **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
 | **Milestone 10** (W10+) | AI-802 | 聊天语音输入（`/chat` 麦克风实时英文听写 + Firefox/非安全上下文降级） |
+| **Milestone 11** (W11+) | AI-803 | 计划→真实课程引用落地与导航（courseId/lessonId 落库+校验+前端深链「点哪天上哪节」） |
 
 > 每里程碑独立可交付, 验收通过 `lsp_diagnostics` 零错误 + `next build` 成功 + 真机演示。
