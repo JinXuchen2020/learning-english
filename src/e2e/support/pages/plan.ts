@@ -77,57 +77,170 @@ export default class PlanPage {
   }
 
   /**
-   * Mock `POST /api/ai/plan/generate` 使计划向导在 e2e 中封闭（不依赖外部 AI，
-   * 与 chat/speech/report 的 mock 约定一致）。返回一份结构合法的多周计划，确保
-   * PlanPreview / PlanWeekCard / PlanDayCard 以及 apply / toggle-day 按钮都能确定性渲染。
+   * 以 SSE 流模拟 `POST /api/ai/plan/generate/stream`（AI-804）。
+   * 前端默认走 stream 端点（非流式 `generate` 仅作无 body 兜底），故统一在此
+   * 用 `text/event-stream` 逐帧返回，确保 plan-* 既有场景继续封闭运行。
+   * 注：本机 Playwright(1.62) 的 `route.fulfill` 将 body 一次性转为 base64 响应，
+   * 不支持分块流式；故此处以单帧串（\n\n 分隔的多事件）返回，浏览器端会完整解析
+   * 并走 `done` 事件渲染预览 / `error` 事件渲染错误。渐进草稿的渲染逻辑由前端
+   * vitest + 组件行为保证，e2e 仅验证「走 stream 端点 → 终态正确」。
    */
-  async mockGeneratePlan(): Promise<void> {
-    const body = {
-      plan: {
-        weeks: [
-          {
-            week: 1,
-            theme: "Animals",
-            days: [
-              {
-                day: 1,
-                skillType: "vocab",
-                title: "Meet the Animals",
-                lessons: [
-                  {
-                    type: "main",
-                    title: "Cat and Dog",
-                    skillType: "vocab",
-                    description: "Learn pet words",
-                  },
-                ],
-              },
-              {
-                day: 2,
-                skillType: "listen",
-                title: "Listen and Repeat",
-                lessons: [
-                  {
-                    type: "speaking",
-                    title: "Speak the Sounds",
-                    skillType: "speak",
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      model: "mock-plan",
-      degraded: false,
-    };
-    await this.page.route("**/api/ai/plan/generate", (route) =>
+  async streamGenerate(
+    events: ReadonlyArray<Record<string, unknown>>,
+  ): Promise<void> {
+    const body = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+    await this.page.route("**/api/ai/plan/generate/stream", (route) =>
       route.fulfill({
         status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(body),
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        },
+        body,
       }),
     );
+  }
+
+  /**
+   * Mock `POST /api/ai/plan/generate/stream` 使计划向导在 e2e 中封闭（不依赖外部 AI，
+   * 与 chat/speech/report 的 mock 约定一致）。返回一份结构合法的多周计划，确保
+   * PlanPreview / PlanWeekCard / PlanDayCard 以及 apply / toggle-day 按钮都能确定性渲染。
+   * 结构与原非流式 mock 保持一致，既有 plan-* 场景断言不破。
+   */
+  async mockGeneratePlan(): Promise<void> {
+    const plan = {
+      weeks: [
+        {
+          week: 1,
+          theme: "Animals",
+          days: [
+            {
+              day: 1,
+              skillType: "vocab",
+              title: "Meet the Animals",
+              lessons: [
+                {
+                  type: "main",
+                  title: "Cat and Dog",
+                  skillType: "vocab",
+                  description: "Learn pet words",
+                },
+              ],
+            },
+            {
+              day: 2,
+              skillType: "listen",
+              title: "Listen and Repeat",
+              lessons: [
+                {
+                  type: "speaking",
+                  title: "Speak the Sounds",
+                  skillType: "speak",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await this.streamGenerate([
+      { type: "start" },
+      { type: "token", text: "Here is your plan." },
+      { type: "done", plan, model: "mock-plan" },
+    ]);
+  }
+
+  /** AI-804：模拟「流式成功」—— start → token → done（多帧，等价渐进流的终态）。 */
+  async mockStreamValidPlan(): Promise<void> {
+    const plan = {
+      weeks: [
+        {
+          week: 1,
+          theme: "Animals",
+          days: [
+            {
+              day: 1,
+              skillType: "vocab",
+              title: "Meet the Animals",
+              lessons: [
+                { type: "main", title: "Cat and Dog", skillType: "vocab", description: "Learn pet words" },
+              ],
+            },
+            {
+              day: 2,
+              skillType: "listen",
+              title: "Listen and Repeat",
+              lessons: [{ type: "speaking", title: "Speak the Sounds", skillType: "speak" }],
+            },
+          ],
+        },
+      ],
+    };
+    await this.streamGenerate([
+      { type: "start" },
+      { type: "token", text: "Thinking about your plan…" },
+      { type: "done", plan, model: "mock-stream" },
+    ]);
+  }
+
+  /**
+   * AI-804：模拟「首次失败、重试成功」——第一次返回非法 JSON 错误事件，
+   * 第二次（点击重试后重跑流）返回合法计划。用于验证错误显示 + 重试能重跑流。
+   */
+  async mockStreamErrorThenValid(): Promise<void> {
+    const validPlan = {
+      weeks: [
+        {
+          week: 1,
+          theme: "Animals",
+          days: [
+            {
+              day: 1,
+              skillType: "vocab",
+              title: "Meet the Animals",
+              lessons: [
+                { type: "main", title: "Cat and Dog", skillType: "vocab", description: "Learn pet words" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    let calls = 0;
+    await this.page.route("**/api/ai/plan/generate/stream", (route) => {
+      calls += 1;
+      const events =
+        calls === 1
+          ? [
+              { type: "start" },
+              { type: "token", text: "{ bad json" },
+              { type: "error", code: "PLAN_INVALID_JSON", message: "bad json" },
+            ]
+          : [
+              { type: "start" },
+              { type: "token", text: "Here is your plan." },
+              { type: "done", plan: validPlan, model: "mock-stream" },
+            ];
+      route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        },
+        body: events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(""),
+      });
+    });
+  }
+
+  /** 仅点击生成（不挂 mock）——配合上面的 mockStream* given 使用。 */
+  async submitGeneration(): Promise<void> {
+    await this.page.locator('button[data-action="generate"]').click();
+  }
+
+  async clickRetry(): Promise<void> {
+    await this.page.locator('button[data-action="retry-stream"]').click();
   }
 
   async previewWeekCount(): Promise<number> {

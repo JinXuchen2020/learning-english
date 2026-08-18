@@ -81,6 +81,22 @@ export interface GeneratePlanResponse {
 }
 
 /**
+ * 学习计划流式生成（AI-804）的事件协议（SSE `data:` 帧负载）。
+ * 流仅用于**展示**：服务端攒齐完整文本后末端经 `extractJson`+`validatePlan` 校验，
+ * 才以 `done` 事件交付结构化计划；校验失败/provider 异常以 `error` 事件收尾（不静默模板）。
+ */
+export type PlanStreamEvent =
+  | { type: 'start' }
+  | { type: 'token'; text: string }
+  | { type: 'progress'; phase: 'thinking' | 'writing' | 'done'; note?: string }
+  | { type: 'done'; plan: GeneratedPlan; model: string }
+  | {
+      type: 'error';
+      code: 'PLAN_INVALID_JSON' | 'PLAN_SCHEMA_INVALID' | 'PLAN_TRUNCATED' | 'AI_ERROR' | 'STREAM_UNSUPPORTED';
+      message: string;
+    };
+
+/**
  * 课程目录项（供 PlanAgent 引用真实 id）。AI-203 定义类型；
  * 实际目录数据由 AI-204/AI-206 从 `courses`/`lessons` 表注入。
  */

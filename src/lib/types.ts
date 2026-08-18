@@ -209,6 +209,25 @@ export interface GeneratePlanDto {
   useTemplate?: boolean;
 }
 
+/** 流式计划生成错误码（与后端 `PlanStreamEvent` 对齐，AI-804）。 */
+export type PlanStreamErrorCode =
+  | "PLAN_INVALID_JSON"
+  | "PLAN_SCHEMA_INVALID"
+  | "PLAN_TRUNCATED"
+  | "AI_ERROR"
+  | "STREAM_UNSUPPORTED";
+
+/**
+ * 流式计划生成事件（与后端 `PlanStreamEvent` 联合对齐，AI-804）。
+ * 前端 `generatePlanStream` 逐事件回调；流仅用于展示，结构化计划只在 `done` 交付。
+ */
+export type PlanStreamEvent =
+  | { type: "start" }
+  | { type: "token"; text: string }
+  | { type: "progress"; phase: "thinking" | "writing" | "done"; note?: string }
+  | { type: "done"; plan: GeneratedPlan; model: string }
+  | { type: "error"; code: PlanStreamErrorCode; message: string };
+
 /** `POST /api/ai/plan/save` 请求体（AI-206，字段名/类型与后端 `SavePlanDto` 对齐）。 */
 export interface SavePlanDto {
   childId: string;

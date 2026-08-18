@@ -90,6 +90,38 @@ When("I click the generate button", async function (this: E2EWorld) {
   await page.clickGenerate();
 });
 
+/* ------------------------- AI-804: streaming generation ------------------------- */
+
+Given(
+  "the plan generate stream will return a valid plan",
+  async function (this: E2EWorld) {
+    await new PlanPage(this.page, this.baseUrl).mockStreamValidPlan();
+  }
+);
+
+Given(
+  "the plan generate stream will fail once then succeed",
+  async function (this: E2EWorld) {
+    await new PlanPage(this.page, this.baseUrl).mockStreamErrorThenValid();
+  }
+);
+
+When("I submit the plan generation", async function (this: E2EWorld) {
+  await new PlanPage(this.page, this.baseUrl).submitGeneration();
+});
+
+Then("I should see the plan stream error", async function (this: E2EWorld) {
+  await this.page.waitForSelector('[data-component="PlanStreamError"]', { timeout: 15000 });
+});
+
+Then("I should see a retry button", async function (this: E2EWorld) {
+  await this.page.waitForSelector('button[data-action="retry-stream"]', { timeout: 15000 });
+});
+
+When("I click the retry button", async function (this: E2EWorld) {
+  await new PlanPage(this.page, this.baseUrl).clickRetry();
+});
+
 Then(
   "I should see the plan preview with at least {int} week",
   async function (this: E2EWorld, expected: number) {

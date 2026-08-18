@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN, ChatMessage, ChatOptions, ChatResult } from '../ai/ai-provider.interface';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { SavePlanDto } from './dto/save-plan.dto';
-import { GeneratePlanResponse, GeneratedPlan, PlanDay, PlanStatusResult, PlanCatalog } from './plan.types';
+import { GeneratePlanResponse, GeneratedPlan, PlanDay, PlanStatusResult, PlanCatalog, PlanStreamEvent } from './plan.types';
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from './plan-agent.prompt';
 import { validatePlan } from './plan-schema';
 import { buildFallbackPlan } from './plan-template';
@@ -143,6 +143,92 @@ export class PlanService {
     }
 
     return { plan: validation.value!, model: result.model, degraded: false };
+  }
+
+  /**
+   * 流式生成学习计划（AI-804）。
+   *
+   * 与非流式 `generatePlan` 共享「末端 `extractJson`+`validatePlan` 校验、出错即抛」口径，
+   * 但过程以事件流逐步吐出，供前端做「正在生成…」渐进展示，缓解长等待白屏（及 Vercel 504 体感）。
+   *
+   * 事件序列：`start` →（可选 `progress:thinking`）→ 逐 `token` → `progress:writing`
+   * → `done(plan)`；任何失败以 `error` 事件收尾（provider 抛 `PLAN_TRUNCATED` 映射该 code，
+   * 其它异常映射 `AI_ERROR`），不向上抛——SSE 已无法回 HTTP 状态，错误走事件通道。
+   *
+   * @param dto 经 class-validator 校验后的请求体
+   * @param signal 可选取消信号（前端 `AbortController.abort()` 透传，中断底层 fetch 流）
+   */
+  async *generatePlanStream(
+    dto: GeneratePlanDto,
+    signal?: AbortSignal,
+  ): AsyncGenerator<PlanStreamEvent> {
+    // 用户主动选模板 → 跳过 LLM，直出模板计划（与 generatePlan 一致，degraded:false）。
+    if (dto.useTemplate) {
+      yield { type: 'start' };
+      yield { type: 'done', plan: buildFallbackPlan(dto), model: 'template' };
+      return;
+    }
+
+    const messages = await this.buildMessages(dto);
+    const options: ChatOptions & { signal?: AbortSignal } = {
+      temperature: 0.4,
+      maxTokens: 8000,
+      extraBody: { chat_template_kwargs: { enable_thinking: false } },
+      timeoutMs: 55_000,
+      maxAttempts: 1,
+      signal,
+    };
+
+    const streamFn = this.ai.streamChat?.bind(this.ai);
+    if (!streamFn) {
+      yield {
+        type: 'error',
+        code: 'STREAM_UNSUPPORTED',
+        message: '当前 provider 不支持流式生成，请改用非流式生成接口',
+      };
+      return;
+    }
+
+    yield { type: 'start' };
+    yield { type: 'progress', phase: 'thinking' };
+
+    let fullText = '';
+    try {
+      for await (const chunk of streamFn(messages, options)) {
+        fullText += chunk;
+        yield { type: 'token', text: chunk };
+      }
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      const code = err?.code === 'PLAN_TRUNCATED' ? 'PLAN_TRUNCATED' : 'AI_ERROR';
+      this.logger.error('[Plan] 流式生成 provider 异常（%s）：%s', code, err?.message ?? e);
+      yield { type: 'error', code, message: err?.message ?? '学习计划生成失败' };
+      return;
+    }
+
+    yield { type: 'progress', phase: 'writing' };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(extractJson(fullText));
+    } catch {
+      this.logger.error('[Plan] 流式 AI 返回内容不是合法 JSON：%s', fullText.slice(0, 500));
+      yield { type: 'error', code: 'PLAN_INVALID_JSON', message: '模型未返回合法 JSON' };
+      return;
+    }
+
+    const validation = validatePlan(parsed);
+    if (!validation.ok) {
+      this.logger.error('[Plan] 流式 AI 返回 JSON 不符合结构：%s', validation.errors.join('; '));
+      yield {
+        type: 'error',
+        code: 'PLAN_SCHEMA_INVALID',
+        message: `结构校验未通过：${validation.errors.join('; ')}`,
+      };
+      return;
+    }
+
+    yield { type: 'done', plan: validation.value!, model: options.model ?? 'ai' };
   }
 
   /**

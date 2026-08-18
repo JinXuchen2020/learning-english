@@ -199,8 +199,17 @@
     "generatingCourses": "Generating course…",
     "goHome": "Later, back to Home",
     "coursesError": "Course generation failed, head to Home for now~",
-    "coursesDegradedNote": "Foxy used a ready-made template for the course—still totally learnable~"
-  },
+  "coursesDegradedNote": "Foxy used a ready-made template for the course—still totally learnable~",
+  "streaming": "Foxy is drafting your plan…",
+  "thinkingPhase": "Foxy is figuring out the best arrangement…",
+  "writingPhase": "Foxy is writing your plan out, bit by bit…",
+  "streamHint": "Let me think first, then write it out for you~",
+  "generatingWeek": "Foxy is planning week {n}…",
+  "cancel": "Cancel",
+  "canceled": "Generation canceled—your draft is kept below, you can regenerate it~",
+  "streamError": "Oops, something went wrong while generating the plan",
+  "retry": "Try again"
+},
   "WordCards": {
     "statusPending": "Pending",
     "statusApproved": "Approved",

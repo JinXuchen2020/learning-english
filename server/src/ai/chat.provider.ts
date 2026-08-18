@@ -25,4 +25,23 @@ export class ChatProvider extends ConfiguredCapabilityProvider {
       return this.mock.chat(messages, options);
     }
   }
+
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    const client = await this.resolveClient('chat');
+    const streamFn = client.streamChat?.bind(client);
+    if (!streamFn) {
+      // 底层 client 不支持流式 → 回退 Mock 桩（一次性产出兜底文案块）
+      yield* this.mock.streamChat(messages, options);
+      return;
+    }
+    try {
+      yield* streamFn(messages, options);
+    } catch {
+      // 与 chat 一致的兜底口径：底层异常回退 Mock，绝不抛错
+      yield* this.mock.streamChat(messages, options);
+    }
+  }
 }

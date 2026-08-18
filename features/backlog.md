@@ -194,7 +194,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-804 | **学习计划生成流式显示** — `PlanService.generatePlanStream` 经 provider 新增 `streamChat`(AsyncIterable, SSE delta) 流式产出逐字文本；`PlanController` 新增 `POST /api/ai/plan/generate/stream` 返回 `text/event-stream`（`start`/`token`/`progress`/`done`/`error` 事件）；前端 `/plan` 页实时显示「狐狸老师正在构思…」渐进草稿，终态切结构化预览并启用保存；流仅展示、末端仍 `extractJson`+`validatePlan` 校验（出错即抛 error 事件，不静默模板）；支持 `AbortController` 取消；原非流式 `generate` 端点保留；附带缓解 Vercel 504 白屏体感 | P1 | AI-204(extractJson/validatePlan), AI-101/AI-102(openai-compatible provider) | todo | 见 `features/ai-804.md` |
+| AI-804 | **学习计划生成流式显示** — `PlanService.generatePlanStream` 经 provider 新增 `streamChat`(AsyncIterable, SSE delta) 流式产出逐字文本；`PlanController` 新增 `POST /api/ai/plan/generate/stream` 返回 `text/event-stream`（`start`/`token`/`progress`/`done`/`error` 事件）；前端 `/plan` 页实时显示「狐狸老师正在构思…」渐进草稿，终态切结构化预览并启用保存；流仅展示、末端仍 `extractJson`+`validatePlan` 校验（出错即抛 error 事件，不静默模板）；支持 `AbortController` 取消；原非流式 `generate` 端点保留；附带缓解 Vercel 504 白屏体感 | P1 | AI-204(extractJson/validatePlan), AI-101/AI-102(openai-compatible provider) | done | 见 `features/ai-804.md` |
 
 ---
 

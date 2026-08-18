@@ -98,8 +98,8 @@
   - 兴趣 `INTEREST_OPTIONS`: 动物/太空/水果/运动/音乐/恐龙/汽车/颜色 (多选)
   - 周数 `WEEK_OPTIONS`: 1 / 2 / 3 / 4
 - 选择器 DOM: `button[data-field=...][data-value=...]`, 选中态 `aria-pressed`; 兴趣多选
-- 提交: `Button[data-action=generate]`, `validatePlanForm`(lib/plan.ts) 通过前 `disabled` (空表单禁用便于 E2E 断言); 提交中 `data-component=PlanLoading`(Mascot thinking); 成功 `data-component=PlanPreview` 渲染 weeks→days→lessons
-- 调用: `src/lib/api.ts generatePlan(dto)` → `POST /api/ai/plan/generate` (带 Bearer token, 后端忽略); 无 key 环境 MockProvider 降级 `degraded:true` 仍 200, 预览显示 `data-component=PlanDegradedNote`「Foxy 用了一套现成计划」友好提示
+- 提交: `Button[data-action=generate]`, `validatePlanForm`(lib/plan.ts) 通过前 `disabled` (空表单禁用便于 E2E 断言); 生成中 `data-component=PlanStreaming`(Mascot thinking/happy + 渐进草稿 `data-component=PlanDraftPanel` 显示 token 累积文本 + 取消按钮 `data-action=cancel-stream`)；流末端 `done` 事件 → `data-component=PlanPreview` 渲染 weeks→days→lessons；流 `error` 事件 → `data-component=PlanStreamError` + 重试按钮 `data-action=retry-stream`(非静默、非白屏，与「出错即抛」口径一致)
+- 调用: `src/lib/api.ts generatePlanStream(dto, onEvent, signal)` → `POST /api/ai/plan/generate/stream` (text/event-stream SSE, 带 Bearer token 后端忽略); 逐 `data: <JSON>` 帧回调 onEvent(start/token/progress/done/error)，结构化计划只在 `done` 交付(后端末端 extractJson+validatePlan 校验)；取消经 `AbortController` 透传 `signal`；无 `ReadableStream` 环境(极旧)自动退化 `generatePlan` 合成 start→done；类型 `PlanStreamEvent`/`PlanStreamErrorCode` 见 `src/lib/types.ts`
 - 失败: 接口报错显示错误提示而非白屏
 - 纯逻辑模块 `src/lib/plan.ts` (常量 + `validatePlanForm`/`isPlanFormValid` + AI-208 颜色化 `PLAN_SKILL_COLORS`/`planSkillColor`/`planLessonTypeLabel`/`formatPlanDay`) 单测覆盖; 计划类型见 `src/lib/types.ts` (PlanSkillType/PlanLevel/PlanLesson/PlanDay/PlanWeek/GeneratedPlan/GeneratePlanResponse/GeneratePlanDto/SavePlanDto/SavePlanResponse/ApplyPlanDto/ApplyPlanResponse)
 - 周计划卡片视图(每天按技能类型颜色化, vocab #F59E0B / listen #3B82F6 / speak #EC4899 / write #10B981) + 「重新生成」(复用 generate, loading+降级提示) + 「应用此计划」(`savePlan`→`applyPlan`→跳 Home 每日任务, 复用 AI-206 apply) + 单日任务本地勾选(前端本地态); 颜色/标签/格式化逻辑集中在 `lib/plan.ts`, 单测覆盖; 调用扩展见 `src/lib/api.ts` `savePlan`/`applyPlan`
@@ -118,6 +118,17 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
      · degraded=true 表示 LLM 连续 3 次输出仍不符合 Schema → 已降级为内置模板计划(plan.weeks 有效可渲染), 仍 200
      · useTemplate=true 表示用户主动选择模板(无 LLM 依赖) → 直接返回三档内置模板, model='template', degraded=false, 仍 200 (AI-205)
      · provider 基础设施异常向上传播(不在本层重试, 避免与 AI-106 HTTP 层退避叠加)
+    POST /api/ai/plan/generate/stream   (AI-804 流式生成，SSE)
+      body: 同 generate（{ childId, ageRange, level, dailyMinutes, interests, weeks, useTemplate? }）
+      → 入参校验同 generate（class-validator 拦截 → 400；此时因尚未进入 SSE 直接返回 JSON 错误体）
+      → PlanService.generatePlanStream(dto, signal?) 异步生成器，逐事件产出 PlanStreamEvent：
+        · {type:'start'} → {type:'progress',phase:'thinking'} → for await 累加 token（{type:'token',text}） → {type:'progress',phase:'writing'}
+          → 流结束 extractJson(fullText) + validatePlan(plan-schema.ts)
+        · 校验失败 / 截断 / provider 异常 → {type:'error',code:'PLAN_INVALID_JSON'|'PLAN_SCHEMA_INVALID'|'PLAN_TRUNCATED'|'AI_ERROR'|'STREAM_UNSUPPORTED'}（事件通道收尾，不向上抛，SSE 已无法改 HTTP 状态）
+        · useTemplate=true → 直接 {type:'start'} → {type:'done',plan:buildFallbackPlan,model:'template'}
+        · 选项沿用：extraBody.enable_thinking:false + maxTokens:8000 + timeoutMs:55s（< Vercel 60s，留余量给 JSON 解析/审计）；provider 抛 AiProviderException 映射为对应 error 事件
+      → 控制器 `PlanController.generateStream` 以 `text/event-stream` 逐帧 `res.write('data: '+JSON.stringify(ev)+'\n\n')`，收尾 `res.end()`；`req.on('close')` → AbortController.abort() 透传 provider fetch（持续吐帧使 Vercel 连接存活，缓解 504 白屏，但总时长仍须 < 60s）
+      · 原非流式 `POST /api/ai/plan/generate` 保留并存（兼容 / 测试 / 无 ReadableStream 兜底）；前端默认走 stream，stream 不可用时回退 generate
   · 持久化与应用（AI-206 已落地）：
     POST /api/ai/plan/save
       body: { childId(uuid), plan(GeneratedPlan) }

@@ -75,4 +75,11 @@ export class AiCapabilityHub implements AiProvider {
   ): Promise<AudioResult> {
     return this.ttsProvider.synthesize(text, voice, options);
   }
+
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    yield* this.chatProvider.streamChat(messages, options);
+  }
 }

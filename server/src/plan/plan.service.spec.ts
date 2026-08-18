@@ -541,6 +541,108 @@ describe('PlanService (AI-803) — generateCoursesForPlan 写回引用', () => {
   });
 });
 
+describe('PlanService (AI-804) — 流式生成 generatePlanStream', () => {
+  /** 把流式生成器的事件全部收齐为数组，便于断言序列。 */
+  async function collect(service: PlanService, dto: GeneratePlanDto, signal?: AbortSignal) {
+    const events: any[] = [];
+    for await (const ev of service.generatePlanStream(dto, signal)) {
+      events.push(ev);
+    }
+    return events;
+  }
+
+  /** 构造一个带 streamChat 的 mock provider：把 text 按 chunkSize 切片逐块 yield（模拟逐字）。 */
+  function makeStreamProvider(text: string, opts?: { truncated?: boolean; error?: Error }): AiProvider {
+    return {
+      name: 'mock-stream',
+      chat: jest.fn(async (): Promise<ChatResult> => ({ text, model: 'mock-model' })),
+      async *streamChat(): AsyncIterable<string> {
+        if (opts?.error) throw opts.error;
+        const chunkSize = 8;
+        for (let i = 0; i < text.length; i += chunkSize) {
+          yield text.slice(i, i + chunkSize);
+        }
+        if (opts?.truncated) {
+          throw Object.assign(new Error('truncated'), { code: 'PLAN_TRUNCATED' });
+        }
+      },
+    } as unknown as AiProvider;
+  }
+
+  it('provider 产出合法 JSON → 事件序列 start → 多 token → writing → done(plan)', async () => {
+    const service = await setup(makeStreamProvider(validPlanJson));
+    const events = await collect(service, validDto);
+
+    expect(events[0]).toEqual({ type: 'start' });
+    expect(events[1]).toEqual({ type: 'progress', phase: 'thinking' });
+    const tokens = events.filter((e) => e.type === 'token');
+    expect(tokens.length).toBeGreaterThan(1); // 切片成多块
+    expect(tokens.map((t) => t.text).join('')).toBe(validPlanJson);
+    const done = events[events.length - 1];
+    expect(done.type).toBe('done');
+    expect((done as any).plan.weeks).toHaveLength(1);
+    expect((done as any).model).toBe('ai');
+  });
+
+  it('provider 产出非法 JSON → 事件序列 start → token(s) → error(PLAN_INVALID_JSON)，不抛未捕获异常', async () => {
+    const service = await setup(makeStreamProvider('这不是合法 JSON 的一堆文字…'));
+    const events = await collect(service, validDto);
+
+    expect(events[0].type).toBe('start');
+    const last = events[events.length - 1];
+    expect(last.type).toBe('error');
+    expect((last as any).code).toBe('PLAN_INVALID_JSON');
+  });
+
+  it('provider 返回 Schema 不合法的合法 JSON → error(PLAN_SCHEMA_INVALID)，message 含错误明细', async () => {
+    const badSchema = JSON.stringify({ foo: 'bar' }); // 缺 weeks
+    const service = await setup(makeStreamProvider(badSchema));
+    const events = await collect(service, validDto);
+
+    const last = events[events.length - 1];
+    expect(last.type).toBe('error');
+    expect((last as any).code).toBe('PLAN_SCHEMA_INVALID');
+    expect((last as any).message).toContain('结构校验未通过');
+  });
+
+  it('provider 流末抛 PLAN_TRUNCATED → error 事件 code 映射为 PLAN_TRUNCATED（非 AI_ERROR）', async () => {
+    const service = await setup(makeStreamProvider(validPlanJson, { truncated: true }));
+    const events = await collect(service, validDto);
+
+    const last = events[events.length - 1];
+    expect(last.type).toBe('error');
+    expect((last as any).code).toBe('PLAN_TRUNCATED');
+  });
+
+  it('provider 流中抛其它异常 → error 事件 code=AI_ERROR', async () => {
+    const service = await setup(makeStreamProvider('x', { error: new Error('boom') }));
+    const events = await collect(service, validDto);
+
+    const last = events[events.length - 1];
+    expect(last.type).toBe('error');
+    expect((last as any).code).toBe('AI_ERROR');
+  });
+
+  it('useTemplate=true → 跳过 LLM 直出模板计划（start → done, model=template）', async () => {
+    const service = await setup(makeStreamProvider(validPlanJson));
+    const events = await collect(service, { ...validDto, useTemplate: true });
+
+    expect(events[0]).toEqual({ type: 'start' });
+    const done = events[events.length - 1];
+    expect(done.type).toBe('done');
+    expect((done as any).model).toBe('template');
+  });
+
+  it('provider 无 streamChat（不支持）→ error(STREAM_UNSUPPORTED) 而非崩溃', async () => {
+    const noStream = { name: 'no-stream', chat: jest.fn() } as unknown as AiProvider;
+    const service = await setup(noStream);
+    const events = await collect(service, validDto);
+    const last = events[events.length - 1];
+    expect(last.type).toBe('error');
+    expect((last as any).code).toBe('STREAM_UNSUPPORTED');
+  });
+});
+
 describe('PlanService (AI-209) — 计划完成度 getStatus', () => {
   const appliedPlanWithDays = {
     id: 'plan-1',

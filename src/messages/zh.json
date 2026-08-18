@@ -199,8 +199,17 @@
     "generatingCourses": "正在生成课程…",
     "goHome": "稍后再说，回首页",
     "coursesError": "课程生成失败，先去首页看看吧～",
-    "coursesDegradedNote": "Foxy 用了现成模板生成了课程，照样能学哦～"
-  },
+  "coursesDegradedNote": "Foxy 用了现成模板生成了课程，照样能学哦～",
+  "streaming": "Foxy 正在为你构思计划…",
+  "thinkingPhase": "Foxy 正在思考怎么安排最合适…",
+  "writingPhase": "Foxy 正在把计划一点点写给你看…",
+  "streamHint": "我先想想，再慢慢写给你～",
+  "generatingWeek": "狐狸老师正在构思第 {n} 周…",
+  "cancel": "取消生成",
+  "canceled": "已取消生成，草稿保留在下面，可以重新生成哦～",
+  "streamError": "哎呀，计划生成出了点小问题",
+  "retry": "再试一次"
+},
   "WordCards": {
     "statusPending": "待审核",
     "statusApproved": "已通过",

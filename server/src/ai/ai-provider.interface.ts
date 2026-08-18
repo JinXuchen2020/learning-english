@@ -231,6 +231,19 @@ export interface AiProvider {
    * @returns 合成音频 {@link AudioResult}
    */
   synthesize(text: string, voice?: string, options?: SynthesizeOptions): Promise<AudioResult>;
+
+  /**
+   * 流式对话（可选能力）。逐 delta 产出 `content` 文本，便于前端做「正在生成…」渐进展示。
+   * - 不支持的 provider 可不实现（本接口为可选方法），消费方需先判空再调用。
+   * - 底层 `finish_reason==='length'`（被 `max_tokens` 截断）时，实现方可抛
+   *   `AiProviderException`（`code:'PLAN_TRUNCATED'`），由消费方（如 `PlanService`）映射为
+   *   error 事件而非静默截断；其它 provider 基础设施异常原样向上抛。
+   * - 取消：经 `options.signal` 透传到 fetch，前端 `AbortController.abort()` 可中断流。
+   * @param messages 多轮对话消息
+   * @param options 可选采样/超时/模型 + `signal`（取消信号）
+   * @returns 逐 delta 的 `content` 文本异步迭代器
+   */
+  streamChat?(messages: ChatMessage[], options?: ChatOptions & { signal?: AbortSignal }): AsyncIterable<string>;
 }
 
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
