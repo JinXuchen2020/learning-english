@@ -123,7 +123,7 @@ export interface ChatOptions {
   temperature?: number;
   /** 最大生成 token 数（推理模型建议 ≥512，避免 content 被截断）。 */
   maxTokens?: number;
-  /** 超时时间（毫秒），推理模型建议 ≥60000。 */
+  /** 超时时间（毫秒），须小于 Vercel serverless maxDuration（默认 60s，留 10s 余量给重试/解析/审计）。 */
   timeoutMs?: number;
   /** 指定模型覆盖（如 `AGNES_MODEL` / `OPENAI_MODEL`）。 */
   model?: string;

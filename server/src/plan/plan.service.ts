@@ -86,7 +86,14 @@ export class PlanService {
 
     for (let attempt = 1; attempt <= PlanService.MAX_PLAN_ATTEMPTS; attempt++) {
       const messages = this.buildMessages(dto, attempt);
-      const options: ChatOptions = { temperature: 0.4, maxTokens: 2048 };
+      // AI-重构后 provider 默认 50s 超时；plan 生成走思考模型易接近 Vercel 60s 上限，
+      // 故再收紧到 45s 且禁 provider 级重试（PlanService 自身已按 Schema 失败重试 3 次）。
+      const options: ChatOptions = {
+        temperature: 0.4,
+        maxTokens: 2048,
+        timeoutMs: 45_000,
+        maxAttempts: 1,
+      };
 
       // provider 基础设施异常 → 直接向上传播，不在本层重试（避免与 AI-106 叠加）。
       const result = await this.ai.chat(messages, options);

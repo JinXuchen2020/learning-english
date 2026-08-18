@@ -3,7 +3,6 @@ import { AiProvider } from './ai-provider.interface';
 import { ProviderCapability } from './provider-config/provider-config.entity';
 import { ProviderConfigService } from './provider-config/provider-config.service';
 import { MockAiProvider } from './mock-ai-provider';
-import { createRetryableProvider } from './retryable-ai-provider';
 import { aiContextStorage } from './ai-provider.context';
 
 /**
@@ -43,7 +42,8 @@ export abstract class ConfiguredCapabilityProvider {
         capability,
       );
       if (!cfg) return this.mock;
-      return createRetryableProvider(this.configService.buildProvider(cfg));
+      // buildProvider 已返回带重试/并发保护的可运行 provider，无需再包一层。
+      return this.configService.buildProvider(cfg);
     } catch {
       // 解析 / 构建失败 → 回退 Mock 安全桩，绝不向外抛错。
       return this.mock;

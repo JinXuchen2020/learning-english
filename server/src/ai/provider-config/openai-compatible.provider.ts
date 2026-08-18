@@ -23,7 +23,7 @@ export type FetchFn = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 50_000;
 const DEFAULT_TTS_TIMEOUT_MS = 30_000;
 
 interface OaMessage {
