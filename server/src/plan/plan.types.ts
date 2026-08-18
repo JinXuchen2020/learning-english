@@ -71,11 +71,11 @@ export interface GeneratePlanResponse {
   /** 实际使用的 provider 模型标识。 */
   model?: string;
   /**
-   * 是否为降级输出：
-   *  - `true` 表示 LLM 输出连续 `MAX_PLAN_ATTEMPTS` 次仍不符合 Schema（AI-204），
-   *    `plan` 为 `buildFallbackPlan` 内置模板（结构有效、可渲染，但不含真实课程引用），
-   *    `model` 为 `'template'`，前端应提示「已使用备用计划」而非解析失败。
-   *  - `false` 表示 LLM 首轮/重试命中合规计划。
+   * 是否为降级输出。
+   * 当前语义：`generatePlan` 出错（非法 JSON / Schema 校验失败 / 被截断）一律抛
+   * `BadRequestException`，**不再降级模板**；因此本字段恒为 `false`。
+   * `useTemplate=true`（用户显式选模板）亦返回 `degraded:false`（`model:'template'`）。
+   * 前端可按需忽略此字段。
    */
   degraded: boolean;
 }

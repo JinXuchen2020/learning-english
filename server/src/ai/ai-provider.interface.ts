@@ -44,6 +44,8 @@ export interface ChatResult {
   reasoningContent?: string;
   /** 实际使用的模型标识，便于排查与成本归因。 */
   model?: string;
+  /** 终止原因（`choices[0].finish_reason`），如 `stop` / `length`（被 max_tokens 截断）。业务层据此判断是否截断。 */
+  finishReason?: string;
   /** Token 用量（若 provider 返回）。 */
   usage?: TokenUsage;
 }
@@ -135,6 +137,12 @@ export interface ChatOptions {
    * 设为 1 可跳过重试、缩短降级等待。瞬时错误敏感端点（plan/report/speech）保持缺省。
    */
   maxAttempts?: number;
+  /**
+   * 透传额外请求体（与 provider 构造时的 `extraBody` 深一层合并，调用层优先）。
+   * 典型用途：覆盖种子配置里的 `chat_template_kwargs.enable_thinking`（如 plan 生成关闭思考链以提速防截断）。
+   * 注意：合并为浅合并，嵌套对象（如 `chat_template_kwargs`）整体被调用层值覆盖。
+   */
+  extraBody?: Record<string, unknown>;
 }
 
 /** 转写可选参数。 */

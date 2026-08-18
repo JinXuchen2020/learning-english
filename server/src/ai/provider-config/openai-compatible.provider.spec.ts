@@ -98,6 +98,34 @@ describe('OpenAiCompatibleProvider (AI-705 / AI-714)', () => {
     expect(body.model).toBe('agnes-2.5-flash');
   });
 
+  it('options.extraBody 覆盖种子 extraBody（调用层优先），并捕获 finish_reason', async () => {
+    const fetchFn = jest.fn(
+      async (_url: string, _init: RequestInit): Promise<Response> =>
+        jsonResponse({
+          model: 'agnes',
+          choices: [{ message: { content: 'ok' }, finish_reason: 'length' }],
+        }),
+    );
+    const p = new OpenAiCompatibleProvider(
+      {
+        apiKey: 'k',
+        baseUrl: 'https://api.agnes-ai.cn/v1',
+        model: 'agnes-2.5-flash',
+        extraBody: { chat_template_kwargs: { enable_thinking: true } },
+      },
+      fetchFn,
+    );
+    const res = await p.chat(
+      [{ role: 'user', content: 'hi' }],
+      { extraBody: { chat_template_kwargs: { enable_thinking: false } } },
+    );
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
+    // 调用层 extraBody 覆盖种子 extraBody（浅合并，嵌套对象整体覆盖）。
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: false });
+    // finish_reason 透传，供业务层判断是否被 max_tokens 截断。
+    expect(res.finishReason).toBe('length');
+  });
+
   it('AI-714: capabilities 非空且未声明 tts → synthesize 抛 UnsupportedMethodError', async () => {
     const fetchFn = jest.fn();
     const p = new OpenAiCompatibleProvider(

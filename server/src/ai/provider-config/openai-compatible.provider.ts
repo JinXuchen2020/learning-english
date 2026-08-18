@@ -32,6 +32,7 @@ interface OaMessage {
 }
 interface OaChoice {
   message?: OaMessage;
+  finish_reason?: string;
 }
 interface OaUsage {
   prompt_tokens?: number;
@@ -115,6 +116,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
       temperature: options?.temperature,
       max_tokens: options?.maxTokens ?? 512,
       ...this.extraBody,
+      ...options?.extraBody,
     };
     const data = await this.postJson(`${this.baseUrl}/chat/completions`, body, options?.timeoutMs);
     const choice = data?.choices?.[0]?.message;
@@ -127,6 +129,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
       text: choice.content,
       reasoningContent: choice.reasoning_content ?? undefined,
       model: data?.model ?? model,
+      finishReason: data?.choices?.[0]?.finish_reason,
       usage: this.extractUsage(data?.usage),
     };
   }

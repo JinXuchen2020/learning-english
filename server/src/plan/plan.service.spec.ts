@@ -88,56 +88,35 @@ describe('PlanService (AI-204)', () => {
     expect(res.plan.weeks).toHaveLength(1);
   });
 
-  it('provider 返回非 JSON → 重试 3 次后降级模板（degraded:true, weeks 有效）', async () => {
+  it('provider 返回非 JSON → 直接抛 BadRequestException（不重试、不降级模板，chat 仅 1 次）', async () => {
     const provider = makeProvider('[Mock 计划] 一周趣味学习：周一主课颜色王国…');
     const service = await setup(provider);
-    const res = await service.generatePlan(validDto);
-
-    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(PlanService.MAX_PLAN_ATTEMPTS);
-    expect(res.degraded).toBe(true);
-    expect(res.model).toBe('template');
-    expect(res.plan.weeks).toBeDefined();
-    expect(res.plan.weeks!.length).toBe(2);
-    expect(res.plan.weeks![0].days![0].lessons!.length).toBe(4);
-    expect(res.plan.rawText).toBeUndefined();
+    await expect(service.generatePlan(validDto)).rejects.toMatchObject({
+      response: { code: 'PLAN_INVALID_JSON' },
+    });
+    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(1);
   });
 
-  it('provider 返回坏 Schema（weeks:[]）→ 重试 3 次后降级模板', async () => {
+  it('provider 返回坏 Schema（weeks:[]）→ 直接抛 BadRequestException（含 errors）', async () => {
     const provider = makeProvider('{"weeks":[]}');
     const service = await setup(provider);
-    const res = await service.generatePlan(validDto);
-
-    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(PlanService.MAX_PLAN_ATTEMPTS);
-    expect(res.degraded).toBe(true);
-    expect(res.plan.weeks).toBeDefined();
+    const { BadRequestException } = await import('@nestjs/common');
+    await expect(service.generatePlan(validDto)).rejects.toBeInstanceOf(BadRequestException);
+    expect((provider.chat as jest.Mock)).toHaveBeenCalledTimes(1);
   });
 
-  it('坏 JSON 第 1 次、合法 JSON 第 2 次 → 第 2 次成功（degraded:false, 调用 2 次）', async () => {
-    const chat = jest.fn()
-      .mockResolvedValueOnce({ text: 'not json', model: 'm' })
-      .mockResolvedValueOnce({ text: validPlanJson, model: 'm' });
+  it('AI 输出被 max_tokens 截断（finish_reason=length）→ 抛 PLAN_TRUNCATED', async () => {
+    const chat = jest.fn(async (): Promise<ChatResult> => ({
+      text: '{"weeks":[{"week":1,"days":[{"day":1',
+      model: 'm',
+      finishReason: 'length',
+    }));
     const provider = { name: 'mock', chat } as unknown as AiProvider;
     const service = await setup(provider);
-    const res = await service.generatePlan(validDto);
-
-    expect(chat).toHaveBeenCalledTimes(2);
-    expect(res.degraded).toBe(false);
-    expect(res.plan.weeks).toHaveLength(1);
-  });
-
-  it('重试请求（attempt>1）的 user 消息含 retryNote 自我纠正', async () => {
-    const chat = jest.fn()
-      .mockResolvedValueOnce({ text: '{"weeks":[]}', model: 'm' })
-      .mockResolvedValueOnce({ text: validPlanJson, model: 'm' });
-    const provider = { name: 'mock', chat } as unknown as AiProvider;
-    const service = await setup(provider);
-    await service.generatePlan(validDto);
-
-    const firstUser = JSON.parse(chat.mock.calls[0][0].find((m: { role: string }) => m.role === 'user').content);
-    const secondUser = JSON.parse(chat.mock.calls[1][0].find((m: { role: string }) => m.role === 'user').content);
-    expect(firstUser.retryNote).toBeUndefined();
-    expect(secondUser.retryNote).toBeDefined();
-    expect(secondUser.retryNote).toContain('第 2 次');
+    await expect(service.generatePlan(validDto)).rejects.toMatchObject({
+      response: { code: 'PLAN_TRUNCATED' },
+    });
+    expect(chat).toHaveBeenCalledTimes(1);
   });
 
   it('provider.chat 抛错 → 异常向上传播（不在本层重试，避免与 AI-106 叠加）', async () => {
@@ -160,6 +139,10 @@ describe('PlanService (AI-204)', () => {
       interests: ['动物'],
     });
     expect(options?.temperature).toBe(0.4);
+    expect(options?.maxTokens).toBe(6000);
+    // 关闭思考链（覆盖种子 enable_thinking:true），提速并避免截断。
+    expect(options?.extraBody).toEqual({ chat_template_kwargs: { enable_thinking: false } });
+    expect(options?.timeoutMs).toBe(55_000);
   });
 
   it('发出的 system 消息即 AI-203 双语 PlanAgent 提示词（防回退占位）', async () => {
