@@ -2,8 +2,9 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { SavePlanDto } from './dto/save-plan.dto';
 import { ApplyPlanDto } from './dto/apply-plan.dto';
+import { GenerateCoursesDto } from './dto/generate-courses.dto';
 import { PlanService } from './plan.service';
-import { GeneratePlanResponse, PlanStatusResult } from './plan.types';
+import { GeneratePlanResponse, PlanStatusResult, GenerateCoursesResponse } from './plan.types';
 
 /**
  * 学习计划生成/持久化控制器（AI-202 生成 + AI-206 保存/应用 + AI-209 完成度）。
@@ -37,6 +38,14 @@ export class PlanController {
   @Post(':id/apply')
   apply(@Param('id') id: string, @Body() dto: ApplyPlanDto) {
     return this.planService.applyPlan(id, dto.confirm ?? false);
+  }
+
+  @Post(':id/generate-courses')
+  generateCourses(
+    @Param('id') id: string,
+    @Body() dto: GenerateCoursesDto,
+  ): Promise<GenerateCoursesResponse> {
+    return this.planService.generateCoursesForPlan(id, dto.wordsPerLesson ?? 5);
   }
 
   @Get('status')

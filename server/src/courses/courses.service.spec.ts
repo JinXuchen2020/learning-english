@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { CoursesService } from './courses.service';
 import { Course } from '../entities/course.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { Word } from '../entities/word.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 
 describe('CoursesService', () => {
@@ -19,6 +20,7 @@ describe('CoursesService', () => {
         CoursesService,
         { provide: getRepositoryToken(Course), useValue: coursesRepo },
         { provide: getRepositoryToken(Lesson), useValue: {} },
+        { provide: getRepositoryToken(Word), useValue: {} },
         { provide: getRepositoryToken(LessonProgress), useValue: progressRepo },
       ],
     }).compile();

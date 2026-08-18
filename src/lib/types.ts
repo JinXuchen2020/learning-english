@@ -240,6 +240,21 @@ export interface PlanStatusResponse {
   appliedAt?: string;
 }
 
+/** `POST /api/ai/plan/:id/generate-courses` 请求体（AI-801）。 */
+export interface GenerateCoursesDto {
+  wordsPerLesson?: number; // 3-8，缺省 5
+}
+
+/** `POST /api/ai/plan/:id/generate-courses` 响应（AI-801）。 */
+export interface GenerateCoursesResponse {
+  courseId: string;
+  title: string;
+  lessonCount: number;
+  wordCount: number;
+  degraded: boolean;
+  model: string;
+}
+
 /* ----------------------- AI Speech (AI-307) ----------------------- */
 
 /** 口语反馈等级档位（与后端 `SpeechFeedback.level` 对齐）。 */

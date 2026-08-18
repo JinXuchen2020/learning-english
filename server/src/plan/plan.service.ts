@@ -18,6 +18,11 @@ import { buildFallbackPlan } from './plan-template';
 import { StudyPlan, StudyPlanSkillType, STUDY_PLAN_SKILL_TYPES } from './study-plan.entity';
 import { StudyPlanDay } from './study-plan-day.entity';
 import { TasksService } from '../tasks/tasks.service';
+import { CoursesService } from '../courses/courses.service';
+import { validateCoursePlan, CoursePlanSpec } from './courses-from-plan.schema';
+import { buildFallbackCoursePlan, CourseSpecSeed } from './courses-from-plan.template';
+import { COURSE_FROM_PLAN_SYSTEM_PROMPT, buildCourseFromPlanUserPrompt } from './courses-from-plan.prompt';
+import { GenerateCoursesResponse } from './plan.types';
 
 /** `savePlan` 返回（AI-206）。 */
 export interface SavePlanResult {
@@ -65,6 +70,7 @@ export class PlanService {
     @InjectRepository(StudyPlan) private readonly planRepo: Repository<StudyPlan>,
     @InjectRepository(StudyPlanDay) private readonly dayRepo: Repository<StudyPlanDay>,
     private readonly tasksService: TasksService,
+    private readonly coursesService: CoursesService,
   ) {}
 
   /**
@@ -217,6 +223,87 @@ export class PlanService {
   }
 
   /**
+   * 由已保存计划生成配套课程（AI-801）：推导课程规格 → AI 产出结构化课程 →
+   * `validateCoursePlan` 校验/重试（≤3 次）→ 仍失败降级内置模板课程（degraded） →
+   * 经 `CoursesService.createCourseFromPlan` 事务落库 Course+Lesson+Word。
+   *
+   * 与 `generatePlan` 的「出错即抛」不同，本方法对**课程生成**采用「重试 + 模板降级」
+   * 策略：课程生成是「锦上添花」的写路径，宁可落一门结构合规的模板课程也不 500，
+   * 保证「生成配套课程」永远可用（AI 不可达/输出非法均返回 200 + degraded）。
+   * 单次 AI 调用 `timeoutMs` 18s、最多 3 次 = 最坏 54s < Vercel 60s，避免 504。
+   *
+   * @param id 已保存计划 UUID（StudyPlan）
+   * @param wordsPerLesson 每节单词数（3..8，缺省 5）
+   * @returns 落库课程响应（courseId/title/lessonCount/wordCount/degraded/model）
+   * @throws NotFoundException 计划不存在（code: PLAN_NOT_FOUND）
+   */
+  async generateCoursesForPlan(
+    id: string,
+    wordsPerLesson = 5,
+  ): Promise<GenerateCoursesResponse> {
+    const plan = await this.planRepo.findOne({ where: { id }, relations: ['days'] });
+    if (!plan) {
+      throw new NotFoundException({ code: 'PLAN_NOT_FOUND', message: '学习计划不存在' });
+    }
+
+    const seed = deriveCourseSpec(plan);
+    const options: ChatOptions = {
+      temperature: 0.5,
+      maxTokens: 4096,
+      extraBody: { chat_template_kwargs: { enable_thinking: false } },
+      timeoutMs: 18_000,
+      maxAttempts: 1,
+    };
+
+    let raw: CoursePlanSpec | null = null;
+    let degraded = false;
+    let model = 'template';
+
+    for (let attempt = 1; attempt <= 3 && !raw; attempt++) {
+      try {
+        const result = await this.ai.chat(
+          [
+            { role: 'system', content: COURSE_FROM_PLAN_SYSTEM_PROMPT },
+            { role: 'user', content: buildCourseFromPlanUserPrompt(seed, wordsPerLesson, attempt) },
+          ],
+          options,
+        );
+        model = result.model ?? model;
+        const parsed = JSON.parse(extractJson(result.text));
+        const validation = validateCoursePlan(parsed);
+        if (validation.ok) {
+          raw = validation.value!;
+        } else if (attempt === 3) {
+          this.logger.warn('[Plan] 课程生成连续 3 次结构校验失败，降级模板课程：%s', validation.errors.join('; '));
+        }
+      } catch (err) {
+        this.logger.warn('[Plan] 课程生成第 %d 次调用失败：%s', attempt, (err as Error).message);
+      }
+      if (!raw && attempt === 3) {
+        raw = buildFallbackCoursePlan(seed, wordsPerLesson);
+        degraded = true;
+      }
+    }
+
+    const created = await this.coursesService.createCourseFromPlan(raw!);
+    this.logger.log(
+      '[Plan] 已生成配套课程 %s（%d 节 / %d 词，degraded=%s）',
+      created.courseId,
+      created.lessonCount,
+      created.wordCount,
+      degraded,
+    );
+    return {
+      courseId: created.courseId,
+      title: raw!.course.title,
+      lessonCount: created.lessonCount,
+      wordCount: created.wordCount,
+      degraded,
+      model,
+    };
+  }
+
+  /**
    * 计划完成度快照（AI-209）：取 childId 最近一份 `applied` 计划，统计 days 完成度。
    * @param childId 计划归属用户 UUID
    * @returns `{ hasPlan, totalDays, doneDays, completionRatio, planId?, appliedAt? }`
@@ -339,4 +426,69 @@ function addDays(isoDate: string, n: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().split('T')[0];
+}
+
+/**
+ * 由 `StudyPlan`（含 days）推导课程种子（AI-801）。
+ *
+ * 注意：`StudyPlan` 实体**不持久化** level / interests / week theme（AI-203 设计但断线），
+ * 仅存 day 级 `title` 与 `content`（JSON 化的 lessons）。因此：
+ *  - `dayTitles` 由每 plan day 的 `title` 清洗（去「第 N 天」尾缀）或回退到当日 content
+ *    首 lesson 标题得到，作为每节新课的标题来源；
+ *  - `title`/`description` 由 dayTitles 推导的主题拼接；
+ *  - `level` 无落库值，默认 `a1`（提示词据此约束词汇适龄度）；
+ *  这些偏离已在质量门 docs 中如实说明，不影响「生成可学习的真实课程」主目标。
+ */
+function deriveCourseSpec(plan: StudyPlan): CourseSpecSeed {
+  const days = (plan.days ?? [])
+    .slice()
+    .sort((a, b) => a.dayIndex - b.dayIndex);
+  const dayTitles = days.map((d, i) => cleanDayTitle(d, i));
+  const theme = deriveTheme(dayTitles);
+  return {
+    title: theme ? `${theme} · English` : 'My Learning Plan',
+    description: `由你的 ${days.length} 天学习计划生成的专属英语课程`,
+    level: 'a1',
+    dayTitles,
+    daysCount: days.length,
+  };
+}
+
+/** 清洗某 plan day 的标题：去「第 N 天 / Day N」尾缀，回退取 content 首 lesson 标题。 */
+function cleanDayTitle(day: StudyPlanDay, index: number): string {
+  const raw = (day.title || '').trim();
+  const stripped = raw
+    .replace(/\s*[·•]\s*第\s*\d+\s*天\s*$/i, '')
+    .replace(/\s*[·•]\s*Day\s*\d+\s*$/i, '')
+    .replace(/\s*第\s*\d+\s*天\s*$/i, '')
+    .replace(/\s*Day\s*\d+\s*$/i, '')
+    .trim();
+  if (stripped && !/^(第\s*\d+\s*天|day\s*\d+)$/i.test(stripped)) {
+    return stripped;
+  }
+  const fromContent = firstLessonTitle(day.content);
+  if (fromContent) return fromContent;
+  return `Day ${index + 1}`;
+}
+
+/** 从 day.content（JSON 化的 lessons）取首 lesson 标题（最多 40 字）。 */
+function firstLessonTitle(content?: string): string | null {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed) && parsed.length && parsed[0]?.title) {
+      return String(parsed[0].title).slice(0, 40);
+    }
+  } catch {
+    // content 非 JSON（纯文本），忽略
+  }
+  return null;
+}
+
+/** 从 dayTitles 推导课程主题（取首个非「Day N / 第 N 天」的标题）。 */
+function deriveTheme(dayTitles: string[]): string | null {
+  for (const t of dayTitles) {
+    if (t && !/^(day\s*\d+|第\s*\d+\s*天)/i.test(t)) return t;
+  }
+  return null;
 }

@@ -70,7 +70,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/courses` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | todo | 见 `features/ai-801.md` |
+| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/course` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | done | 见 `features/ai-801.md`（验收全绿；E2E 专属场景 + 相对计数断言，user-accepted-ci 交 CI e2e job 实跑） |
 
 ---
 
@@ -211,7 +211,7 @@
 | **Milestone 6** (W7+) | AI-601 ~ AI-606 | 自适应与内容生成增强 |
 | **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
-| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
+| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/course` 可学 |
 | **Milestone 10** (W10+) | AI-802 | 聊天语音输入（`/chat` 麦克风实时英文听写 + Firefox/非安全上下文降级） |
 | **Milestone 11** (W11+) | AI-803 | 计划→真实课程引用落地与导航（courseId/lessonId 落库+校验+前端深链「点哪天上哪节」） |
 

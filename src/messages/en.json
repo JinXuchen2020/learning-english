@@ -193,7 +193,13 @@
     "loadingPlan": "Foxy is preparing your plan…",
     "genError": "Generation failed, try again~",
     "networkError": "The network wandered off, please try again!",
-    "applyError": "Apply failed, try again~"
+    "applyError": "Apply failed, try again~",
+    "generateCoursesHint": "Want Foxy to whip up a matching course for you? You can learn it in Courses right after~",
+    "generateCourses": "Generate matching course 📚",
+    "generatingCourses": "Generating course…",
+    "goHome": "Later, back to Home",
+    "coursesError": "Course generation failed, head to Home for now~",
+    "coursesDegradedNote": "Foxy used a ready-made template for the course—still totally learnable~"
   },
   "WordCards": {
     "statusPending": "Pending",

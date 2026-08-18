@@ -156,6 +156,19 @@ export default class PlanPage {
     await this.page.waitForSelector('[data-component="PlanAppliedSuccess"]', { timeout: 30000 });
   }
 
+  /** AI-801：应用成功后「生成配套课程」入口是否可见（GenerateCoursesBlock + 主按钮）。 */
+  async isGenerateCoursesVisible(): Promise<boolean> {
+    const block = this.page.locator('[data-component="GenerateCoursesBlock"]');
+    if ((await block.count()) === 0) return false;
+    const btn = this.page.locator('button[data-action="generate-courses"]');
+    return (await btn.count()) > 0 && (await btn.first().isVisible());
+  }
+
+  /** AI-801：点击「生成配套课程」按钮（驱动 generateCoursesForPlan → 跳 /course）。 */
+  async clickGenerateCourses(): Promise<void> {
+    await this.page.locator('button[data-action="generate-courses"]').click();
+  }
+
   async toggleDay(index: number): Promise<void> {
     await this.page.locator(`button[data-action="toggle-day"][data-day-index="${index}"]`).click();
   }

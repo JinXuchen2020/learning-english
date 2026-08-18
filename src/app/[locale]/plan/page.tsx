@@ -81,6 +81,10 @@ function PlanPreview({
   applied,
   checkedDays,
   onToggleDay,
+  savedPlanId,
+  generating,
+  onGenerateCourses,
+  onGoHome,
 }: {
   result: GeneratePlanResponse;
   onRegenerate: () => void;
@@ -89,6 +93,10 @@ function PlanPreview({
   applied: boolean;
   checkedDays: Set<number>;
   onToggleDay: (index: number) => void;
+  savedPlanId: string | null;
+  generating: boolean;
+  onGenerateCourses: () => void;
+  onGoHome: () => void;
 }) {
   const t = useTranslations("Plan");
   const weeks: PlanWeek[] = result.plan.weeks ?? [];
@@ -131,6 +139,36 @@ function PlanPreview({
         >
           {t('appliedNote')}
         </p>
+      )}
+
+      {applied && savedPlanId && (
+        <div className="space-y-3" data-component="GenerateCoursesBlock">
+          <p className="text-sm font-semibold text-kids-muted">
+            {t('generateCoursesHint')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              type="button"
+              variant="success"
+              className="flex-1 justify-center"
+              onClick={onGenerateCourses}
+              disabled={generating}
+              data-action="generate-courses"
+            >
+              {generating ? t('generatingCourses') : t('generateCourses')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={onGoHome}
+              disabled={generating}
+              data-action="go-home"
+            >
+              {t('goHome')}
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="space-y-3">
@@ -258,6 +296,8 @@ function PlanContent() {
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [checkedDays, setCheckedDays] = useState<Set<number>>(new Set());
 
   const errors = useMemo(() => validatePlanForm(values), [values]);
@@ -274,10 +314,12 @@ function PlanContent() {
 
   const handleGenerate = useCallback(async () => {
     if (!valid || !user) return;
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setApplied(false);
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      setApplied(false);
+      setSavedPlanId(null);
+      setGenerating(false);
     try {
       const res = await api.generatePlan({
         childId: user.id,
@@ -306,10 +348,11 @@ function PlanContent() {
     setError(null);
     try {
       const saved = await api.savePlan({ childId: user.id, plan: result.plan });
+      setSavedPlanId(saved.id);
       await api.applyPlan(saved.id, {});
       setApplied(true);
-      // 短暂展示成功提示后跳回首页（Home 会渲染新计划任务）。
-      setTimeout(() => router.push("/"), 1200);
+      // 不再自动跳首页：应用成功后展示「生成配套课程」入口（AI-801），
+      // 由用户选择生成课程或稍后回首页。
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || t('applyError'));
@@ -319,7 +362,30 @@ function PlanContent() {
       logger.error("applyPlan failed", err);
       setApplying(false);
     }
-  }, [result, user, router]);
+  }, [result, user]);
+
+  /** AI-801：应用计划后，按已保存计划 id 生成配套课程，成功后跳 /course（课程列表页）。 */
+  const handleGenerateCourses = useCallback(async () => {
+    if (!savedPlanId || !user) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      await api.generateCoursesForPlan(savedPlanId, {});
+      router.push("/course");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || t('coursesError'));
+      } else {
+        setError(t('networkError'));
+      }
+      logger.error("generateCoursesForPlan failed", err);
+      setGenerating(false);
+    }
+  }, [savedPlanId, user, router, t]);
+
+  const handleGoHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
 
   const toggleDay = useCallback((index: number) => {
     setCheckedDays((prev) => {
@@ -520,6 +586,10 @@ function PlanContent() {
           applied={applied}
           checkedDays={checkedDays}
           onToggleDay={toggleDay}
+          savedPlanId={savedPlanId}
+          generating={generating}
+          onGenerateCourses={() => void handleGenerateCourses()}
+          onGoHome={handleGoHome}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import { StudyPlanDay } from './study-plan-day.entity';
 import { PlanController } from './plan.controller';
 import { PlanService } from './plan.service';
 import { TasksModule } from '../tasks/tasks.module';
+import { CoursesModule } from '../courses/courses.module';
 
 /**
  * 学习计划模块（AI-201 建表 + AI-202 生成接口 + AI-206 保存/应用）。
@@ -23,7 +24,7 @@ import { TasksModule } from '../tasks/tasks.module';
  * 非 `@Global()`：属领域模块，按需 import，与 `CoursesModule` 等同级。
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([StudyPlan, StudyPlanDay]), TasksModule],
+  imports: [TypeOrmModule.forFeature([StudyPlan, StudyPlanDay]), TasksModule, CoursesModule],
   controllers: [PlanController],
   providers: [PlanService],
   exports: [TypeOrmModule, PlanService],

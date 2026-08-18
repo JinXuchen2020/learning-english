@@ -114,6 +114,28 @@ export interface PlanCatalog {
 }
 
 /**
+ * `POST /api/ai/plan/:id/generate-courses` 响应（AI-801）。
+ * 由计划推导并生成一门配套课程（Course + Lesson + Word），落库后可于 `/courses` 学习。
+ */
+export interface GenerateCoursesResponse {
+  /** 新生成课程的 `courses` 表 UUID。 */
+  courseId: string;
+  /** 课程标题（回显，落库值）。 */
+  title: string;
+  /** 课时数（= 计划天数）。 */
+  lessonCount: number;
+  /** 总单词数（所有课时单词之和）。 */
+  wordCount: number;
+  /**
+   * 是否为模板降级输出。AI 不可达 / 输出连续校验失败 → `true`（已落库内置模板课程）；
+   * AI 正常产出 → `false`。
+   */
+  degraded: boolean;
+  /** 实际使用的 provider 模型标识；降级时为 `template`。 */
+  model: string;
+}
+
+/**
  * 计划完成度快照（AI-209，`GET /api/ai/plan/status` 响应）。
  * 取该 childId 最近一份 `applied` 计划，统计其 `study_plan_days` 完成度。
  */

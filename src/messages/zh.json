@@ -193,7 +193,13 @@
     "loadingPlan": "Foxy 正在为你准备计划…",
     "genError": "生成失败，再试一次吧～",
     "networkError": "网络好像开小差了，再试一次吧！",
-    "applyError": "应用失败，再试一次吧～"
+    "applyError": "应用失败，再试一次吧～",
+    "generateCoursesHint": "要不要 Foxy 顺手给你做一套配套课程？生成后就能在「课程」里学啦～",
+    "generateCourses": "生成配套课程 📚",
+    "generatingCourses": "正在生成课程…",
+    "goHome": "稍后再说，回首页",
+    "coursesError": "课程生成失败，先去首页看看吧～",
+    "coursesDegradedNote": "Foxy 用了现成模板生成了课程，照样能学哦～"
   },
   "WordCards": {
     "statusPending": "待审核",

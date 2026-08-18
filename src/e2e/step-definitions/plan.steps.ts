@@ -1,6 +1,7 @@
 // Plan wizard steps (AI-207).
 import { Given, When, Then } from "@cucumber/cucumber";
 import PlanPage from "../support/pages/plan";
+import CoursePage from "../support/pages/course";
 import type E2EWorld from "../support/world";
 
 Given("I open the plan wizard", async function (this: E2EWorld) {
@@ -158,6 +159,56 @@ Then(
     const done = await new PlanPage(this.page, this.baseUrl).isDayDone(index);
     if (!done) {
       throw new Error(`Expected plan day ${index} to be marked done`);
+    }
+  }
+);
+
+/* ------------------------- AI-801: plan → course ------------------------- */
+
+When(
+  "I open the course list and remember the course count",
+  async function (this: E2EWorld) {
+    const course = new CoursePage(this.page);
+    await course.openCourseList(this.baseUrl);
+    this.coursesBefore = await course.courseCount();
+  }
+);
+
+Then(
+  "I should see the generate-courses button",
+  async function (this: E2EWorld) {
+    const visible = await new PlanPage(this.page, this.baseUrl).isGenerateCoursesVisible();
+    if (!visible) {
+      throw new Error("Expected the generate-courses button to be visible after applying the plan");
+    }
+  }
+);
+
+When(
+  "I click the generate-courses button",
+  async function (this: E2EWorld) {
+    await new PlanPage(this.page, this.baseUrl).clickGenerateCourses();
+  }
+);
+
+Then(
+  "I should be on the course list with at least 1 more course",
+  { timeout: 120000 },
+  async function (this: E2EWorld) {
+    // 后端 generateCoursesForPlan 内部最多 3 次 AI 调用（每次超时 18s），
+    // 最坏 ~54s 才落库返回；此处放宽等待，避免击穿 step 超时。
+    await this.page.waitForFunction(
+      () => /^\/(zh|en)\/course(\/|$)/.test(location.pathname),
+      undefined,
+      { timeout: 100000 },
+    );
+    await this.page.waitForSelector('[data-component="CourseList"]', { timeout: 30000 });
+    const after = await new CoursePage(this.page).courseCount();
+    const before = this.coursesBefore ?? 0;
+    if (after < before + 1) {
+      throw new Error(
+        `Expected at least ${before + 1} courses after generating, but found ${after}`,
+      );
     }
   }
 );

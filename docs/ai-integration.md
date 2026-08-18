@@ -135,6 +135,26 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
       → 无 applied 计划 → { hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }（200，前端据此隐藏完成度卡）
       → 沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定
     · save 仅做结构校验(复用 AI-204 validatePlan)，真实 courseId/lessonId 存在性校验需课程目录注入，不在本 feature 范围（属后续目录注入增强）
+    · 由已保存计划生成配套课程（AI-801 已落地）：
+      POST /api/ai/plan/:id/generate-courses
+        body: { wordsPerLesson?(int 3..8, 默认 5) }
+        → 找不到计划 404 { code:'PLAN_NOT_FOUND' }
+        → 由 StudyPlan（含 days）推导课程规格 CourseSpecSeed（标题/描述来自 day.title 清洗后的主题拼接；
+          level 无落库值默认 'a1'；lesson 数 = 计划天数；每节标题来自当日清洗标题）——注意 StudyPlan 实体
+          不持久化 level/interests/week theme（AI-203 设计断线），故标题取自 day.title/content（实测可用），已在质量门如实说明
+        → AiProvider.chat（system=双语儿科友好 COURSE_FROM_PLAN_SYSTEM_PROMPT，user=含 dayTitles 的
+          buildCourseFromPlanUserPrompt；temperature:0.5, maxTokens:4096, enable_thinking:false, timeoutMs:18s, maxAttempts:1）
+        → JSON.parse → validateCoursePlan（courses-from-plan.schema.ts）结构校验
+        → 不合规则自动重试（≤3 次，附 retryNote）；3 次仍失败降级 buildFallbackCoursePlan（courses-from-plan.template.ts）模板课程 degraded=true
+        → CoursesService.createCourseFromPlan(spec) 事务落库 Course+Lessons+Words（Word options 简单数组逗号拼接、
+          correctIndex 必填、category 取课程标题前 50 字、color 取课程 color 或 null、illustration 默认 null）
+        → 返回 GenerateCoursesResponse { courseId, title, lessonCount, wordCount, degraded, model }
+        · degraded=true 表示 AI 不可达/连续 3 次结构校验失败，已落库模板课程（仍可学）；degraded=false 为 AI 真实产出
+        · 与 generatePlan「出错即抛」不同：课程生成对写路径采用「重试 + 模板降级」，永不 500（保证「生成配套课程」按钮永远可用）
+      · 前端（AI-801 已落地）：src/lib/api.ts generateCoursesForPlan(id, dto?) → POST /api/ai/plan/:id/generate-courses；
+        /plan 页 PlanPreview 在「应用此计划」成功后展示「生成配套课程」按钮（data-component=GenerateCoursesBlock,
+        data-action=generate-courses）；点击调用接口，成功后 router.push('/course')（课程列表页，路由为 /course 非 /courses）查看新课；
+        失败显示错误提示。类型 GenerateCoursesResponse/GenerateCoursesDto 见 src/lib/types.ts
 ```
 - 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
 - **JSON Schema 校验 + 重试(≤3) + 模板降级**：AI-204 已落地（`server/src/plan/plan-schema.ts` 的 `validatePlan` 递归校验 weeks→days→lessons 结构 + lesson.type/skillType/title/courseId/lessonId 格式，错误聚合；`server/src/plan/plan-template.ts` 的 `buildFallbackPlan` 最小合规兜底计划；`PlanService` 重试循环 + `buildPlanUserPrompt(dto, catalog?, attempt)` 重试附 `retryNote`）。**注意**：`validatePlan` 仅做结构 + 引用格式校验，真实 `courseId/lessonId` 存在性校验需课程目录注入，属后续增强（AI-206 落地的是持久化/apply，save 仅复用 `validatePlan` 做结构校验，不做 id 存在性校验）；3 套按 `dailyMinutes` 档位的静态周计划（short/standard/extended，由 `resolveTier` 选档）+ 用户可选模板生成（`useTemplate`）已由 AI-205 实现。

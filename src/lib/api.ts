@@ -11,6 +11,8 @@ import type {
   ApplyPlanDto,
   ApplyPlanResponse,
   PlanStatusResponse,
+  GenerateCoursesDto,
+  GenerateCoursesResponse,
   SpeechFeedback,
   EvaluateSpeechOptions,
   ChatScene,
@@ -455,6 +457,25 @@ export function applyPlan(id: string, dto: ApplyPlanDto = {}) {
 export function getPlanStatus(childId: string) {
   return request<PlanStatusResponse>(
     `/ai/plan/status?childId=${encodeURIComponent(childId)}`
+  );
+}
+
+/**
+ * 由已保存计划生成配套课程（AI-801）。
+ * `POST /api/ai/plan/:id/generate-courses`，body 与后端 `GenerateCoursesDto` 对齐。
+ * 返回 200 + 课程信息（degraded=true 表示 AI 不可达/校验失败、落库了模板课程，
+ * 前端仍可正常前往 /courses 学习；失败（4xx/5xx）抛 `ApiError`）。
+ *
+ * @param id 已保存计划 UUID（来自 `savePlan` 响应）
+ * @param dto 可选 { wordsPerLesson?: number }
+ */
+export function generateCoursesForPlan(
+  id: string,
+  dto: GenerateCoursesDto = {}
+) {
+  return request<GenerateCoursesResponse>(
+    `/ai/plan/${encodeURIComponent(id)}/generate-courses`,
+    { method: "POST", body: JSON.stringify(dto) }
   );
 }
 
