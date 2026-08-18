@@ -260,11 +260,11 @@ async function compileAiModule() {
 }
 
 describe('AiModule (DI 动态装配)', () => {
-  it('注入系统默认兜底 provider（未 seed 时回退 BigModelProvider），name=bigmodel', async () => {
+  it('注入能力聚合中枢 AiCapabilityHub（未 seed 时各能力 provider 回退 Mock 安全桩），name=AiCapabilityHub', async () => {
     const moduleRef = await compileAiModule();
     const provider = moduleRef.get<AiProvider>(AI_PROVIDER_TOKEN);
     expect(provider).toBeDefined();
-    expect(provider.name).toBe('bigmodel');
+    expect(provider.name).toBe('AiCapabilityHub');
   });
 
   it('also exposes AiUsageLimitService for direct consumption', async () => {

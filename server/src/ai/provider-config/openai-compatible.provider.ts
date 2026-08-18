@@ -14,7 +14,7 @@ import {
   TokenUsage,
   UnsupportedMethodError,
 } from '../ai-provider.interface';
-import { AiProviderException, AiAccessError } from '../bigmodel.provider';
+import { AiProviderException, AiAccessError } from '../ai-provider.errors';
 import { ProviderCapability } from './provider-config.entity';
 
 /** 注入型 fetch 签名（与全局 `fetch` 一致），便于单测 mock。 */
@@ -85,7 +85,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
       extraBody?: Record<string, unknown>;
       /** 声明的能力（AI-714）：非空时未声明能力直接抛 UnsupportedMethodError。 */
       capabilities?: ProviderCapability[] | null;
-      /** 运行时真实 provider 名（来自 DB `ProviderConfig.name`，如 `Agnes AI`），用于审计归因。缺省 `bigmodel`。 */
+      /** 运行时真实 provider 名（来自 DB `ProviderConfig.name`，如 `Agnes AI`），用于审计归因。缺省 `openai-compatible`。 */
       name?: string;
     } = {},
     fetchFn: FetchFn = globalThis.fetch.bind(globalThis),
@@ -95,7 +95,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     this.model = config.model ?? 'gpt-4o-mini';
     this.extraBody = config.extraBody ?? {};
     this.capabilities = config.capabilities ?? null;
-    this.name = config.name ?? 'bigmodel';
+    this.name = config.name ?? 'openai-compatible';
     this.fetchFn = fetchFn;
   }
 

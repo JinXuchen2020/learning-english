@@ -2,7 +2,7 @@
  * AiProvider — AI 能力抽象接口
  *
  * 统一封装 LLM 对话 / 多模态理解 / 语音转写(STT) / 发音评测 / 语音合成(TTS)
- * 四类能力，使 BigModel / NVIDIA / Azure 等具体 provider 可插拔替换，
+ * 五类能力，使 Agnes / OpenAI / 智谱 等具体 provider 可插拔替换，
  * 业务模块（plan / speech / conversation / report）只依赖本接口，不绑定厂商。
  *
  * 这是 M1 基建的第一块（见 `features/backlog.md` AI-101）。
@@ -125,7 +125,7 @@ export interface ChatOptions {
   maxTokens?: number;
   /** 超时时间（毫秒），推理模型建议 ≥60000。 */
   timeoutMs?: number;
-  /** 指定模型覆盖（如 `BIGMODEL_MODEL`）。 */
+  /** 指定模型覆盖（如 `AGNES_MODEL` / `OPENAI_MODEL`）。 */
   model?: string;
   /**
    * 本次调用的重试次数覆盖（含首次）。仅 `RetryableAiProvider` 生效，缺省沿用全局
@@ -168,15 +168,16 @@ export interface SynthesizeOptions {
 /**
  * AI 能力提供方统一抽象。
  *
- * 各实现（bigmodel / nvidia / azure）由 `ProviderConfigService.buildProvider` 按
- * DB 配置构建，业务模块通过 `AI_PROVIDER_TOKEN` 注入本接口。
+ * 历史实现（bigmodel / nvidia / azure / edge-tts）按「配置/传输类型」命名，由
+ * `ProviderConfigService.buildProvider` 构建后塞进单一兜底链。AI-重构后改为
+ * **按能力命名**的 provider（Chat/Vision/Stt/Tts/Pronunciation），各自在调用时
+ * 从 `ProviderConfigService` 按能力加载生效配置，由 `AiCapabilityHub` 聚合后通过
+ * `AI_PROVIDER_TOKEN` 注入业务模块。本接口仍是消费方依赖的稳定契约。
  */
 export interface AiProvider {
   /**
-   * Provider 标识（运行时真实名，如 `Agnes AI` / `智谱 GLM (系统默认)`）。
-   * 早期写死为 `ProviderName` 联合类型（只能取 `'bigmodel'` 等值），导致 Agnes 与
-   * 智谱在 `ai_call_logs` 里无法区分（AI-713 排查盲区）。改为 `string` 以携带 DB
-   * 配置的真实 provider 名，便于审计归因。`ProviderName` 仍保留作品牌类型。
+   * Provider 标识（运行时真实名，如 `ChatProvider` / `AiCapabilityHub` /
+   * 底层 `Agnes AI`）。改为 `string` 以携带真实 provider 名，便于审计归因。
    */
   readonly name: string;
 
@@ -224,16 +225,13 @@ export interface AiProvider {
   synthesize(text: string, voice?: string, options?: SynthesizeOptions): Promise<AudioResult>;
 }
 
-/** 支持的 provider 名称（品牌标识，与运行时配置 `type` 区分）。 */
-export type ProviderName = 'bigmodel' | 'nvidia' | 'azure' | 'edge-tts';
-
 /** NestJS 注入 token，业务模块用 `@Inject(AI_PROVIDER_TOKEN)` 获取 AiProvider。 */
 export const AI_PROVIDER_TOKEN = 'AI_PROVIDER';
 
 /**
- * 标记「该 provider 不实现当前能力」（如 EdgeTts 仅支持 TTS，对 chat/transcribe
- * 等调用应抛此错误）。`FallbackAiProvider.tryChain` 会据此**跳过**该 provider，
- * 而非当作失败冒泡——避免 TTS-only 的 provider 污染通用兜底链导致非 TTS 调用 500。
+ * 标记「该底层 client 不实现当前能力」（如某 OpenAI 兼容端点未启用 vision）。
+ * `OpenAiCompatibleProvider.assertCapability` 据此抛此错误，调用方（能力 provider）
+ * 捕获后回退 Mock 安全桩，而非当作失败冒泡——避免未声明能力的调用导致 500。
  */
 export class UnsupportedMethodError extends Error {
   constructor(message: string) {

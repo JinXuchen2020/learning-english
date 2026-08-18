@@ -1,7 +1,7 @@
 /**
  * AiTranscribeService — STT 转写编排层（AI-304）
  *
- * 调用底层 `provider.transcribe`（经 AI-106 的「重试 + 配额 + 日志」链），
+ * 调用底层 `SttProvider.transcribe`（SttProvider 内已含 retry，无配置时走 Mock 安全桩），
  * 对**降级 / 失败结果做识别标注**（`degraded` / `degradeReason`），**不抛错**，
  * 供下游消费：
  * - AI-305（发音评分策略）：`degraded` 为真时走「转写文本相似度兜底」评分。
@@ -13,14 +13,13 @@
  * @module ai/ai-transcribe.service
  */
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
-  AI_PROVIDER_TOKEN,
-  AiProvider,
   AudioInput,
   TranscribeOptions,
   TranscriptResult,
 } from './ai-provider.interface';
+import { SttProvider } from './stt.provider';
 import { classifyTranscript, TranscriptDegradeReason } from './transcribe-result.util';
 import { logger } from '../common/logger/logger';
 
@@ -38,7 +37,7 @@ export type TranscriptOutcome = TranscriptResult & {
 /** STT 转写编排服务。 */
 @Injectable()
 export class AiTranscribeService {
-  constructor(@Inject(AI_PROVIDER_TOKEN) private readonly provider: AiProvider) {}
+  constructor(private readonly stt: SttProvider) {}
 
   /**
    * 转写音频。
@@ -52,10 +51,10 @@ export class AiTranscribeService {
   async transcribe(audio: AudioInput, opts?: TranscribeOptions): Promise<TranscriptOutcome> {
     let result: TranscriptResult;
     try {
-      result = await this.provider.transcribe(audio, opts);
+      result = await this.stt.transcribe(audio, opts);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      logger.warn(`[AiTranscribeService] provider.transcribe 降级: ${reason}`);
+      logger.warn(`[AiTranscribeService] stt.transcribe 降级: ${reason}`);
       return {
         text: '',
         confidence: 0,

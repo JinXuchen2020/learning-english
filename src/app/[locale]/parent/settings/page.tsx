@@ -218,7 +218,6 @@ function ParentSettingsInner() {
 
 const PROVIDER_TYPE_LABEL_KEY: Record<string, string> = {
   "openai-compatible": "provOpenaiCompatible",
-  bigmodel: "provBigModel",
 };
 
 const ALL_CAPABILITIES: ProviderCapability[] = [

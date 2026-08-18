@@ -66,7 +66,7 @@
 │        │                  │                   │             │
 │  ┌─────┴──────────────────┴───────────────────┴──────────┐  │
 │  │            AiProvider 抽象 (LLM / STT / TTS)           │  │
-│  │   智谱 BigModel GLM-4.7-Flash (首选) · NVIDIA · Azure ... │  │
+│  │   按能力命名的 provider（Chat/Vision/Stt/Tts/Pronunciation），系统默认 Agnes AI（openai-compatible）... │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                                                              │
 │  现有: Auth · Users · Courses · Lessons · Words · Tasks · Progress │
@@ -80,7 +80,7 @@
    - `ai-plan` / `ai-speech` / `ai-conversation` / `ai-report`
    - 复用 `progress` module 的数据做反馈
 3. **前端新增 3 个页面**(风格沿用 cozy-kids): `/plan`, `/speech`, `/chat`
-4. **统一 `.env`**: `AI_PROVIDER` / `BIGMODEL_API_KEY` / `BIGMODEL_BASE_URL` / `BIGMODEL_MODEL`, 复用 NestJS `ConfigModule`。默认 provider = **智谱 BigModel `glm-4.7-flash`** (OpenAI 兼容端点, 已实测可用), 支持 `mock` 模式零成本开发; NVIDIA 作为备选。
+4. **系统 provider 配置入库**: 运行期 AI 调用一律走数据库 `provider_configs` 表的系统默认配置（seed 阶段经 `AGNES_API_KEY` 加密落库 Agnes AI, openai-compatible），不再从 env 读取端点/模型；家长可在家长面板为家庭配置 OpenAI 兼容 provider 覆盖系统默认。无配置时由能力 provider 内部 Mock 安全桩兜底。
 
 ---
 
@@ -264,23 +264,17 @@ POST /api/ai/report/daily body: {userId, date}
 
 ```
 server/src/ai/
-  ai.module.ts          -- 动态模块; 注入 `AiProviderRouter`（实现 `AiProvider`）：默认回退 env `AI_PROVIDER`(bigmodel|nvidia|mock)，家长经 `/provider-config` 配置「每账号默认 provider」后，运行时按请求上下文（AsyncLocalStorage 的 userId/role → User.parentId → resolveDefault）解析生效，无需重启（AI-705）
+  ai.module.ts          -- 动态模块; 构造 `AiCapabilityHub`（实现 `AiProvider`）聚合 5 个按能力命名的 provider；AI_PROVIDER_TOKEN 绑定 hub，经 createAuditedProvider 套审计/配额/重试链（AI-714 重构）
   ai-provider.interface.ts
-  providers/
-    bigmodel.provider.ts      -- 智谱 BigModel (首选, OpenAI 兼容端点, GLM-4.7-Flash)
-    nvidia.provider.ts        -- NVIDIA build.nvidia.com (备选, 需账户开通模型推理权限)
-    mock.provider.ts          -- 确定性假数据, 开发/测试零成本
-    azure.provider.ts         -- 发音评测备选 Azure Pronunciation Assessment
+  capability providers/  -- 每个能力独立 provider，内部按能力从 DB 配置加载真实 client 或回退 Mock 安全桩：
+    chat.provider.ts / vision.provider.ts / stt.provider.ts / tts.provider.ts   -- 对话 / 视觉 / 语音识别 / 语音合成
+    pronunciation.provider.ts   -- 复合能力（Stt + Chat + 相似度兜底），由 AiPronunciationScorerService 编排
+    mock-ai-provider.ts         -- 无配置时的确定性安全桩（chat/vision 固定文案、tts 空音频、stt 空文本、pronunciation 0 分说明，均不抛错）
+  provider-config/      -- ProviderConfigService：按能力解析生效配置（家长覆盖→系统默认→Mock）、buildProvider 仅 openai-compatible 一种类型
   ai-plan/ ai-speech/ ai-conversation/ ai-report/   -- 业务 module
 ```
 
-**智谱 BigModel 端点与模型** (OpenAI 兼容):
-- Base URL: `https://open.bigmodel.cn/api/paas/v4`
-- 默认模型: `glm-4.7-flash` (可经 `BIGMODEL_MODEL` 切换)
-- 多模态/OCR 模型: `glm-4.6v-flash` (可经 `BIGMODEL_VISION_MODEL` 切换; 支持 base64 `image_url` 输入, 已实测 200 可用, 可做 OCR/拍照学单词/手写识别)
-- 已实测: HTTP 200, `content` 正常输出
-- ⚠️ 推理模型特性: 响应先输出 `reasoning_content` 再输出最终 `content`; `max_tokens` 需 ≥512 (否则 content 被截断为空); 含推理延迟较大 (实测 ~19s), HTTP 超时需放宽到 ≥60s; provider 实现只读 `message.content` 作为回复
-- ⚠️ 限流: `glm-4.6v-flash` 免费模型频繁返回 429 (code 1305 "访问量过大"), provider 需对 429 做指数退避重试 (纳入 AI-106)
+> 历史说明：早期实现以智谱 BigModel（`https://open.bigmodel.cn/api/paas/v4`，GLM-4.7-Flash / GLM-4.6V-Flash）作为首选 provider（AI-102~AI-402）。AI-714 重构后已彻底移除 BigModelProvider 与智谱播种，统一为「按能力命名的 provider + 系统默认 Agnes AI（openai-compatible）」架构；所有端点/模型均由数据库 `provider_configs` 配置驱动，不再硬编码厂商。
 
 **NVIDIA 端点与模型** (备选, build.nvidia.com, OpenAI 兼容):
 - Base URL: `https://integrate.api.nvidia.com/v1`
@@ -293,7 +287,7 @@ server/src/ai/
 - `chatWithImage(prompt, imageBase64, mimeType): Promise<string>` 多模态理解/OCR
 - `transcribe(audio): Promise<TranscriptResult>` STT
 - `assessPronunciation(audio, referenceText): Promise<ScoreResult>` 发音评测
-- `synthesize(text, voice): Promise<AudioResult>` TTS（AI-402 已落地：智谱 GLM-TTS `POST {baseUrl}/audio/speech`，返回 `audioUrl` 或 `audioBase64`，默认狐狸音色 `tongtong`）
+- `synthesize(text, voice): Promise<AudioResult>` TTS（由 TtsProvider 委托 openai-compatible 配置的 TTS 能力；无配置时返回空音频安全桩，前端以 Web Speech 兜底朗读）
 
 **成本/速率**: 每用户每日 token/调用配额已落地（AI-107）：`server/src/ai/` 下 `AiUsage` 实体（`ai_usage` 表，`userId+date` 唯一）+ `AiUsageLimitService`（计数/超限判定）+ `UsageLimitedAiProvider`（最外层 provider 外壳，调用前 `assertWithinQuota`、成功后 `recordUsage`、失败/重试不计费）。超限抛 `AiQuotaExceededError`（HTTP 429 + `degraded`），业务层据 `degraded` 走降级（模板兜底）。配置经 `ConfigService`：`AI_DAILY_CALL_LIMIT`（默认 200）/ `AI_DAILY_TOKEN_LIMIT`（默认 100000）。
 
@@ -321,8 +315,8 @@ server/src/ai/
 | 风险 | 对策 |
 |---|---|
 | LLM 输出不安全/超龄内容 | System Prompt 限定 + 关键词黑名单 + 内容安全模型 (`nemoguard-8b-content-safety`) 二次过滤 + 低 temperature |
-| 推理模型响应慢/超时 (GLM-4.7-Flash 实测 ~19s) | HTTP 超时放宽到 ≥60s; `max_tokens` ≥512; 慢响应走异步/loading 态 |
-| NVIDIA 账户无模型推理权限 (404 Function not found) | 已切换智谱 BigModel 为主; NVIDIA 修复后作为备选启用 |
+| 推理模型响应慢/超时 (Agnes `agnes-2.5-flash` 实测含思考延迟) | HTTP 超时放宽到 ≥60s; `max_tokens` ≥512; 慢响应走异步/loading 态 |
+| provider 端点不可达 / key 失效 | 能力 provider 内部捕获异常并回退 Mock 安全桩，业务层据 `degraded` 走降级（模板兜底），不抛错致 UI 崩溃 |
 | 发音评测不准 / 无 Azure | 提供"相对评分兜底": 转写文本与目标文本相似度 + LLM 判断 |
 | 儿童 API 成本 | 每用户每日 token/调用上限 + 缓存常见 plan 模板 + 结果存储避免重复调用 |
 | 隐私合规(COPPA/儿童信息保护) | 家长账户托管儿童账号、不存原始录音(或加密+TTL)、家长可一键删除数据 |
@@ -332,6 +326,6 @@ server/src/ai/
 
 ## 九、下一步
 
-1. ~~确定 AI 厂商选型~~ → 已定: **智谱 BigModel `glm-4.7-flash`** (OpenAI 兼容端点, 已实测 200 可用), 配置已写入 `server/.env`, `AI_PROVIDER=bigmodel`
-2. 从 M1(基建) + M2(学习计划) 开始落地; 开发期可用 `AI_PROVIDER=mock` 或真实 bigmodel 推进
+1. ~~确定 AI 厂商选型~~ → 已定: 系统默认 provider 由数据库 `provider_configs` 配置驱动（seed 落库 Agnes AI, openai-compatible, `agnes-2.5-flash`）；家长可在家长面板覆盖。运行期不读 AI env。
+2. 从 M1(基建) + M2(学习计划) 开始落地; 开发期无 key 时由能力 provider 内部 Mock 安全桩兜底，应用可启动、UI 不崩。
 3. 细化后的 feature 列表见 `features/backlog.md`

@@ -24,13 +24,14 @@ import { encryptSecret } from './ai/provider-config/crypto.util';
  */
 
 /**
- * 幂等确保系统 provider 链（主用 Agnes AI → 兜底智谱 GLM）。
+ * 幂等确保系统 provider 配置（仅主用 Agnes AI，系统默认）。
  * 按 name 查重，已存在则跳过；绝不 clear，可安全在启动期反复调用。
+ * 其余能力（vision/stt/tts/pronunciation）无 DB 配置时回退 Mock 安全桩，见 AiCapabilityHub。
  */
 export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
   const providerConfigRepo = ds.getRepository(ProviderConfig);
 
-  // 1) 主用：Agnes AI（openai-compatible，启用思考模式）
+  // 主用：Agnes AI（openai-compatible，启用思考模式）
   const agnesKey = process.env.AGNES_API_KEY;
   const agnesName = 'Agnes AI';
   const existingAgnes = await providerConfigRepo.findOne({
@@ -39,7 +40,7 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
   if (!existingAgnes) {
     if (!agnesKey) {
       logger.warn(
-        '[Seed] AGNES_API_KEY 未设置，跳过 Agnes AI 主 provider 播种；将仅以智谱兜底运行',
+        '[Seed] AGNES_API_KEY 未设置，跳过 Agnes AI 主 provider 播种；AI 调用将仅能在家长配置或 Mock 安全桩下运行',
       );
     } else {
       await providerConfigRepo.save(
@@ -71,53 +72,6 @@ export async function ensureProviderConfigs(ds: DataSource): Promise<void> {
     }
   }
 
-  // 2) 兜底：智谱 GLM（历史 bigmodel 通道）；被降级为 systemFallbackRank=1。
-  const zhipuKey = process.env.ZHIPU_API_KEY;
-  const zhipuName = '智谱 GLM (系统默认)';
-  const existingZhipu = await providerConfigRepo.findOne({
-    where: { ownerUserId: IsNull(), name: zhipuName },
-  });
-  if (!existingZhipu) {
-    if (!zhipuKey) {
-      logger.warn(
-        '[Seed] ZHIPU_API_KEY 未设置，跳过智谱兜底 provider 播种；AI 调用在主用失败时无兜底',
-      );
-    } else {
-      await providerConfigRepo.save(
-        providerConfigRepo.create({
-          ownerUserId: null,
-          name: zhipuName,
-          type: 'bigmodel',
-          baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-          apiKeyEnc: encryptSecret(zhipuKey),
-          model: 'glm-4.7-flash',
-          capabilitiesJson: JSON.stringify(['chat', 'vision', 'tts']),
-          extraJson: null,
-          isDefault: false,
-          systemFallbackRank: 1,
-        }),
-      );
-      logger.info('[Seed] 已播种智谱兜底 provider (type=bigmodel, isDefault=false, systemFallbackRank=1)');
-    }
-  } else {
-    // 已存在：兼容旧数据降级 + 按需刷新 key（env 为系统 provider 真源）。
-    const updates: Partial<ProviderConfig> = {};
-    if (existingZhipu.isDefault || existingZhipu.systemFallbackRank == null) {
-      // 曾作为系统默认播种的智谱 → 降级为兜底，确保 Agnes 为唯一系统默认。
-      updates.isDefault = false;
-      updates.systemFallbackRank = 1;
-    }
-    if (zhipuKey) {
-      const enc = encryptSecret(zhipuKey);
-      if (existingZhipu.apiKeyEnc !== enc) updates.apiKeyEnc = enc;
-    }
-    // AI-714 backfill：历史行可能无 model 列值，补默认模型。
-    if (!existingZhipu.model) updates.model = 'glm-4.7-flash';
-    if (Object.keys(updates).length) {
-      await providerConfigRepo.update(existingZhipu.id, updates);
-      logger.info('[Seed] 已更新智谱兜底 provider（key 刷新/降级为兜底）');
-    }
-  }
 }
 
 /**

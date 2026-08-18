@@ -113,17 +113,16 @@ jobs:
     name: E2E — full-stack journey (Cucumber + Playwright)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
-    environment: ZHIPU_API_KEY       # 持有 CI 注入的 AI provider 变量（ZHIPU_API_KEY / AGNES_API_KEY / PROVIDER_ENC_KEY）；Environment 名沿用历史命名
+    environment: ai-providers       # 持有 CI 注入的 AI provider 变量（AGNES_API_KEY / PROVIDER_ENC_KEY）；Environment 名已从历史 ZHIPU_API_KEY 更名
     env:
       # CI uses bundled Chromium (Linux). Locally this is unset -> Microsoft Edge.
       E2E_BROWSER_CHANNEL: ""
       SQLITE_PATH: ci.sqlite
       PORT: "4000"
-      # AI-714: 从该 Environment 读取变量注入 runner 环境变量。
-      # AGNES_API_KEY 为主用（openai-compatible）；ZHIPU_API_KEY 为兜底；
-      # 两者任一缺失时 seed 静默跳过对应 provider。需在 Environment 中新增 AGNES_API_KEY 变量。
+      # seed 阶段从该 Environment 读取变量注入 runner 环境变量；运行期 AI 调用走数据库系统 provider 配置。
+      # AGNES_API_KEY 为系统默认主用（openai-compatible）；缺失时 seed 静默跳过 Agnes。
+      # 需在 Environment 中配置 AGNES_API_KEY 与 PROVIDER_ENC_KEY 变量。
       AGNES_API_KEY: ${{ vars.AGNES_API_KEY }}
-      ZHIPU_API_KEY: ${{ vars.ZHIPU_API_KEY }}
       PROVIDER_ENC_KEY: ${{ vars.PROVIDER_ENC_KEY }}
     steps:
       - uses: actions/checkout@v4

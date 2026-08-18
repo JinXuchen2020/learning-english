@@ -2,8 +2,8 @@
  * AiPronunciationScorerService — 发音评分策略编排（AI-305）
  *
  * 对一次口语录音产出**统一 `ScoreResult`**（score ∈ [0,100]），并标注实际策略：
- * - 首选：`provider.assessPronunciation`（Azure Pronunciation Assessment，phoneme 级）。
- * - 兜底（无 Azure / 首选失败）：`transcribe` 转写 → 编辑距离相似度 → `provider.chat` LLM 评估 → 综合。
+ * 本项目无 phoneme 级评测 provider（OpenAI 兼容端点不提供），统一走
+ * 「转写(SttProvider) → 编辑距离相似度 → LLM 评估(ChatProvider) → 综合」兜底。
  *
  * 纯后端服务（无端点/无 UI），E2E 与 AI-301/303/304 同口径豁免。降级不抛错，
  * 与 AI-102/304 既定口径一致。
@@ -11,14 +11,13 @@
  * @module ai/ai-pronunciation-scorer.service
  */
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
-  AI_PROVIDER_TOKEN,
-  AiProvider,
   AssessOptions,
   AudioInput,
   ScoreResult,
 } from './ai-provider.interface';
+import { ChatProvider } from './chat.provider';
 import { AiTranscribeService, TranscriptOutcome } from './ai-transcribe.service';
 import {
   buildSimilarityFallbackFeedback,
@@ -26,7 +25,6 @@ import {
   parseLlmAssessment,
   scoreFromSimilarity,
   ScoringStrategy,
-  selectScoringStrategy,
   similarityRatio,
 } from './text-similarity.util';
 import { logger } from '../common/logger/logger';
@@ -61,13 +59,13 @@ const SIMILARITY_ASSESS_SYSTEM =
   '可选返回 JSON: {"feedback":"...","weakPhonemes":["θ"],"mascotExpr":"encourage"}。';
 
 /**
- * 发音评分策略编排服务。首选 phoneme 级评测，无 Azure 或首选失败时走
- * 「转写相似度 + LLM 评估」兜底，两种策略输出结构一致。
+ * 发音评分策略编排服务。统一走「转写相似度 + LLM 评估」兜底，
+ * 两种策略输出结构一致（本项目无 phoneme 级 provider）。
  */
 @Injectable()
 export class AiPronunciationScorerService {
   constructor(
-    @Inject(AI_PROVIDER_TOKEN) private readonly provider: AiProvider,
+    private readonly chatProvider: ChatProvider,
     private readonly transcriber: AiTranscribeService,
   ) {}
 
@@ -77,37 +75,8 @@ export class AiPronunciationScorerService {
    * @returns 评分结果 {@link ScoredResult}
    */
   async score(input: ScorePronunciationInput): Promise<ScoredResult> {
-    const strategy = selectScoringStrategy({
-      strategy: input.opts?.strategy,
-      providerName: this.provider.name,
-    });
-
-    if (strategy === 'phoneme') {
-      const phoneme = await this.tryPhonemeScore(input);
-      if (phoneme) return phoneme;
-      // phoneme 失败 → 落到 similarity 兜底（不抛错）
-    }
-
+    // 本项目无 phoneme 级评测 provider，统一走相似度兜底评分。
     return this.scoreBySimilarity(input);
-  }
-
-  /**
-   * 首选：provider.assessPronunciation（phoneme 级）。
-   * 异常 / 返回非数字分数 → 返回 null 触发兜底（与 AI-102 降级口径一致）。
-   */
-  private async tryPhonemeScore(input: ScorePronunciationInput): Promise<ScoredResult | null> {
-    try {
-      const result = await this.provider.assessPronunciation(input.audio, input.referenceText, {
-        passLine: input.opts?.passLine ?? 60,
-        language: input.opts?.language,
-      });
-      if (!result || typeof result.score !== 'number') return null;
-      return { ...result, strategy: 'phoneme' };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      logger.warn(`[AiPronunciationScorer] phoneme 评测失败，转兜底: ${reason}`);
-      return null;
-    }
   }
 
   /**
@@ -141,7 +110,7 @@ export class AiPronunciationScorerService {
     let mascotExpr = inferMascotExpr(score);
 
     try {
-      const chat = await this.provider.chat(
+      const chat = await this.chatProvider.chat(
         [
           { role: 'system', content: SIMILARITY_ASSESS_SYSTEM },
           {

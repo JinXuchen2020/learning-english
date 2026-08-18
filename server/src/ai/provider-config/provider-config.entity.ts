@@ -7,8 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-/** Provider 类型：开放兼容优先（智谱/OpenAI/DeepSeek/Qwen 等均走 OpenAI 兼容通道）；bigmodel 为历史存量。'mock' 已移除（AI-713）。 */
-export type ProviderType = 'openai-compatible' | 'bigmodel';
+/** Provider 类型：统一走 OpenAI 兼容通道（智谱/OpenAI/DeepSeek/Qwen/Agnes 等均复用 /chat/completions、/audio/* 形状）。'mock' 与历史 'bigmodel' 通道已移除（AI-713 / AI-重构）。 */
+export type ProviderType = 'openai-compatible';
 
 /** 能力枚举（与 AiProvider 五方法对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability =
@@ -33,7 +33,7 @@ export class ProviderConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** 家长账号 userId；系统默认行（智谱种子）为 NULL；建索引以支持按账号高效查询。 */
+  /** 家长账号 userId；系统默认行（如 Agnes AI 种子）为 NULL；建索引以支持按账号高效查询。 */
   @Index()
   @Column({ type: 'uuid', nullable: true })
   ownerUserId: string | null;
@@ -76,7 +76,8 @@ export class ProviderConfig {
   /**
    * 系统级兜底排序（仅对 `ownerUserId=NULL` 的系统 provider 有意义）。
    * 主用 provider 用 `isDefault=true` 表达（排序最前）；其余系统 provider 设此值
-   * 表示「主用失败时按 rank 升序兜底」。例如 Agnes(主) 失败 → 依次尝试 rank=1 的智谱。
+   * 表示「主用失败时按 rank 升序兜底」（历史多候选链，AI-重构后默认仅保留单一系统默认，
+   * 该字段一般留 NULL，由 `resolveConfigForCapability` 走「家长配置 → 系统默认 → Mock」）。
    * 非系统 provider（家长自建）恒为 NULL。
    */
   @Column({ type: 'integer', nullable: true })

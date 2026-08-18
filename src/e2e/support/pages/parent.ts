@@ -116,7 +116,7 @@ export default class ParentPage {
     await this.page.waitForSelector('[data-component="ProviderConfigForm"]');
   }
 
-  /** 填充表单（type 取值 openai-compatible | bigmodel；AI-713 起已无 mock 类型）。 */
+  /** 填充表单（type 仅 openai-compatible；AI-713 起已无 mock 类型）。 */
   async fillProviderForm(opts: {
     name: string;
     type?: string;

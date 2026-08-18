@@ -30,7 +30,7 @@ async function getParentToken(world: E2EWorld): Promise<string> {
  * 这里只用于 per-child 绑定的「配置存在性」前置，不会真正调用该 provider 的 AI 能力，
  * 因此用占位 baseUrl / apiKey 即可（归属校验只看配置是否在本家长名下）。
  */
-const E2E_PROVIDER_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+const E2E_PROVIDER_BASE_URL = "https://api.test-provider.example/v1";
 const E2E_PROVIDER_API_KEY = "sk-e2e-placeholder-not-a-real-key";
 async function createProviderConfig(
   token: string,

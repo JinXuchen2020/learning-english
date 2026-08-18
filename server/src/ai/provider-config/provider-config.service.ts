@@ -5,7 +5,6 @@ import { ProviderConfig, ProviderType, ProviderCapability } from './provider-con
 import { CreateProviderConfigDto, UpdateProviderConfigDto } from './provider-config.dto';
 import { encryptSecret, decryptSecret, maskSecret } from './crypto.util';
 import { OpenAiCompatibleProvider, FetchFn } from './openai-compatible.provider';
-import { BigModelProvider } from '../bigmodel.provider';
 import { createRetryableProvider } from '../retryable-ai-provider';
 import { AiProvider } from '../ai-provider.interface';
 import { User } from '../../entities/user.entity';
@@ -148,6 +147,38 @@ export class ProviderConfigService {
   }
 
   /**
+   * 按能力解析生效配置（AI-重构：5 能力各自独立 provider、解耦）。
+   *
+   * 优先级：
+   * ① 归属家长（effectiveParentId）的配置中「声明该能力」的一条（优先 `isDefault`）；
+   * ② 系统默认配置（`ownerUserId=NULL` 且 `isDefault=true`）且声明该能力；
+   * ③ null —— 调用方应回退 `MockAiProvider` 安全桩。
+   *
+   * 严格单一系统默认：只取 `isDefault=true` 的系统配置，不纳入 `systemFallbackRank` 候选
+   * （即「家长配置 → 单一系统默认 → mock」，不做 Agnes→智谱 多候选兜底）。
+   */
+  async resolveConfigForCapability(
+    effectiveParentId: string | undefined,
+    capability: ProviderCapability,
+  ): Promise<ProviderConfig | null> {
+    if (effectiveParentId) {
+      const owned = await this.repo.find({ where: { ownerUserId: effectiveParentId } });
+      const declaring = owned.filter((c) =>
+        this.parseCapabilities(c.capabilitiesJson).includes(capability),
+      );
+      if (declaring.length) {
+        declaring.sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
+        return declaring[0];
+      }
+    }
+    const sysDefault = await this.resolveSystemDefault();
+    if (sysDefault && this.parseCapabilities(sysDefault.capabilitiesJson).includes(capability)) {
+      return sysDefault;
+    }
+    return null;
+  }
+
+  /**
    * 解析系统 provider 链（AI-713 续）：按「主用 → 兜底」排序的全部系统 provider。
    * - 主用：`isDefault=true`（排序最前）；
    * - 兜底：其余系统 provider，按 `systemFallbackRank` 升序（NULL 排最后）。
@@ -211,15 +242,6 @@ export class ProviderConfigService {
           model: config.model,
           capabilities,
           extraBody: this.parseExtra(config.extraJson),
-          name: config.name,
-        });
-        break;
-      case 'bigmodel':
-        inner = new BigModelProvider({
-          apiKey,
-          baseUrl: config.baseUrl ?? undefined,
-          model: config.model,
-          capabilities,
           name: config.name,
         });
         break;

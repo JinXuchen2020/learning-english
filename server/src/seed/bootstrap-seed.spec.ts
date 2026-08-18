@@ -34,13 +34,12 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
   beforeAll(() => {
     // 提供测试用 key，确保 provider 播种分支被覆盖；PROVIDER_ENC_KEY 用 64-hex 占位避免 dev key 告警噪音。
     process.env.AGNES_API_KEY = 'test-agnes-key';
-    process.env.ZHIPU_API_KEY = 'test-zhipu-key';
     process.env.PROVIDER_ENC_KEY = 'a'.repeat(64);
   });
 
   afterAll(() => {
     // 仅还原本测试改动的环境变量，不破坏 jest 注入的其它环境变量。
-    for (const k of ['AGNES_API_KEY', 'ZHIPU_API_KEY', 'PROVIDER_ENC_KEY']) {
+    for (const k of ['AGNES_API_KEY', 'PROVIDER_ENC_KEY']) {
       if (originalEnv[k] === undefined) delete process.env[k];
       else process.env[k] = originalEnv[k];
     }
@@ -52,16 +51,12 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
     try {
       await expect(ensureSeed(ds)).resolves.toBeUndefined();
 
-      // provider 配置：主用 + 兜底共 2 条
-      expect(await ds.getRepository(ProviderConfig).count()).toBe(2);
+      // provider 配置：仅主用 Agnes 1 条
+      expect(await ds.getRepository(ProviderConfig).count()).toBe(1);
       const agnes = await ds
         .getRepository(ProviderConfig)
         .findOne({ where: { name: 'Agnes AI' } });
       expect(agnes?.isDefault).toBe(true);
-      const zhipu = await ds
-        .getRepository(ProviderConfig)
-        .findOne({ where: { name: '智谱 GLM (系统默认)' } });
-      expect(zhipu?.systemFallbackRank).toBe(1);
 
       // 初始内容计数与 seed.ts 一致
       expect(await ds.getRepository(Course).count()).toBe(3);
@@ -85,8 +80,8 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
       expect(await ds.getRepository(Word).count()).toBe(10);
       expect(await ds.getRepository(Sentence).count()).toBe(36);
       expect(await ds.getRepository(DailyTask).count()).toBe(3);
-      // provider 仍只有 2 条（按 name 查重）
-      expect(await ds.getRepository(ProviderConfig).count()).toBe(2);
+      // provider 仍只有 1 条（按 name 查重）
+      expect(await ds.getRepository(ProviderConfig).count()).toBe(1);
     } finally {
       await ds.destroy();
     }
@@ -97,9 +92,7 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
     await ds.initialize();
     try {
       const prevAgnes = process.env.AGNES_API_KEY;
-      const prevZhipu = process.env.ZHIPU_API_KEY;
       delete process.env.AGNES_API_KEY;
-      delete process.env.ZHIPU_API_KEY;
 
       await expect(ensureSeed(ds)).resolves.toBeUndefined();
 
@@ -110,7 +103,6 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
       expect(await ds.getRepository(Sentence).count()).toBe(36);
 
       process.env.AGNES_API_KEY = prevAgnes;
-      process.env.ZHIPU_API_KEY = prevZhipu;
     } finally {
       await ds.destroy();
     }
@@ -134,7 +126,7 @@ describe('ensureSeed (bootstrap 幂等种子)', () => {
       expect(after!.apiKeyEnc).not.toBe(before!.apiKeyEnc);
       expect(decryptSecret(after!.apiKeyEnc!)).toBe('rotated-agnes-key');
       // provider 数量不变（仍按 name 查重，不重复播种）
-      expect(await repo.count()).toBe(2);
+      expect(await repo.count()).toBe(1);
     } finally {
       process.env.AGNES_API_KEY = prevAgnes;
       await ds.destroy();

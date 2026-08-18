@@ -1,7 +1,7 @@
 import { createRetryableProvider, RetryableAiProvider } from './retryable-ai-provider';
 import { ConcurrencyLimiter } from './concurrency-limiter';
 import { AiProvider, ChatMessage, ImageInput } from './ai-provider.interface';
-import { AiProviderException, AiAccessError } from './bigmodel.provider';
+import { AiProviderException, AiAccessError } from './ai-provider.errors';
 
 const noDelay = async () => undefined;
 

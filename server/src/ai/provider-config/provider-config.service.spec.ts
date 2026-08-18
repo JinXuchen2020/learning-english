@@ -463,4 +463,50 @@ describe('ProviderConfigService (AI-705)', () => {
       expect(repo.save).not.toHaveBeenCalled();
     });
   });
+
+  describe('resolveConfigForCapability (AI-重构：每能力解析)', () => {
+    it('家长配置声明该能力 → 取该配置（优先 isDefault）', async () => {
+      const parentDefault = mkSys({
+        id: 'pd',
+        ownerUserId: 'parent-1',
+        isDefault: true,
+        capabilitiesJson: JSON.stringify(['chat']),
+      });
+      const parentOther = mkSys({
+        id: 'po',
+        ownerUserId: 'parent-1',
+        isDefault: false,
+        capabilitiesJson: JSON.stringify(['chat']),
+      });
+      repo.find = jest.fn(async () => [parentOther, parentDefault]);
+      repo.findOne = jest.fn(async () =>
+        mkSys({ id: 'sys', isDefault: true, capabilitiesJson: JSON.stringify(['chat']) }),
+      );
+      const got = await svc.resolveConfigForCapability('parent-1', 'chat');
+      expect(got?.id).toBe('pd');
+    });
+
+    it('家长无声明该能力的配置 → 回退系统默认（isDefault）', async () => {
+      const sys = mkSys({ id: 'sys', isDefault: true, capabilitiesJson: JSON.stringify(['chat']) });
+      repo.find = jest.fn(async () => []); // 家长无任何配置
+      repo.findOne = jest.fn(async () => sys);
+      const got = await svc.resolveConfigForCapability('parent-1', 'chat');
+      expect(got?.id).toBe('sys');
+    });
+
+    it('系统默认未声明该能力 → null（调用方应走 Mock）', async () => {
+      const sys = mkSys({ id: 'sys', isDefault: true, capabilitiesJson: JSON.stringify(['chat']) });
+      repo.find = jest.fn(async () => []);
+      repo.findOne = jest.fn(async () => sys);
+      const got = await svc.resolveConfigForCapability('parent-1', 'tts');
+      expect(got).toBeNull();
+    });
+
+    it('无上下文(effectiveParentId=undefined) → 仅看系统默认', async () => {
+      const sys = mkSys({ id: 'sys', isDefault: true, capabilitiesJson: JSON.stringify(['chat', 'vision']) });
+      repo.findOne = jest.fn(async () => sys);
+      const got = await svc.resolveConfigForCapability(undefined, 'vision');
+      expect(got?.id).toBe('sys');
+    });
+  });
 });

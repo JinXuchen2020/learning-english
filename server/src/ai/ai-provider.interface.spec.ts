@@ -1,17 +1,17 @@
 import {
-  AiProvider, ProviderName, AI_PROVIDER_TOKEN,
+  AiProvider, AI_PROVIDER_TOKEN,
   ChatMessage, ChatResult, ChatOptions, ImageInput, TranscriptResult,
   TranscribeOptions, ScoreResult, AssessOptions, AudioResult, SynthesizeOptions, AudioInput,
 } from './ai-provider.interface';
 
 /**
  * StubAiProvider — 一个最小但完整的 AiProvider 实现，用于验证接口契约
- * （五个方法签名 + 返回形状）。同时为后续真实 provider（AI-102 bigmodel 等）
- * 提供可参考的范式：实现接口、返回对应 Result 类型即可被业务层注入使用。
+ * （五个方法签名 + 返回形状）。同时为后续真实 provider 提供可参考的范式：
+ * 实现接口、返回对应 Result 类型即可被业务层注入使用。
  * （注意：这是测试桩，不是被 AI-713 移除的 mock「provider 类型」。）
  */
 class StubAiProvider implements AiProvider {
-  readonly name: ProviderName = 'bigmodel';
+  readonly name: string = 'bigmodel';
 
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
     return { text: 'echo:' + messages.map((m) => m.content).join('|'), model: options?.model };
@@ -37,8 +37,9 @@ class StubAiProvider implements AiProvider {
 describe('AiProvider interface contract (StubAiProvider)', () => {
   const provider = new StubAiProvider();
 
-  it('exposes a valid ProviderName', () => {
-    expect(['bigmodel', 'nvidia', 'azure']).toContain(provider.name);
+  it('exposes a name as string (real provider identity, not a fixed enum)', () => {
+    expect(typeof provider.name).toBe('string');
+    expect(provider.name.length).toBeGreaterThan(0);
   });
 
   it('chat returns ChatResult carrying text + model', async () => {

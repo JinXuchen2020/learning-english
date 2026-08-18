@@ -1,11 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN } from './ai-provider.interface';
-import { BigModelProvider } from './bigmodel.provider';
 import { logger } from '../common/logger/logger';
-import { createRetryableProvider } from './retryable-ai-provider';
-import { FallbackAiProvider } from './fallback-ai-provider';
-import { EdgeTtsProvider, edgeTtsAvailable } from './edge-tts.provider';
 import { AiUsage } from './ai-usage.entity';
 import { AiUsageLimitService } from './ai-usage-limit.service';
 import {
@@ -55,16 +51,21 @@ import {
 } from './logged-ai-provider';
 import { ProviderConfigModule } from './provider-config/provider-config.module';
 import { ProviderConfigService } from './provider-config/provider-config.service';
-import { AiProviderRouter } from './ai-provider.router';
 import { AiProviderContextInterceptor } from './ai-provider-context.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { AiCapabilityHub } from './ai-capability-hub';
+import { ChatProvider } from './chat.provider';
+import { VisionProvider } from './vision.provider';
+import { SttProvider } from './stt.provider';
+import { TtsProvider } from './tts.provider';
+import { PronunciationProvider } from './pronunciation.provider';
 
 /**
  * 构造「重试 + 每日配额 + 审计」链（AI-713）。
  *
- * 基础 provider 不再来自 env，而来自 DB 解析的「系统默认」provider 配置
- * （`providerConfigService.resolveSystemDefault()`，由 `seed.ts` 播种智谱配置）。
- * 未 seed / 缺失时兜底构造一个空 key 的 BigModelProvider（调用时失败但应用可启动）。
+ * 基础 provider 来自 DB 解析的「系统默认」provider 配置，由 `AiCapabilityHub` 聚合
+ * 5 个能力 provider（Chat/Vision/Stt/Tts/Pronunciation），每个能力 provider 在调用时
+ * **自行加载**生效配置（家长覆盖 → 系统默认 → Mock 安全桩），不依赖单一兜底链。
  */
 export function createQuotaAwareProvider(
   inner: AiProvider,
@@ -76,7 +77,7 @@ export function createQuotaAwareProvider(
 
 /**
  * 模块工厂（最终对外 provider）：在最外层套上 AI-108 审计日志
- * `Logged(UsageLimited(Retryable(inner)))`。
+ * `Logged(UsageLimited(inner))`。
  * 注入 userId / moduleTag 解析器与 `AiCallLogService`。
  */
 export function createAuditedProvider(
@@ -90,14 +91,6 @@ export function createAuditedProvider(
   return createLoggedProvider(quotaWrapped, callLog, resolveUserId, resolveModuleTag);
 }
 
-/** 系统默认缺失时的兜底 provider（无 key，调用时失败但应用可启动）。 */
-function fallbackProvider(): AiProvider {
-  logger.error(
-    '[AI] 未找到系统默认 provider 配置（请先运行 npm run seed 播种智谱默认），AI 调用将失败',
-  );
-  return createRetryableProvider(new BigModelProvider({ apiKey: '' }));
-}
-
 /**
  * AI 能力模块。标 `@Global()`：plan / speech / conversation / report 等多模块
  * 复用同一 `AiProvider`，全局注入免去各消费方重复 import（与 `ConfigModule`
@@ -106,6 +99,9 @@ function fallbackProvider(): AiProvider {
  * 注册 `AiUsage` / `AiCallLog` / `AiSpeechAttempt` 实体（`TypeOrmModule.forFeature`）以支撑
  * `AiUsageLimitService` / `AiCallLogService` / `AiSpeechAttemptService` 的仓库注入；
  * 三者均导出供未来控制器按需直接调用。
+ *
+ * 架构（AI-重构）：`AI_PROVIDER_TOKEN` 绑定 `AiCapabilityHub`，由 5 个按能力命名的
+ * provider（各自加载配置）组成；不再有 `FallbackAiProvider` 多链 / `EdgeTts` 链路。
  */
 @Global()
 @Module({
@@ -114,6 +110,12 @@ function fallbackProvider(): AiProvider {
   providers: [
     { provide: USER_ID_RESOLVER_TOKEN, useValue: (() => 'anonymous') as UserIdResolver },
     { provide: AI_MODULE_TAG_RESOLVER_TOKEN, useValue: ((op: string) => op) as ModuleTagResolver },
+    // 5 个按能力命名的 provider（各自加载配置）
+    ChatProvider,
+    VisionProvider,
+    SttProvider,
+    TtsProvider,
+    PronunciationProvider,
     AiUsageLimitService,
     AiCallLogService,
     AiSpeechAttemptService,
@@ -136,39 +138,27 @@ function fallbackProvider(): AiProvider {
         resolveUserId: UserIdResolver,
         resolveModuleTag: ModuleTagResolver,
         callLog: AiCallLogService,
-        providerConfigService: ProviderConfigService,
+        chat: ChatProvider,
+        vision: VisionProvider,
+        stt: SttProvider,
+        tts: TtsProvider,
+        pronunciation: PronunciationProvider,
       ) => {
-        // AI-713：基础 provider 来自 DB 系统默认（seed 播种的智谱配置），
-        // 不再从 env 读取。缺失则兜底空 key provider（调用失败但可启动）。
-        // AI-713 续：系统 provider 链（主用 Agnes AI → 兜底智谱）。为空则回退空 key provider。
-        const sysChain = await providerConfigService.resolveSystemChain();
-        const generalProviders = sysChain.length
-          ? sysChain.map((cfg) => providerConfigService.buildProvider(cfg))
-          : [fallbackProvider()];
-        // AI-714：TTS 链仅纳入「声明含 tts 能力」的 provider（空 capabilities 视为全能力，
-        // 向后兼容 seed 系统 provider）；EdgeTts 仅探测到 Python 时挂到链末尾
-        // （Vercel 等无 Python 环境自动不挂，依赖用户 TTS provider + 前端 Web Speech 兜底）。
-        const ttsCandidates = sysChain.filter((cfg) => {
-          const caps = providerConfigService.parseCapabilities(cfg.capabilitiesJson);
-          return caps.length === 0 || caps.includes('tts');
-        });
-        const ttsProviders = [
-          ...(ttsCandidates.length
-            ? ttsCandidates.map((cfg) => providerConfigService.buildProvider(cfg))
-            : generalProviders),
-          ...(edgeTtsAvailable() ? [new EdgeTtsProvider()] : []),
-        ];
-        const chain = new FallbackAiProvider(generalProviders, ttsProviders);
-        const defaultProvider = createAuditedProvider(chain, usage, resolveUserId, resolveModuleTag, callLog);
-        // 运行时路由代理：命中家长/孩子配置则走自定义 provider，否则回退系统默认链。
-        return new AiProviderRouter(defaultProvider, providerConfigService);
+        // AI-重构：聚合 5 个能力 provider；每个能力 provider 自行按能力加载配置，
+        // 无配置时返回 Mock 安全桩。跨切面审计/配额包在最外层。
+        const hub = new AiCapabilityHub(chat, vision, stt, tts, pronunciation);
+        return createAuditedProvider(hub, usage, resolveUserId, resolveModuleTag, callLog);
       },
       inject: [
         AiUsageLimitService,
         USER_ID_RESOLVER_TOKEN,
         AI_MODULE_TAG_RESOLVER_TOKEN,
         AiCallLogService,
-        ProviderConfigService,
+        ChatProvider,
+        VisionProvider,
+        SttProvider,
+        TtsProvider,
+        PronunciationProvider,
       ],
     },
     {
@@ -191,4 +181,9 @@ function fallbackProvider(): AiProvider {
     AiSpeechFeedbackService,
   ],
 })
-export class AiModule {}
+export class AiModule {
+  /** 模块装配自检：能力 provider 缺失配置时由 Mock 兜底（不抛错、可启动）。 */
+  onModuleInit(): void {
+    logger.info('[AI] 模块装配完成：AiCapabilityHub 聚合 Chat/Vision/Stt/Tts/Pronunciation 5 个能力 provider（各自按能力加载配置）');
+  }
+}

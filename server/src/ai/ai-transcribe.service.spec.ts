@@ -3,7 +3,8 @@
  * 用 fake AiProvider 覆盖：成功(透传 words/durationMs) / 空文本降级 / 低置信降级 / provider 抛错降级不抛。
  */
 import { AiTranscribeService } from './ai-transcribe.service';
-import { AiProvider, AudioInput, TranscriptResult, TranscribeOptions } from './ai-provider.interface';
+import { AudioInput, TranscriptResult, TranscribeOptions } from './ai-provider.interface';
+import { SttProvider } from './stt.provider';
 
 function makeFakeProvider() {
   const transcribeMock = jest.fn();
@@ -14,7 +15,7 @@ function makeFakeProvider() {
     transcribe: transcribeMock,
     assessPronunciation: jest.fn(),
     synthesize: jest.fn(),
-  } as unknown as AiProvider;
+  } as unknown as SttProvider;
   return { provider, transcribeMock };
 }
 

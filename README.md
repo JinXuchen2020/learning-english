@@ -126,12 +126,11 @@ cd src && npm run dev
 | `DB_SYNCHRONIZE` | 启动时按实体同步表结构（开发用） | `true` |
 | `JWT_SECRET` / `JWT_EXPIRES_IN` | JWT 签名与有效期 | `7d` |
 | `PORT` | 后端监听端口 | `4000` |
-| `AI_PROVIDER` | 全局 AI 后端：`mock` / `bigmodel` / `nvidia` | `bigmodel` |
-| `BIGMODEL_API_KEY` / `BIGMODEL_BASE_URL` / `BIGMODEL_MODEL` | 智谱 BigModel（OpenAI 兼容） | — |
-| `NVIDIA_API_KEY` / `NVIDIA_BASE_URL` / `NVIDIA_MODEL` | NVIDIA NIM（备用） | — |
+| `AGNES_API_KEY` | seed 阶段用于加密落库「系统默认主用 provider」（Agnes AI, openai-compatible）；运行期不读 env | 见 `.env.example` |
+| `PROVIDER_ENC_KEY` | AES-256-GCM 密钥，加密 provider apiKey 落库；seed 与运行期必须一致 | 见 `.env.example` |
 | `AI_DAILY_CALL_LIMIT` / `AI_DAILY_TOKEN_LIMIT` | 每用户每日调用/Token 配额 | `200` / `100000` |
 
-> 家长还可在 **家长面板 → AI Provider 配置** 中为每个家庭运行时配置 OpenAI 兼容或 Mock 服务商；孩子账号自动继承其所属家长的默认 Provider。
+> 运行期 AI 调用一律走数据库中的系统 provider 配置（seed 加密落库），不再从 env 读取端点/模型。家长还可在 **家长面板 → AI Provider 配置** 中为每个家庭运行时配置 OpenAI 兼容服务商；孩子账号自动继承其所属家长的默认 Provider。
 
 ---
 

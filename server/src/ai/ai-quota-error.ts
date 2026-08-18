@@ -1,4 +1,4 @@
-import { AiProviderException } from './bigmodel.provider';
+import { AiProviderException } from './ai-provider.errors';
 
 /** 配额超限明细，便于上层做降级决策与日志审计。 */
 export interface QuotaExceededDetail {

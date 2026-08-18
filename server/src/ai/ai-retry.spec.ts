@@ -4,7 +4,7 @@ import {
   normalizeError,
   DEFAULT_RETRY_OPTIONS,
 } from './ai-retry';
-import { AiProviderException, AiAccessError } from './bigmodel.provider';
+import { AiProviderException, AiAccessError } from './ai-provider.errors';
 
 describe('classifyError', () => {
   it('treats 429 rate-limit as retryable', () => {

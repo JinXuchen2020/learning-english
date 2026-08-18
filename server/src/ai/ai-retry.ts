@@ -1,4 +1,4 @@
-import { AiProviderException, AiAccessError } from './bigmodel.provider';
+import { AiProviderException, AiAccessError } from './ai-provider.errors';
 import { logger } from '../common/logger/logger';
 
 /**

@@ -44,7 +44,7 @@ describe('AiWordCardService.generate (AI-601 生成 + 校验 + 降级 + 安全)'
   it('合法 JSON → 解析落 pending、degraded=false、model 透传', async () => {
     const repo = makeRepo();
     const aiProvider: AiProvider = {
-      name: 'bigmodel',
+      name: 'openai-compatible',
       chat: jest.fn(async () => ({
         text: JSON.stringify([
           { wordText: 'apple', meaning: '苹果', example: 'I eat an apple.', imagePrompt: 'a red apple' },
@@ -73,7 +73,7 @@ describe('AiWordCardService.generate (AI-601 生成 + 校验 + 降级 + 安全)'
   it('坏 JSON → 重试耗尽后降级内置模板（degraded=true），仍落 pending', async () => {
     const repo = makeRepo();
     const aiProvider: AiProvider = {
-      name: 'bigmodel',
+      name: 'openai-compatible',
       chat: jest.fn(async () => ({ text: '这不是合法 JSON', model: 'mock-model' })),
       chatWithImage: jest.fn(),
       transcribe: jest.fn(),
@@ -95,7 +95,7 @@ describe('AiWordCardService.generate (AI-601 生成 + 校验 + 降级 + 安全)'
   it('生成文本命中内容安全黑名单 → 抛 ContentUnsafeException(422) 且不留库', async () => {
     const repo = makeRepo();
     const aiProvider: AiProvider = {
-      name: 'bigmodel',
+      name: 'openai-compatible',
       chat: jest.fn(async () => ({
         text: JSON.stringify([
           {

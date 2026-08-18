@@ -701,8 +701,8 @@ export interface RewardsSummary {
 
 /* ----------------------- AI Provider Config (AI-705) ----------------------- */
 
-/** Provider 类型（与后端 `ProviderType` 对齐：openai-compatible 家长自建，bigmodel 系统默认智谱）。AI-713 已移除 mock。 */
-export type ProviderType = "openai-compatible" | "bigmodel";
+/** Provider 类型（与后端 `ProviderType` 对齐：当前仅 `openai-compatible` 家长自建；AI-713 已移除 mock，AI-714 后移除系统默认 bigmodel 智谱）。 */
+export type ProviderType = "openai-compatible";
 
 /** 能力枚举（与后端 `ProviderCapability` 对齐，pronunciation 通用 OpenAI 不提供）。 */
 export type ProviderCapability = "chat" | "vision" | "stt" | "tts" | "pronunciation";
