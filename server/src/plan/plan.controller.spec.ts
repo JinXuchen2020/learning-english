@@ -8,6 +8,7 @@ import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { StudyPlan } from './study-plan.entity';
 import { StudyPlanDay } from './study-plan-day.entity';
 import { TasksService } from '../tasks/tasks.service';
+import { CoursesService } from '../courses/courses.service';
 
 /**
  * PlanController 单测（AI-202 生成 + AI-206 save/apply 路由装配）：验证 DTO 经全局
@@ -49,6 +50,17 @@ describe('PlanController (AI-202/AI-206)', () => {
         { provide: getRepositoryToken(StudyPlan), useValue: { save: jest.fn(), findOne: jest.fn() } },
         { provide: getRepositoryToken(StudyPlanDay), useValue: { save: jest.fn() } },
         { provide: TasksService, useValue: { replacePlanTasks: jest.fn() } },
+        // AI-803：PlanService 现注入 CoursesService（目录注入 + 引用校验），测试模块需提供。
+        {
+          provide: CoursesService,
+          useValue: {
+            getCatalog: jest.fn(async () => ({ courses: [], lessons: [] })),
+            lessonExists: jest.fn(async () => false),
+            courseExists: jest.fn(async () => false),
+            findOne: jest.fn(async () => ({ id: 'x', lessons: [] })),
+            createCourseFromPlan: jest.fn(async () => ({ courseId: 'x', lessonCount: 0, wordCount: 0 })),
+          },
+        },
       ],
     }).compile();
     controller = mod.get(PlanController);

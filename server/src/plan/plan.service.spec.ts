@@ -6,15 +6,20 @@ import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { StudyPlan } from './study-plan.entity';
 import { StudyPlanDay } from './study-plan-day.entity';
 import { TasksService } from '../tasks/tasks.service';
+import { CoursesService } from '../courses/courses.service';
+import { PlanCatalog } from './plan.types';
 import { PLAN_SYSTEM_PROMPT } from './plan-agent.prompt';
 
 /**
  * PlanService 单测（AI-202 编排 + AI-203 提示词 + AI-204 Schema 校验/重试/模板降级
- * + AI-206 save/apply 持久化与应用）：
+ * + AI-206 save/apply 持久化与应用 + AI-803 目录注入/Plan A 拆课/写回）：
  * 覆盖有逻辑分支——合法 JSON 首轮通过、Markdown 围栏、坏 JSON/坏 Schema 自动重试 ≤3
- * 次后降级模板、provider 异常传播、重试带 retryNote、发出的 system/user 消息形态，
- * 以及 AI-206 的 savePlan（落库草稿/非法 plan 拒绝）与 applyPlan（404/重复确认/重应用）。
- * 直接用 mock provider + mock repo + mock TasksService 注入，避免依赖真实 LLM / DB。
+ * 次后降级模板、provider 异常传播、重试带 retryNote、发出的 system/user 消息形态、
+ * 以及 AI-206 的 savePlan（落库草稿/非法 plan 拒绝）与 applyPlan（404/重复确认/重应用）；
+ * AI-803 额外覆盖：目录注入后 user 消息含 curriculumCatalog、buildStudyPlan 持久化
+ * lessonRefsJson、applyPlan Plan A 每节独立任务 + 真实存在性校验（有效写深链/无效降级）、
+ * 以及 generateCoursesForPlan 把生成课程 id 写回计划 lessons 引用。
+ * 直接用 mock provider + mock repo + mock TasksService/CoursesService 注入，避免依赖真实 LLM / DB。
  */
 
 const UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -32,6 +37,24 @@ const validDto: GeneratePlanDto = {
   weeks: 2,
 };
 
+/** AI-803 默认目录：空（保持旧测试「无目录」分支语义，curriculumCatalog 应为 undefined）。 */
+const emptyCatalog: PlanCatalog = { courses: [], lessons: [] };
+
+/** AI-803 非空目录：含 1 门课程 + 2 课时，供目录注入测试。 */
+const sampleCatalog: PlanCatalog = {
+  courses: [{ courseId: 'course-1', title: '动物王国' }],
+  lessons: [
+    { lessonId: 'lesson-1', title: '颜色', courseId: 'course-1', skillType: 'vocab', level: 'a1', estimatedMinutes: 5 },
+    { lessonId: 'lesson-2', title: '动物', courseId: 'course-1', skillType: 'vocab', level: 'a1', estimatedMinutes: 5 },
+  ],
+};
+
+/** AI-803 生成课程写回测试用的「已生成课程」结构（findOne 返回）。 */
+const generatedCourse = {
+  id: 'gen-course-1',
+  lessons: [{ id: 'gen-lesson-0' }, { id: 'gen-lesson-1' }],
+};
+
 function makeProvider(text: string | Error, model = 'mock-model'): AiProvider {
   const chat = jest.fn(async (): Promise<ChatResult> => {
     if (text instanceof Error) throw text;
@@ -44,6 +67,18 @@ interface Mocks {
   planRepo: any;
   dayRepo: any;
   tasksService: any;
+  coursesService: any;
+}
+
+/** 默认 CoursesService mock：空目录（保旧分支语义）+ lessonExists/courseExists 返回真 + 写回用 findOne/createCourseFromPlan。 */
+function defaultCoursesService(): any {
+  return {
+    getCatalog: jest.fn(async () => emptyCatalog),
+    lessonExists: jest.fn(async (id: string) => !!id),
+    courseExists: jest.fn(async (id: string) => !!id),
+    findOne: jest.fn(async (id: string) => ({ id, lessons: generatedCourse.lessons })),
+    createCourseFromPlan: jest.fn(async () => ({ courseId: 'gen-course-1', lessonCount: 2, wordCount: 10 })),
+  };
 }
 
 async function setup(provider: AiProvider, mocks?: Partial<Mocks>): Promise<PlanService> {
@@ -53,6 +88,7 @@ async function setup(provider: AiProvider, mocks?: Partial<Mocks>): Promise<Plan
   };
   const dayRepo = mocks?.dayRepo ?? { save: jest.fn(async (e: any) => e) };
   const tasksService = mocks?.tasksService ?? { replacePlanTasks: jest.fn(async () => {}) };
+  const coursesService = mocks?.coursesService ?? defaultCoursesService();
 
   const mod: TestingModule = await Test.createTestingModule({
     providers: [
@@ -61,6 +97,7 @@ async function setup(provider: AiProvider, mocks?: Partial<Mocks>): Promise<Plan
       { provide: getRepositoryToken(StudyPlan), useValue: planRepo },
       { provide: getRepositoryToken(StudyPlanDay), useValue: dayRepo },
       { provide: TasksService, useValue: tasksService },
+      { provide: CoursesService, useValue: coursesService },
     ],
   }).compile();
   return mod.get(PlanService);
@@ -240,7 +277,7 @@ describe('PlanService (AI-206) — 应用 applyPlan', () => {
     await expect(service.applyPlan('missing', false)).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('草稿 → 置 applied 并写入每日任务（tasksCreated = 天数）', async () => {
+  it('草稿 → 置 applied 并写入每日任务（AI-803 Plan A：每天按节拆课，tasksCreated = 各天引用数之和）', async () => {
     const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => draftPlan) };
     const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
     const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
@@ -249,6 +286,7 @@ describe('PlanService (AI-206) — 应用 applyPlan', () => {
 
     expect(res.status).toBe('applied');
     expect(res.appliedDays).toBe(2);
+    // 每天 content 含 1 节引用（无 lessonId）→ 1 任务/天；引用无效（缺 lessonId）→ 无深链。
     expect(res.tasksCreated).toBe(2);
     expect(res.appliedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(planRepo.save).toHaveBeenCalledTimes(1);
@@ -261,6 +299,11 @@ describe('PlanService (AI-206) — 应用 applyPlan', () => {
     expect(entries[0].date).toBe(res.appliedAt);
     expect(entries[0].icon).toBe('pencil'); // vocab → pencil
     expect(entries[1].icon).toBe('mic'); // speak → mic
+    // AI-803：计划生成任务统一打 source:'plan'；本节无真实 lessonId → 深链字段为 null（降级）。
+    expect(entries[0].source).toBe('plan');
+    expect(entries[0].lessonId).toBeNull();
+    expect(entries[0].courseId).toBeNull();
+    expect(entries[0].skillType).toBeNull();
   });
 
   it('已 applied 且 confirm=false → 抛 ConflictException(needsConfirm:true)', async () => {
@@ -283,6 +326,218 @@ describe('PlanService (AI-206) — 应用 applyPlan', () => {
     const res = await service.applyPlan('plan-1', true);
     expect(res.status).toBe('applied');
     expect(tasksService.replacePlanTasks).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PlanService (AI-803) — 目录注入 generatePlan', () => {
+  it('注入非空目录 → user 消息含 curriculumCatalog（含真实课程/课时 id）且不含 catalogNote', async () => {
+    const provider = makeProvider(validPlanJson);
+    const coursesService = defaultCoursesService();
+    coursesService.getCatalog = jest.fn(async () => sampleCatalog);
+    const service = await setup(provider, { coursesService });
+
+    await service.generatePlan(validDto);
+
+    const chatMock = provider.chat as jest.Mock;
+    expect(chatMock).toHaveBeenCalledTimes(1);
+    const [messages] = chatMock.mock.calls[0];
+    const userMsg = messages.find((m: { role: string }) => m.role === 'user');
+    const parsed = JSON.parse(userMsg.content);
+    expect(parsed.curriculumCatalog).toBeDefined();
+    expect(parsed.curriculumCatalog.courses).toEqual(sampleCatalog.courses);
+    expect(parsed.curriculumCatalog.lessons.map((l: { lessonId: string }) => l.lessonId)).toEqual([
+      'lesson-1',
+      'lesson-2',
+    ]);
+    expect(parsed.catalogNote).toBeUndefined();
+  });
+
+  it('getCatalog 抛错 → 降级为无目录分支（不阻断计划生成，curriculumCatalog 仍 undefined）', async () => {
+    const provider = makeProvider(validPlanJson);
+    const coursesService = defaultCoursesService();
+    coursesService.getCatalog = jest.fn(async () => {
+      throw new Error('db down');
+    });
+    const service = await setup(provider, { coursesService });
+
+    const res = await service.generatePlan(validDto); // 不应抛
+    expect(res.degraded).toBe(false);
+    const chatMock = provider.chat as jest.Mock;
+    const messages = chatMock.mock.calls[0][0];
+    const parsed = JSON.parse(messages.find((m: any) => m.role === 'user').content);
+    expect(parsed.curriculumCatalog).toBeUndefined();
+  });
+});
+
+describe('PlanService (AI-803) — savePlan 持久化 lessonRefsJson', () => {
+  const planWithRealIds = JSON.parse(
+    JSON.stringify({
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              day: 1,
+              skillType: 'vocab',
+              title: '颜色王国',
+              lessons: [
+                { type: 'main', title: '颜色', skillType: 'vocab', courseId: 'course-1', lessonId: 'lesson-1' },
+                { type: 'review', title: '听音', skillType: 'listen', courseId: 'course-1', lessonId: 'lesson-2' },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+
+  it('buildStudyPlan 把每节引用提取进 lessonRefsJson（含 courseId/lessonId/skillType/title）', async () => {
+    const planRepo = { save: jest.fn(async (e: any) => ({ ...e, id: 'plan-1', status: 'draft' })), findOne: jest.fn() };
+    const service = await setup(makeProvider(validPlanJson), { planRepo });
+
+    await service.savePlan({ childId: UUID, plan: planWithRealIds });
+
+    const savedArg = (planRepo.save as jest.Mock).mock.calls[0][0];
+    expect(savedArg.days).toHaveLength(1);
+    const refs = JSON.parse(savedArg.days[0].lessonRefsJson);
+    expect(refs).toHaveLength(2);
+    expect(refs[0]).toMatchObject({ courseId: 'course-1', lessonId: 'lesson-1', skillType: 'vocab', title: '颜色' });
+    expect(refs[1]).toMatchObject({ courseId: 'course-1', lessonId: 'lesson-2', skillType: 'listen', title: '听音' });
+    // content 仍保留 lessons（向后兼容解析）。
+    expect(JSON.parse(savedArg.days[0].content)).toHaveLength(2);
+  });
+});
+
+describe('PlanService (AI-803) — applyPlan Plan A 拆课与真实存在性校验', () => {
+  // 每次返回全新对象，避免上一个测试把 status 改成 applied 后污染后续用例（applyPlan 会就地改 plan）。
+  function makePlanWithValidRefs() {
+    return {
+      id: 'plan-2',
+      userId: UUID,
+      status: 'draft',
+      days: [
+        {
+          id: 'd1', dayIndex: 0, skillType: 'vocab', title: '第1天', content: '[]', isDone: false, date: null,
+          lessonRefsJson: JSON.stringify([
+            { skillType: 'vocab', courseId: 'course-1', lessonId: 'lesson-1', title: '颜色' },
+            { skillType: 'listen', courseId: 'course-1', lessonId: 'lesson-2', title: '听音辨色' },
+          ]),
+        },
+        {
+          id: 'd2', dayIndex: 1, skillType: 'speak', title: '第2天', content: '[]', isDone: false, date: null,
+          lessonRefsJson: JSON.stringify([
+            { skillType: 'speak', courseId: 'course-1', lessonId: 'lesson-2', title: '口语' },
+          ]),
+        },
+      ],
+    };
+  }
+
+  it('有效引用（lessonExists=true）→ 按节拆课并写 courseId/lessonId/skillType/source：每天 N 节 → N 任务', async () => {
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => makePlanWithValidRefs()) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
+
+    const res = await service.applyPlan('plan-2', false);
+
+    expect(res.appliedDays).toBe(2);
+    expect(res.tasksCreated).toBe(3); // d1 两节 + d2 一节
+    const [, planDayIds, entries] = (tasksService.replacePlanTasks as jest.Mock).mock.calls[0];
+    expect(planDayIds).toEqual(['d1', 'd2']);
+    expect(entries).toHaveLength(3);
+    // d1 节1：vocab → pencil，深链字段齐全。
+    expect(entries[0]).toMatchObject({
+      title: '颜色', planDayId: 'd1', icon: 'pencil',
+      courseId: 'course-1', lessonId: 'lesson-1', skillType: 'vocab', source: 'plan',
+    });
+    // d1 节2：listen → headphones。
+    expect(entries[1]).toMatchObject({
+      title: '听音辨色', planDayId: 'd1', icon: 'headphones',
+      courseId: 'course-1', lessonId: 'lesson-2', skillType: 'listen', source: 'plan',
+    });
+    // d2 节1：speak → mic。
+    expect(entries[2]).toMatchObject({
+      title: '口语', planDayId: 'd2', icon: 'mic',
+      courseId: 'course-1', lessonId: 'lesson-2', skillType: 'speak', source: 'plan',
+    });
+  });
+
+  it('引用 lessonId 不存在（lessonExists=false）→ 降级为无深链任务（不整计划失败），source 仍为 plan', async () => {
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => makePlanWithValidRefs()) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const coursesService = defaultCoursesService();
+    coursesService.lessonExists = jest.fn(async () => false); // 全部判定为不存在
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService, coursesService });
+
+    const res = await service.applyPlan('plan-2', false);
+
+    expect(res.tasksCreated).toBe(3); // 任务数不减少（每节仍 1 任务），仅丢失深链
+    const [, , entries] = (tasksService.replacePlanTasks as jest.Mock).mock.calls[0];
+    for (const e of entries) {
+      expect(e.courseId).toBeNull();
+      expect(e.lessonId).toBeNull();
+      expect(e.skillType).toBeNull();
+      expect(e.source).toBe('plan'); // 仍标记为计划任务
+    }
+  });
+
+  it('某天无引用（lessonRefsJson/content 皆空）→ 该天退化为 1 条通用任务（source:plan，无深链字段），不抛错', async () => {
+    const planWithEmptyDay = {
+      id: 'plan-3', userId: UUID, status: 'draft',
+      days: [{ id: 'd1', dayIndex: 0, skillType: 'vocab', title: '复习日', content: '[]', isDone: false, date: null, lessonRefsJson: null }],
+    };
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => planWithEmptyDay) };
+    const tasksService = { replacePlanTasks: jest.fn(async () => {}) };
+    const service = await setup(makeProvider(validPlanJson), { planRepo, tasksService });
+
+    const res = await service.applyPlan('plan-3', false);
+    expect(res.tasksCreated).toBe(1);
+    const [, , entries] = (tasksService.replacePlanTasks as jest.Mock).mock.calls[0];
+    expect(entries[0]).toMatchObject({ title: '复习日', icon: 'pencil', source: 'plan' });
+    // 通用任务不携带深链字段（buildGenericEntry 仅写必要字段）。
+    expect(entries[0].lessonId).toBeUndefined();
+    expect(entries[0].courseId).toBeUndefined();
+    expect(entries[0].skillType).toBeUndefined();
+  });
+});
+
+describe('PlanService (AI-803) — generateCoursesForPlan 写回引用', () => {
+  const planForCourses = {
+    id: 'plan-c1', userId: UUID, status: 'draft',
+    days: [
+      { id: 'd0', dayIndex: 0, skillType: 'vocab', title: '颜色', content: '[]', isDone: false },
+      { id: 'd1', dayIndex: 1, skillType: 'vocab', title: '动物', content: '[]', isDone: false },
+    ],
+  };
+
+  it('生成配套课程后把 courseId/lessonId 写回每计划天的 lessonRefsJson（1:1 映射，计划天 i ↔ 课时 i）', async () => {
+    const planRepo = { save: jest.fn(async (e) => e), findOne: jest.fn(async () => planForCourses) };
+    const coursesService = defaultCoursesService();
+    const service = await setup(makeProvider('{}'), { planRepo, coursesService });
+
+    const res = await service.generateCoursesForPlan('plan-c1');
+    expect(res.courseId).toBe('gen-course-1');
+    expect(planRepo.save).toHaveBeenCalledTimes(1); // writeBack 调用
+
+    const savedDays = (planRepo.save as jest.Mock).mock.calls[0][0].days;
+    expect(savedDays).toHaveLength(2);
+    const refs0 = JSON.parse(savedDays[0].lessonRefsJson);
+    const refs1 = JSON.parse(savedDays[1].lessonRefsJson);
+    expect(refs0[0]).toMatchObject({ courseId: 'gen-course-1', lessonId: 'gen-lesson-0', skillType: 'vocab', title: '颜色' });
+    expect(refs1[0]).toMatchObject({ courseId: 'gen-course-1', lessonId: 'gen-lesson-1', skillType: 'vocab', title: '动物' });
+  });
+
+  it('写回失败时仅告警、不阻断课程生成主响应（createCourseFromPlan 已成功）', async () => {
+    const planRepo = {
+      save: jest.fn(async () => { throw new Error('save failed'); }),
+      findOne: jest.fn(async () => planForCourses),
+    };
+    const coursesService = defaultCoursesService();
+    const service = await setup(makeProvider('{}'), { planRepo, coursesService });
+
+    // 不应抛（写回失败被 catch），主响应正常。
+    const res = await service.generateCoursesForPlan('plan-c1');
+    expect(res.courseId).toBe('gen-course-1');
   });
 });
 

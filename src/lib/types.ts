@@ -116,6 +116,12 @@ export interface DailyTask {
   completed: boolean;
   /** AI-605：注入的复习任务携带原词文本，用于深链 `/practice?focusWord=`。 */
   reviewWordText?: string;
+  /** AI-803：引用真实课时（前端深链 /practice?lessonId= 用）。无引用为 undefined。 */
+  courseId?: string;
+  lessonId?: string;
+  skillType?: string;
+  /** AI-803：任务来源（plan/catalog/manual）。全局种子为 undefined。 */
+  source?: string;
 }
 
 /** 句子跟读库条目（AI-309，后端 `sentences` 表）。 */

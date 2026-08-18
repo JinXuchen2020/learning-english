@@ -282,6 +282,7 @@
     "tasksDone": "{done}/{total} 已完成",
     "openSpeakingPractice": "打开口语练习：{title}",
     "reviewWordAria": "复习单词：{title}",
+    "goToLesson": "去学习：{title}",
     "myCourses": "我的课程",
     "lessons": "节",
     "courseWords": "{count} 个单词"

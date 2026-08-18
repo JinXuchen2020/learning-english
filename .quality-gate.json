@@ -1,15 +1,15 @@
 {
   "phase": "feature",
   "stack": "node-ts",
-  "feature": "AI-801",
+  "feature": "AI-803",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-801-gate.md",
-  "notes": "AI-801 实施完成（学习计划→课程生成）。后端新增 POST /api/ai/plan/:id/generate-courses：推导课程规格→AiProvider.chat 结构化产出→validateCoursePlan 校验/重试(≤3)→失败降级模板(degraded)→CoursesService.createCourseFromPlan 事务落库 Course+Lesson+Word；计划不存在 404；写路径永不 500。前端 /plan 页应用计划后展示「生成配套课程」按钮，点击生成后跳 /course 看新课（本会话收尾修正路由 /courses→/course，原 404 必断闭环）。consistency：后端 nest build 通过、前端 tsc 0、e2e tsc 0、后端 jest AI-801 相关 4 套件 18/18 全绿。tests：本地 jest 18/18 + e2e tsc 0；新增 plan-courses.feature 端到端场景，全量 E2E 实跑经用户显式接受交 CI e2e job 兜底（user-accepted-ci，本机 next dev 受限）。设计偏离如实说明：StudyPlan 不持久化 level/interests/week theme（AI-203 断线），deriveCourseSpec 默认 level='a1'、标题从 day.title/content 推导，不影响「真实生成可学课程」主目标。",
+  "reportRef": "docs/quality/ai-803-gate.md",
+  "notes": "AI-803 实施完成（学习计划→真实课程引用落地与学习导航）。后端：DailyTask 新增 courseId/lessonId/skillType/source 列、StudyPlanDay 新增 lessonRefsJson 列；CoursesService 新增 getCatalog/lessonExists/courseExists；PlanService.generatePlan 注入真实目录（getCatalog）让 AI 产出真实 UUID、buildStudyPlan 写入 lessonRefsJson、applyPlan 按 Plan A 每天每节拆 1 条 DailyTask 并写引用列（source:'plan'）、无效/缺失 ref 降级为无深链通用任务（保存期容错、不整计划失败）、generateCoursesForPlan 经 AI-801 写回真实 courseId/lessonId；TasksService PlanTaskEntry/DailyTaskView 透传引用列。前端：DailyTask 类型 + isLessonTask/lessonTaskHref 助手、首页 LessonTaskLink 深链（speak→/speech，其余→/practice?lessonId=）、i18n goToLesson。consistency：后端 nest build 通过、前端 tsc --noEmit 0、e2e tsc 0、后端全量 jest 897/897 全绿（含本 feature 新增 plan.service.spec/courses.service.spec 与修复 plan.controller.spec 的 CoursesService 注入回归）。tests：本地 jest（plan.service AI-803 目录注入/buildStudyPlan/Plan A 拆课/无效 ref 降级/generateCourses 写回 + courses.service getCatalog/lessonExists/courseExists）+ 前端 vitest（tasks.spec isLessonTask/lessonTaskHref 10/10）+ 新增 plan-lesson-deeplink.feature 端到端场景，e2e tsc 0；全量 E2E 实跑经用户显式接受交 CI e2e job 兜底（user-accepted-ci，本机 next dev 受限）。",
   "gates": {
-    "consistency": "PASSED (后端 nest build 通过；前端 tsc --noEmit 0；e2e tsc（src/e2e/tsconfig.json）0；后端 jest AI-801 相关 4 套件 18/18 全绿：courses-from-plan.schema / plan.service.generate-courses / courses.service.create-course / courses.service Word 注入回归修复；无类型错误)",
-    "tests": "PASSED (user-accepted-ci: 本地 jest 18/18（validateCoursePlan 合法/非法、createCourseFromPlan 事务落库计数+FK+simple-array 往返、generateCoursesForPlan 404/AI成功/重试/降级模板、courses.service Word 仓库注入回归修复）；新增 plan-courses.feature 端到端场景 + POM/步骤扩展，e2e tsc 0；全量 E2E 实跑交 CI e2e job 兜底（本机 next dev 起不来）)",
-    "review": "PASSED (0 open：courses.service 新增 Word 仓库注入并修复既有 spec 回归；createCourseFromPlan 事务原子落库 Course→Lessons→Words、options 数组入 simple-array 列/correctIndex 必填/category=title.slice(0,50)/color 取课程色或 null/illustration 省略为 NULL（修复初版 TS2769）；generateCoursesForPlan 404 NotFoundException + DTO class-validator 400 + 写路径重试≤3+模板降级永不 500；deriveCourseSpec 纯函数无副作用；仅用 Logger 无裸 console；本会话收尾修正 handleGenerateCourses 路由 /courses→/course（原 404 必断闭环）)",
-    "optimization": "PASSED (0 open：无死代码/裸 console；模板降级(buildFallbackCoursePlan)与 schema 校验(validateCoursePlan)均为纯函数；事务保证 Course/Lesson/Word 原子可见；deriveCourseSpec 从 day.title/content 推导标题，无冗余抽象)"
+    "consistency": "PASSED (后端 nest build 通过；前端 tsc --noEmit 0；e2e tsc（src/e2e/tsconfig.json）0；后端全量 jest 897/897 全绿（含 AI-803 新增 plan.service.spec/courses.service.spec 与修复 plan.controller.spec 的 CoursesService 注入回归）；无类型错误)",
+    "tests": "PASSED (user-accepted-ci: 本地 jest（plan.service AI-803 目录注入/buildStudyPlan lessonRefsJson/Plan A 拆课写引用列/无效 ref 降级无深链/generateCourses 写回 + courses.service getCatalog/lessonExists/courseExists）+ 前端 vitest tasks.spec 10/10（isLessonTask/lessonTaskHref）+ 新增 plan-lesson-deeplink.feature 端到端场景，e2e tsc 0；全量 E2E 实跑交 CI e2e job 兜底（本机 next dev 起不来）)",
+    "review": "PASSED (0 open：DailyTask.source 初始 default:'plan' 改为 nullable:true 避免误标全局 seed 任务（userId NULL）；getCatalog 失败 try/catch 降级无目录分支不阻断生成；applyPlan 保存期容错（无效 ref 不抛、不整计划失败）与生成期「出错即抛」边界清晰；PlanTaskEntry 引用列可选且 DailyTaskView 透传 null 安全；writeBackGeneratedCourse/parseLessonRefs/buildGenericEntry 为模块级纯函数/显式依赖无 this. 误用；仅用 Logger 无裸 console)",
+    "optimization": "PASSED (0 open：无死代码/裸 console；parseLessonRefs 同时回退 content 保持向后兼容；getCatalog 用 safe 默认 skill/level 不依赖 Lesson 实体缺列；buildGenericEntry 仅在该天无任何引用时生成 1 条通用任务，避免任务膨胀)"
   }
 }

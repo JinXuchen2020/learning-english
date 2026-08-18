@@ -6,6 +6,9 @@ import { Lesson } from '../entities/lesson.entity';
 import { Word } from '../entities/word.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 import { CoursePlanSpec } from '../plan/courses-from-plan.schema';
+import { PlanCatalog, PlanCatalogLesson } from '../plan/plan.types';
+import { PlanLevel } from '../plan/dto/generate-plan.dto';
+import { StudyPlanSkillType } from '../plan/study-plan.entity';
 
 /** `createCourseFromPlan` 落库后返回的计数结果（AI-801）。 */
 export interface CreateCourseResult {
@@ -13,6 +16,14 @@ export interface CreateCourseResult {
   lessonCount: number;
   wordCount: number;
 }
+
+/**
+ * 目录未逐课时持久化 `skillType`/`level`，此处给安全默认值（仅作 PlanAgent 提示用，
+ * 不进入导航逻辑）；导航只看 `lessonId`/`courseId` 真实存在性（见 `lessonExists`）。
+ */
+const CATALOG_DEFAULT_SKILL: StudyPlanSkillType = 'vocab';
+const CATALOG_DEFAULT_LEVEL: PlanLevel = 'a1';
+
 
 @Injectable()
 export class CoursesService {
@@ -146,5 +157,47 @@ export class CoursesService {
 
       return { courseId: course.id, lessonCount: spec.lessons.length, wordCount };
     });
+  }
+
+  /**
+   * 构建注入 PlanAgent 的课程目录（AI-803）：从 `courses`/`lessons` 表取真实 id 与标题，
+   * 供 `PlanService.generatePlan` 喂给提示词，使 AI 产出**真实可导航**的 `lessonId`/`courseId`。
+   * 目录为空时返回空目录（调用方据此走「无目录」分支，AI 产出空 id 占位）。
+   */
+  async getCatalog(): Promise<PlanCatalog> {
+    const courses = await this.coursesRepo.find({
+      order: { sortOrder: 'ASC' },
+      relations: ['lessons'],
+    });
+
+    const courseItems = courses.map((c) => ({ courseId: c.id, title: c.title }));
+    const lessonItems: PlanCatalogLesson[] = [];
+    for (const c of courses) {
+      for (const l of c.lessons ?? []) {
+        lessonItems.push({
+          lessonId: l.id,
+          title: l.title,
+          courseId: c.id,
+          skillType: CATALOG_DEFAULT_SKILL,
+          level: CATALOG_DEFAULT_LEVEL,
+          estimatedMinutes: l.estimatedMinutes,
+        });
+      }
+    }
+    return { courses: courseItems, lessons: lessonItems };
+  }
+
+  /** `lessons` 表是否存在该 id（AI-803 `applyPlan` 校验计划引用的真实存在性）。空串 → false。 */
+  async lessonExists(lessonId: string): Promise<boolean> {
+    if (!lessonId) return false;
+    const found = await this.lessonsRepo.findOne({ where: { id: lessonId } });
+    return !!found;
+  }
+
+  /** `courses` 表是否存在该 id（AI-803 配套校验）。空串 → false。 */
+  async courseExists(courseId: string): Promise<boolean> {
+    if (!courseId) return false;
+    const found = await this.coursesRepo.findOne({ where: { id: courseId } });
+    return !!found;
   }
 }

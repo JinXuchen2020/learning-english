@@ -189,3 +189,45 @@ When("I click the AI report generate button", async function (this: E2EWorld) {
   await home.enableReportSuccess();
   await home.clickGenerate();
 });
+
+// --- AI-803：计划节引用任务 Home 深链 ---
+
+Given(
+  "the daily tasks endpoint returns a lesson-referenced task with skill {string}",
+  async function (this: E2EWorld, skillType: string) {
+    const home = new HomePage(this.page, this.baseUrl);
+    await home.mockDailyTasksWithLesson(skillType);
+  }
+);
+
+Then(
+  "I should see at least {int} daily task with a lesson deep link",
+  async function (this: E2EWorld, expected: number) {
+    const home = new HomePage(this.page, this.baseUrl);
+    const count = await home.lessonDeepLinkCount();
+    if (count < expected) {
+      throw new Error(`Expected at least ${expected} lesson deep link(s) but found ${count}`);
+    }
+  }
+);
+
+When("I tap the first lesson deep link", async function (this: E2EWorld) {
+  const home = new HomePage(this.page, this.baseUrl);
+  await home.clickFirstLessonLink();
+});
+
+Then(
+  "I should land on the practice page with the lesson id",
+  async function (this: E2EWorld) {
+    const home = new HomePage(this.page, this.baseUrl);
+    await home.waitPracticeWithLesson("lesson-abc");
+  }
+);
+
+Then(
+  "I should land on the speech page with the task id",
+  async function (this: E2EWorld) {
+    const home = new HomePage(this.page, this.baseUrl);
+    await home.waitSpeechWithTaskId("lesson-task-1");
+  }
+);

@@ -46,6 +46,15 @@ export class StudyPlanDay {
   @Column({ type: 'text', default: '' })
   content: string;
 
+  /**
+   * 当日每节 lesson 的引用索引（AI-803，JSON 数组，可查询精简视图）。
+   * 形如 `[{ skillType, courseId, lessonId, title }]`，与 `content` 内的全量 lessons 同步；
+   * `courseId`/`lessonId` 可为空串（未注入目录 / 模板计划）。保留独立列以便 `applyPlan`
+   * 按节精准生成 `daily_tasks` 并校验真实存在性，无需每次解析 `content`。
+   */
+  @Column({ type: 'text', nullable: true })
+  lessonRefsJson: string | null;
+
   @Column({ type: 'boolean', default: false })
   isDone: boolean;
 

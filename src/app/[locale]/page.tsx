@@ -12,7 +12,7 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 import { SectionTitle } from "@/components/ui/section-title";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
-import { isSpeakingTask, speakingTaskHref } from "@/lib/tasks";
+import { isSpeakingTask, speakingTaskHref, isLessonTask, lessonTaskHref } from "@/lib/tasks";
 import { mapBackendMascotExpr } from "@/lib/speech";
 import { logger } from "@/lib/logger";
 import type {
@@ -602,6 +602,9 @@ function HomeContent() {
               {tasks.map((task) => {
                 const Icon = taskIcons[task.icon] || Headphones;
                 const isCompleted = task.completed;
+                // AI-803：计划节引用任务（含真实 lessonId）→ 深链到对应课时
+                //（speak 复用 /speech?taskId= 以保留完成回写，其余 → /practice?lessonId=）。
+                const isLessonLink = isLessonTask(task) && !isCompleted;
                 // 未完成的口语(mic)任务 → 深链到 /speech（AI-308）；其余维持一键完成。
                 const isSpeechLink = isSpeakingTask(task) && !isCompleted;
                 // AI-605：注入的复习任务 → 深链到 /practice?focusWord= 复习原词（非完成按钮）。
@@ -638,6 +641,20 @@ function HomeContent() {
                     )}
                   </>
                 );
+                if (isLessonLink) {
+                  return (
+                    <Link
+                      key={task.id}
+                      href={lessonTaskHref(task)}
+                      className={cardClass}
+                      data-task-id={task.id}
+                      data-component="LessonTaskLink"
+                      aria-label={t("goToLesson", { title: task.title })}
+                    >
+                      {body}
+                    </Link>
+                  );
+                }
                 if (isSpeechLink) {
                   return (
                     <Link

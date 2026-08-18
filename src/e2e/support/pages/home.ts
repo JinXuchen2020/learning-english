@@ -333,4 +333,80 @@ export default class HomePage {
   async clickGenerate(): Promise<void> {
     await this.page.locator('[data-component="AiReportGenerateBtn"]').first().click();
   }
+
+  /* ----------------------- AI-803：计划节引用任务 Home 深链 ----------------------- */
+
+  /**
+   * 封闭 `GET /tasks/daily` 返回一条带真实 lessonId 的每日任务（skillType 决定深链去向：
+   * vocab/listen/write → /practice?lessonId=；speak → /speech?taskId=）。用于在 e2e 中
+   * 确定性地验证 Home 渲染 LessonTaskLink（不依赖后端 applyPlan 写回时序）。
+   */
+  async mockDailyTasksWithLesson(
+    skillType: string,
+    lessonId = "lesson-abc",
+    title = "Meet the Cat",
+    taskId = "lesson-task-1",
+  ): Promise<void> {
+    await this.page.route("**/tasks/daily", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: taskId,
+            title,
+            description: title,
+            icon: "pencil",
+            completed: false,
+            lessonId,
+            skillType,
+            source: "plan",
+          },
+        ]),
+      }),
+    );
+  }
+
+  /** 统计 Home 上 LessonTaskLink（data-component=LessonTaskLink）数量（AI-803 深链卡）。 */
+  async lessonDeepLinkCount(): Promise<number> {
+    return this.page.locator('[data-component="LessonTaskLink"]').count();
+  }
+
+  /** 点击首个 LessonTaskLink，客户端导航到 /practice?lessonId= 或 /speech?taskId=（依 skillType）。 */
+  async clickFirstLessonLink(): Promise<void> {
+    const link = this.page.locator('[data-component="LessonTaskLink"]').first();
+    if ((await link.count()) === 0) {
+      throw new Error("No LessonTaskLink found on Home");
+    }
+    await link.click();
+    await this.page.waitForFunction(
+      () => /^\/(zh|en)\/(practice|speech)(\?|$)/.test(location.pathname + location.search),
+      undefined,
+      { timeout: 15000 },
+    );
+  }
+
+  /** 断言已落在 /practice?lessonId=<id>（语言无关）。 */
+  async waitPracticeWithLesson(expectedLessonId: string): Promise<void> {
+    await this.page.waitForFunction(
+      (id) => {
+        if (!/^\/(zh|en)\/practice$/.test(location.pathname)) return false;
+        return new URLSearchParams(location.search).get("lessonId") === id;
+      },
+      expectedLessonId,
+      { timeout: 15000 },
+    );
+  }
+
+  /** 断言已落在 /speech?taskId=<id>（语言无关）。 */
+  async waitSpeechWithTaskId(expectedTaskId: string): Promise<void> {
+    await this.page.waitForFunction(
+      (id) => {
+        if (!/^\/(zh|en)\/speech$/.test(location.pathname)) return false;
+        return new URLSearchParams(location.search).get("taskId") === id;
+      },
+      expectedTaskId,
+      { timeout: 15000 },
+    );
+  }
 }

@@ -126,15 +126,14 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
       body: { confirm?(boolean) }
       → 找不到计划 404 { code:'PLAN_NOT_FOUND' }
       → 草稿 → 置 status='applied'、按 dayIndex 从今天起填 study_plan_days.date(UTC YYYY-MM-DD)、按天写入 daily_tasks(带 userId/planDayId/date)，旧任务先清后写(经 planDayId 精准清理)
-      → 已 applied 且 confirm!==true → 409 { code:'PLAN_ALREADY_APPLIED', needsConfirm:true, message }（前端弹确认后带 confirm:true 重应用，覆盖式）
-      → 返回 { id, status:'applied', appliedDays, tasksCreated, appliedAt }
+      → **applyPlan 按 Plan A 拆课(AI-803)**：遍历每天 lessonRefsJson（回退 content），每节生成 1 条 daily_tasks 并写 `courseId`/`lessonId`/`skillType`/`source='plan'`；引用 id 经 `CoursesService.lessonExists/courseExists` 校验，**不存在则降级为无深链通用任务（不抛、不整计划失败，保存期容错）**；某天无任何引用 → 仅 1 条通用任务（source='plan'）；返回 { id, status:'applied', appliedDays, tasksCreated, appliedAt }
     GET /api/ai/plan/status   (AI-209 完成度快照)
       query: childId(uuid)
       → 取该 childId 最近一份 applied 计划(按 updatedAt DESC)，relations 加载 days，统计 isDone 完成度
       → 返回 { hasPlan, totalDays, doneDays, completionRatio, planId?, appliedAt? }
       → 无 applied 计划 → { hasPlan:false, totalDays:0, doneDays:0, completionRatio:0 }（200，前端据此隐藏完成度卡）
       → 沿用计划接口「childId 走 query、不加 JwtAuthGuard」约定
-    · save 仅做结构校验(复用 AI-204 validatePlan)，真实 courseId/lessonId 存在性校验需课程目录注入，不在本 feature 范围（属后续目录注入增强）
+    · save 仅做结构校验(复用 AI-204 validatePlan)；**真实 courseId/lessonId 存在性校验已由 AI-803 在 applyPlan（保存/应用期）落地**（按注入目录 CoursesService 校验，缺失降级无深链）；generatePlan 目录注入（让 AI 产出真实 UUID）亦由 AI-803 经 CoursesService.getCatalog 打通
     · 由已保存计划生成配套课程（AI-801 已落地）：
       POST /api/ai/plan/:id/generate-courses
         body: { wordsPerLesson?(int 3..8, 默认 5) }
@@ -157,12 +156,12 @@ body: { childId(uuid), ageRange("lo-hi"), level(pre-a1|a1|a2), dailyMinutes(5-12
         失败显示错误提示。类型 GenerateCoursesResponse/GenerateCoursesDto 见 src/lib/types.ts
 ```
 - 字段级校验(class-validator)：AI-202 落地（`GeneratePlanDto`）。
-- **JSON Schema 校验 + 重试(≤3) + 模板降级**：AI-204 已落地（`server/src/plan/plan-schema.ts` 的 `validatePlan` 递归校验 weeks→days→lessons 结构 + lesson.type/skillType/title/courseId/lessonId 格式，错误聚合；`server/src/plan/plan-template.ts` 的 `buildFallbackPlan` 最小合规兜底计划；`PlanService` 重试循环 + `buildPlanUserPrompt(dto, catalog?, attempt)` 重试附 `retryNote`）。**注意**：`validatePlan` 仅做结构 + 引用格式校验，真实 `courseId/lessonId` 存在性校验需课程目录注入，属后续增强（AI-206 落地的是持久化/apply，save 仅复用 `validatePlan` 做结构校验，不做 id 存在性校验）；3 套按 `dailyMinutes` 档位的静态周计划（short/standard/extended，由 `resolveTier` 选档）+ 用户可选模板生成（`useTemplate`）已由 AI-205 实现。
-- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用（目录注入属 AI-204/AI-206 入口，id 存在性校验属后续目录注入增强，AI-206 不做）。
+- **JSON Schema 校验 + 重试(≤3) + 模板降级**：AI-204 已落地（`server/src/plan/plan-schema.ts` 的 `validatePlan` 递归校验 weeks→days→lessons 结构 + lesson.type/skillType/title/courseId/lessonId 格式，错误聚合；`server/src/plan/plan-template.ts` 的 `buildFallbackPlan` 最小合规兜底计划；`PlanService` 重试循环 + `buildPlanUserPrompt(dto, catalog?, attempt)` 重试附 `retryNote`）。`validatePlan` 仅做结构 + 引用格式校验；**真实 `courseId`/`lessonId` 存在性校验已由 AI-803 在 applyPlan 期经 `CoursesService` 落地（缺失降级无深链），`generatePlan` 目录注入（让 AI 产出真实 UUID）亦由 AI-803 经 `CoursesService.getCatalog` 打通**；`buildStudyPlan` 现把每天 lesson 的 `courseId/lessonId/skillType/title` 序列化进 `StudyPlanDay.lessonRefsJson`（可查询索引列，与 content 全量文本并存）。3 套按 `dailyMinutes` 档位的静态周计划（short/standard/extended，由 `resolveTier` 选档）+ 用户可选模板生成（`useTemplate`）已由 AI-205 实现。
+- LLM System Prompt 双语版（避免一天过载、复习间隔、口语+听力+书写交错、严守儿童内容安全）：已由 AI-203 实现为 `server/src/plan/plan-agent.prompt.ts` 的 `PLAN_SYSTEM_PROMPT`（狐狸老师 Fox Teacher 儿科友好人设 + 内容安全红线 + 引用真实 courseId/lessonId 指令）。`buildPlanUserPrompt(dto, catalog?)` 在用户提供课程目录时注入真实 UUID 并要求逐节引用；**目录注入入口已由 AI-803 打通**（`generatePlan` → `PlanService.buildMessages` async 调 `CoursesService.getCatalog()` 构造 `PlanCatalog`，非空时传参触发 `curriculumCatalog` 分支；`getCatalog` 失败 try/catch 降级「无目录」分支不阻断生成）。
 - Guardrail(重试/降级)：AI-204（校验失败重试 + 模板降级）/ AI-205（已实现：3 套静态周计划 short/standard/extended + 用户可选 `useTemplate` 模板生成，无 LLM 依赖）。
 - 鉴权：本接口按契约 `childId` 由 body 传入，未加 `JwtAuthGuard`；AI-206 apply 接口再补鉴权。
 
-**新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,AI-206 应用阶段写入),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false) )。具体课程/课时关联（`course_id`/`lesson_id`）不在 AI-201 落地（属后续目录注入增强，非 AI-206 范围）。**daily_tasks 扩展（AI-206）**：在原全局任务目录表增可空 `userId`(计划任务归属用户, 全局种子为 NULL) / `planDayId`(varchar, Index, 关联 study_plan_days.id, 用于重应用精准清理) / `date`(varchar(10), 计划日 YYYY-MM-DD, 全局种子为 NULL 即每天可见)；`getDailyTasks(userId)` 合并「全局种子(userId IS NULL) + 该用户当日计划任务(userId=该用户 AND date=今天)」实现多租户隔离，避免计划任务泄漏给其他用户。
+**新增表/字段**（AI-201 已落地）: `study_plans` (计划头: `id`,`userId`(FK→users),`skillType`(vocab/listen/speak/write),`status`(draft/applied/archived,默认 draft),`createdAt`,`updatedAt`)；`study_plan_days` 1:N ( `id`,`planId`(FK→study_plans,级联删除),`dayIndex`,`date`(YYYY-MM-DD,AI-206 应用阶段写入),`skillType`,`title`,`content`(text,AI 生成写入),`isDone`(默认 false),`lessonRefsJson`(text,AI-803 落地：该天 lesson 引用精简索引 `[{skillType,courseId,lessonId,title}]`，与 content 并存，可空向后兼容) )。具体课程/课时关联经 AI-803 落为 `study_plan_days.lessonRefsJson` 索引列 + 前端深链引用，非独立外键。**daily_tasks 扩展（AI-206 + AI-803）**：在原全局任务目录表增可空 `userId`(计划任务归属用户, 全局种子为 NULL) / `planDayId`(varchar, Index, 关联 study_plan_days.id, 用于重应用精准清理) / `date`(varchar(10), 计划日 YYYY-MM-DD, 全局种子为 NULL 即每天可见)；**AI-803 再增**可空 `courseId`(uuid)/`lessonId`(uuid)/`skillType`(varchar(16))/`source`(varchar(16): 计划任务显式 'plan'、全局种子为 NULL 不误标)；`getDailyTasks(userId)` 合并「全局种子(userId IS NULL) + 该用户当日计划任务(userId=该用户 AND date=今天)」实现多租户隔离，避免计划任务泄漏给其他用户，并透传引用列供前端深链。
 
 ### 2. AI 每日口语训练 (`AiSpeechModule`)
 

@@ -282,6 +282,7 @@
     "tasksDone": "{done}/{total} done",
     "openSpeakingPractice": "Open speaking practice: {title}",
     "reviewWordAria": "Review word: {title}",
+    "goToLesson": "Go learn: {title}",
     "myCourses": "My Courses",
     "lessons": "lessons",
     "courseWords": "{count} words"

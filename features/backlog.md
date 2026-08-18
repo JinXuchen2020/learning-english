@@ -89,7 +89,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-803 | **学习计划→真实课程引用落地与学习导航** — 把计划内每节 lesson 的 `courseId`/`lessonId` 从 `StudyPlanDay.content` 文本里**提为正式引用并落库**；`savePlan`/`applyPlan` 按注入目录（`CoursesService`）校验 id 真实存在（**缺失则降级为无深链的通用任务，不整计划失败**，符合「出错即抛」仅限生成期、保存期容错）；`StudyPlanDay`/`DailyTask` 新增 `courseId`/`lessonId`/`skillType` 列；前端每日任务按 `skillType`+id 深链到对应课时（`vocab/listen/write` → `/practice?lessonId=` 或 `/course/<courseId>`、`speak` → `/speech`），让孩子「点哪天就上那节课」而非孤立排期 | P1 | AI-206, 现有 CoursesModule, AI-209, AI-707 | todo | 见 `features/ai-803.md` |
+| AI-803 | **学习计划→真实课程引用落地与学习导航** — 把计划内每节 lesson 的 `courseId`/`lessonId` 从 `StudyPlanDay.content` 文本里**提为正式引用并落库**；`generatePlan` 注入真实课程目录（`CoursesService.getCatalog`）让 AI 产出真实 UUID；`applyPlan` 按注入目录校验 id 真实存在（**缺失则降级为无深链的通用任务，不整计划失败**，保存期容错、生成期仍「出错即抛」）；`StudyPlanDay`/`DailyTask` 新增 `courseId`/`lessonId`/`skillType`/`source` 列；前端每日任务按 `skillType`+id 深链到对应课时（`vocab/listen/write` → `/practice?lessonId=` 或 `/course/<courseId>`、`speak` → `/speech`），让孩子「点哪天就上那节课」而非孤立排期 | P1 | AI-206, 现有 CoursesModule, AI-209, AI-707, AI-801 | done | 见 `features/ai-803.md` |
 
 ---
 
