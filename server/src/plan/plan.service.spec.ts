@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AI_PROVIDER_TOKEN, AiProvider, ChatResult } from '../ai/ai-provider.interface';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { PlanService } from './plan.service';
+import { PlanService, extractJson } from './plan.service';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { StudyPlan } from './study-plan.entity';
 import { StudyPlanDay } from './study-plan-day.entity';
@@ -337,5 +337,40 @@ describe('PlanService (AI-209) — 计划完成度 getStatus', () => {
     expect(res.totalDays).toBe(0);
     expect(res.doneDays).toBe(0);
     expect(res.completionRatio).toBe(0);
+  });
+});
+
+describe('extractJson — 鲁棒提取（去散文/围栏/尾逗号，仍由调用方抛真坏 JSON）', () => {
+  it('纯 JSON 原样返回', () => {
+    expect(extractJson('{"a":1}')).toBe('{"a":1}');
+  });
+
+  it('```json 围栏 → 取内部', () => {
+    expect(extractJson('```json\n{"a":1}\n```')).toBe('{"a":1}');
+  });
+
+  it('JSON 前后夹散文 → 切片到首尾括号', () => {
+    const raw = '这是你的计划：\n{"weeks":[{"week":1}]}\n希望你喜欢！';
+    expect(extractJson(raw)).toBe('{"weeks":[{"week":1}]}');
+  });
+
+  it('对象尾随逗号 → 去除后可解析', () => {
+    expect(extractJson('{"a":1,}')).toBe('{"a":1}');
+  });
+
+  it('数组尾随逗号 → 去除后可解析', () => {
+    expect(extractJson('[1,2,3,]')).toBe('[1,2,3]');
+  });
+
+  it('围栏 + 散文 + 尾逗号混合 → 提取为合法 JSON', () => {
+    const raw = '好的，计划如下：\n```json\n{"weeks":[{"week":1,"days":[{"day":1,}]}],\n}\n```\n祝学习愉快';
+    const out = extractJson(raw);
+    expect(() => JSON.parse(out)).not.toThrow();
+    expect(JSON.parse(out)).toEqual({ weeks: [{ week: 1, days: [{ day: 1 }] }] });
+  });
+
+  it('完全无 JSON 结构 → 仍返回切片后的原文（调用方 JSON.parse 抛错，符合「出错即抛」）', () => {
+    const out = extractJson('抱歉我无法生成计划，因为……');
+    expect(() => JSON.parse(out)).toThrow();
   });
 });

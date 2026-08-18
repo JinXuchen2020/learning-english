@@ -277,8 +277,18 @@ export class PlanService {
  */
 export function extractJson(text: string): string {
   if (!text) return text;
+  // 1) 剥离 ```json ... ``` / ``` ... ``` 围栏
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  return (fence ? fence[1] : text).trim();
+  let candidate = (fence ? fence[1] : text).trim();
+  // 2) 去除前后散文：取首个 { 或 [ 到最后一个 } 或 ]（模型常输出 "这是计划：{…} 希望喜欢"）
+  const firstOpen = candidate.search(/[[{]/);
+  const lastClose = Math.max(candidate.lastIndexOf('}'), candidate.lastIndexOf(']'));
+  if (firstOpen !== -1 && lastClose > firstOpen) {
+    candidate = candidate.slice(firstOpen, lastClose + 1);
+  }
+  // 3) 去除对象/数组内的尾随逗号（{a:1,} / [1,2,]），避免严格 JSON.parse 失败
+  candidate = candidate.replace(/,(\s*[}\]])/g, '$1');
+  return candidate;
 }
 
 /** 取计划/天列表中的首个有效技能类型（AI-206 落库 header/day 用）。 */
