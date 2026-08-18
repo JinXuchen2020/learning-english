@@ -355,3 +355,88 @@ Then("I should see an empty chat thread", async function (this: E2EWorld) {
     throw new Error("Expected an empty chat thread (ChatEmpty)");
   }
 });
+
+// ---- AI-802：语音听写 ----
+
+Given(
+  "the speech recognition will return {string}",
+  async function (this: E2EWorld, text: string) {
+    this.speechFinal = text;
+  },
+);
+
+Given("speech recognition is unsupported", async function (this: E2EWorld) {
+  // 标记为不支持路径：open 时不注入 fake SpeechRecognition（模拟 Firefox / 非安全上下文）。
+  this.speechFinal = null;
+});
+
+When(
+  "I open the chat page without speech recognition",
+  async function (this: E2EWorld) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    await page.open({ speechRecognition: false });
+  },
+);
+
+When("I click the voice input button", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  // 点击前把罐头最终文本注入运行时（FakeSpeechRecognition 在 start() 时读取）。
+  if (this.speechFinal) {
+    await page.setSpeechFinal(this.speechFinal);
+  }
+  await page.clickVoiceInput();
+});
+
+Then("I should see the voice input button", async function (this: E2EWorld) {
+  const page = new ChatPage(this.page, this.baseUrl);
+  if (!(await page.isVoiceButtonVisible())) {
+    throw new Error("Expected a voice input (mic) button on the chat page");
+  }
+});
+
+Then(
+  "the voice input should be listening",
+  async function (this: E2EWorld) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    if (!(await page.isVoiceListening())) {
+      throw new Error("Expected the voice input to be in listening state");
+    }
+  },
+);
+
+Then(
+  "the chat input should contain {string}",
+  async function (this: E2EWorld, text: string) {
+    try {
+      // 识别回调异步写入 input，轮询等待以避免竞态。
+      await this.page.waitForFunction(
+        (t) => {
+          const el = document.querySelector(
+            '[data-component="ChatInput"]',
+          ) as HTMLTextAreaElement | null;
+          return !!el && el.value.includes(t);
+        },
+        text,
+        { timeout: 10000 },
+      );
+    } catch {
+      const page = new ChatPage(this.page, this.baseUrl);
+      const value = await page.inputText();
+      throw new Error(
+        `Expected the chat input to contain "${text}" but got "${value}"`,
+      );
+    }
+  },
+);
+
+Then(
+  "the voice input button should be disabled",
+  async function (this: E2EWorld) {
+    const page = new ChatPage(this.page, this.baseUrl);
+    if (!(await page.isVoiceButtonDisabled())) {
+      throw new Error(
+        "Expected the voice input button to be disabled when speech recognition is unsupported",
+      );
+    }
+  },
+);

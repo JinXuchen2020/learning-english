@@ -41,6 +41,8 @@ export default class E2EWorld extends World {
   assignStatus: number | null = null;
   // AI-801: 生成配套课程前记住的课程数量，跨 step 共享，用于断言「新课已出现」。
   coursesBefore: number | null = null;
+  // AI-802：语音听写场景中，麦克风要投递的「罐头最终文本」；null 表示走「不支持」降级路径。
+  speechFinal: string | null = null;
 
   constructor(options: IWorldOptions) {
     super(options);

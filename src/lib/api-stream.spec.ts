@@ -193,7 +193,7 @@ describe("generatePlanStream (AI-804)", () => {
     const ac = new AbortController();
     const events: PlanStreamEvent[] = [];
     const fetchMock = vi.fn((_url: string | URL, init?: RequestInit) =>
-      Promise.resolve(abortableSseResponse(sseText([{ type: "token", text: "partial" }]), init?.signal)),
+      Promise.resolve(abortableSseResponse(sseText([{ type: "token", text: "partial" }]), init?.signal ?? undefined)),
     );
     vi.stubGlobal("fetch", fetchMock);
 

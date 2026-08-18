@@ -68,6 +68,83 @@ function fakeMicrophoneScript(): void {
   defineOrAssign(window, "MediaRecorder", FakeMediaRecorder);
 }
 
+/**
+ * Inject a fake SpeechRecognition so the AI-802 voice-input button is
+ * `supported=true` in headless Chromium (which has no native Web Speech API).
+ * The fake, on start(), delivers a single FINAL result equal to
+ * `window.__SPEECH_FINAL__` (default "Hello Foxy") — no real audio needed.
+ * It does NOT auto-onend (stays "listening" until stop()), so the E2E can
+ * assert the listening state and the transcribed text without a restart loop.
+ */
+function fakeSpeechRecognitionScript(): void {
+  const defineOrAssign = (target: any, key: string, value: unknown) => {
+    try {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    } catch {
+      try {
+        target[key] = value;
+      } catch {
+        /* best-effort */
+      }
+    }
+  };
+
+  class FakeSpeechRecognition {
+    lang = "";
+    continuous = false;
+    interimResults = false;
+    maxAlternatives = 1;
+    onresult: ((e: unknown) => void) | null = null;
+    onerror: ((e: unknown) => void) | null = null;
+    onend: (() => void) | null = null;
+    onstart: (() => void) | null = null;
+    private timer: ReturnType<typeof setTimeout> | null = null;
+
+    start(): void {
+      this.timer = setTimeout(() => {
+        const finalText =
+          (window as unknown as { __SPEECH_FINAL__?: string }).__SPEECH_FINAL__ ||
+          "Hello Foxy";
+        const result: any = {
+          isFinal: true,
+          length: 1,
+          "0": { transcript: finalText, confidence: 0.9 },
+          item(i: number) {
+            return this[i];
+          },
+        };
+        const results: any = {
+          length: 1,
+          "0": result,
+          item(i: number) {
+            return this[i];
+          },
+        };
+        if (this.onresult) this.onresult({ resultIndex: 0, results });
+      }, 0);
+    }
+
+    stop(): void {
+      if (this.timer) {
+        clearTimeout(this.timer);
+        this.timer = null;
+      }
+      if (this.onend) this.onend();
+    }
+
+    abort(): void {
+      this.stop();
+    }
+  }
+
+  defineOrAssign(window, "SpeechRecognition", FakeSpeechRecognition);
+  defineOrAssign(window, "webkitSpeechRecognition", FakeSpeechRecognition);
+}
+
 export default class ChatPage {
   private page: Page;
   private baseUrl: string;
@@ -77,9 +154,15 @@ export default class ChatPage {
     this.baseUrl = baseUrl;
   }
 
-  async open(): Promise<void> {
+  async open(opts?: { speechRecognition?: boolean }): Promise<void> {
+    const injectSpeech = opts?.speechRecognition !== false;
     // Inject fake mic BEFORE navigation so read-along recordings work headless.
     await this.page.addInitScript(fakeMicrophoneScript);
+    // AI-802：默认注入 fake SpeechRecognition，使语音输入按钮 supported=true。
+    // 传入 { speechRecognition: false } 则不注入（模拟 Firefox / 不支持降级）。
+    if (injectSpeech) {
+      await this.page.addInitScript(fakeSpeechRecognitionScript);
+    }
 
     // /chat 在「更多」抽屉，TabNav 无直链 → link.count() 为 0 → 走整页 goto 兜底。
     // JWT 已镜像到 localStorage，整页 goto 保留登录态（middleware 重定向到默认 locale 前缀）。
@@ -427,5 +510,49 @@ export default class ChatPage {
       if (t && t.includes(text)) return true;
     }
     return false;
+  }
+
+  // ---- AI-802：语音听写 ----
+
+  /** 设置语音识别的「罐头最终文本」，点击麦克风前生效（运行时注入 window.__SPEECH_FINAL__）。 */
+  async setSpeechFinal(text: string): Promise<void> {
+    await this.page.evaluate((t) => {
+      (window as unknown as { __SPEECH_FINAL__?: string }).__SPEECH_FINAL__ = t;
+    }, text);
+  }
+
+  /** 麦克风按钮是否可见（supported=true 时渲染）。 */
+  async isVoiceButtonVisible(): Promise<boolean> {
+    return (
+      (await this.page.locator('button[data-action="voice-input"]').count()) > 0
+    );
+  }
+
+  /** 麦克风按钮是否禁用（不支持时降级为 disabled）。 */
+  async isVoiceButtonDisabled(): Promise<boolean> {
+    const btn = this.page.locator('button[data-action="voice-input"]');
+    if ((await btn.count()) === 0) return false;
+    return await btn.isDisabled();
+  }
+
+  /** 是否处于 listening 态（data-state="listening"）。 */
+  async isVoiceListening(): Promise<boolean> {
+    return (
+      (await this.page
+        .locator('button[data-action="voice-input"][data-state="listening"]')
+        .count()) > 0
+    );
+  }
+
+  async clickVoiceInput(): Promise<void> {
+    await this.page.locator('button[data-action="voice-input"]').click();
+  }
+
+  /** 输入框当前文本。 */
+  async inputText(): Promise<string> {
+    return (
+      (await this.page.locator('[data-component="ChatInput"]').inputValue()) ??
+      ""
+    );
   }
 }

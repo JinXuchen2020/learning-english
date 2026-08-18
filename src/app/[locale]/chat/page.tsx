@@ -14,6 +14,7 @@ import { ApiError } from "@/lib/api";
 import { playTts } from "@/lib/audio";
 import { speakText } from "@/lib/speech";
 import { logger } from "@/lib/logger";
+import { useSpeechDictation } from "@/lib/useSpeechDictation";
 import type {
   ChatScene,
   ChatMessage,
@@ -304,6 +305,11 @@ function ChatInner() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // AI-802：语音听写 hook —— 麦克风实时英文听写，最终文本增量追加进 input。
+  const dictation = useSpeechDictation("en-US", {
+    onFinal: (seg) => setInput((prev) => (prev ? `${prev} ${seg}` : seg)),
+  });
 
   const [readAlongForId, setReadAlongForId] = useState<string | null>(null);
   // AI-408：当前会话累计星星数 + 刚得星时的庆祝态（存星星总数，null=不庆祝）。
@@ -804,6 +810,34 @@ function ChatInner() {
 
       {/* Input */}
       <div className="flex items-center gap-2" data-component="ChatComposer">
+        {dictation.supported ? (
+          <button
+            type="button"
+            onClick={dictation.listening ? dictation.stop : dictation.start}
+            aria-label={t("voiceInput")}
+            title={dictation.listening ? t("listening") : t("tapToSpeak")}
+            data-action="voice-input"
+            data-state={dictation.listening ? "listening" : "idle"}
+            className={`shrink-0 rounded-control border-2 border-kids-secondary bg-white p-2 text-kids-title transition-colors hover:bg-kids-secondary ${
+              dictation.listening ? "animate-pulse border-[var(--seed-primary)]" : ""
+            }`}
+          >
+            🎤
+          </button>
+        ) : (
+          // 不支持的浏览器（Firefox）/ 非安全上下文：禁用并给出明确提示，绝不报错、不阻断键盘输入。
+          <button
+            type="button"
+            disabled
+            aria-label={t("voiceNotSupported")}
+            title={t("voiceNotSupported")}
+            data-action="voice-input"
+            data-state="unsupported"
+            className="shrink-0 cursor-not-allowed rounded-control border-2 border-kids-secondary bg-white p-2 text-kids-muted opacity-40"
+          >
+            🎤
+          </button>
+        )}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -825,6 +859,16 @@ function ChatInner() {
           {sending ? "…" : t("send")}
         </Button>
       </div>
+
+      {/* AI-802：语音听写中间结果实时预览（仅展示，不写入输入框）。 */}
+      {dictation.listening && dictation.interim && (
+        <div
+          className="rounded-control bg-[var(--color-primary-wash)]/60 px-3 py-1.5 text-sm text-kids-muted"
+          data-component="VoiceInterim"
+        >
+          {dictation.interim}
+        </div>
+      )}
     </div>
   );
 }

@@ -78,7 +78,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | todo | 见 `features/ai-802.md` |
+| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | done | 见 `features/ai-802.md` |
 
 ---
 
