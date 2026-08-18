@@ -87,11 +87,13 @@ export class PlanService {
     // 1) 关闭推理链 thinking —— 种子 extraBody 的 enable_thinking:true 会产生大量思考 token
     //    并拖慢生成（实测单次 14.9s/37.6s），调用层用同结构 extraBody 覆盖关闭，避免思考
     //    token 占满窗口导致 JSON 被截断 / 逼近 Vercel 60s 上限。
-    // 2) maxTokens 提到 6000，使完整计划（约 4000–6000 token）不被截断。
+    // 2) maxTokens 提到 8000：提示词已收紧 description（每节≤25字）让多数计划紧凑，
+    //    8000 兜底覆盖 4 周完整计划（约 6000–8000 token），避免 finish_reason=length 截断。
     // 3) timeoutMs 55s < Vercel maxDuration 60s，给解析/审计留余量；maxAttempts:1 快速失败。
+    //    注：8000 token 按 ~190 tok/s 估算约 42s，仍在 55s 超时内，无 504 风险。
     const options: ChatOptions = {
       temperature: 0.4,
-      maxTokens: 6000,
+      maxTokens: 8000,
       extraBody: { chat_template_kwargs: { enable_thinking: false } },
       timeoutMs: 55_000,
       maxAttempts: 1,

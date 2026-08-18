@@ -139,7 +139,7 @@ describe('PlanService (AI-204)', () => {
       interests: ['动物'],
     });
     expect(options?.temperature).toBe(0.4);
-    expect(options?.maxTokens).toBe(6000);
+    expect(options?.maxTokens).toBe(8000);
     // 关闭思考链（覆盖种子 enable_thinking:true），提速并避免截断。
     expect(options?.extraBody).toEqual({ chat_template_kwargs: { enable_thinking: false } });
     expect(options?.timeoutMs).toBe(55_000);

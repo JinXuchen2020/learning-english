@@ -41,6 +41,8 @@ export const PLAN_SYSTEM_PROMPT = [
   '【输出格式 Output Format】只输出 JSON 对象，不要任何解释文字、不要 Markdown 代码围栏。结构如下：',
   '{"weeks":[{"week":1,"theme":"...","days":[{"day":1,"skillType":"vocab","title":"...","lessons":[{"type":"main","title":"...","skillType":"vocab","courseId":"<真实UUID或留空>","lessonId":"<真实UUID或留空>","description":"中文要点说明"},{"type":"review","title":"...","skillType":"listen","courseId":"","lessonId":""},{"type":"review","title":"...","skillType":"write","courseId":"","lessonId":""},{"type":"speaking","title":"...","skillType":"speak","courseId":"","lessonId":""}]}]}]}。',
   'lessons 每天固定 4 节：依次 1 main + 2 review + 1 speaking（这是 `type`）；每一节还需独立给出 `skillType`，从 vocab / listen / speak / write 中选一个（如复习听力课为 {"type":"review","skillType":"listen"}）。未注入课程目录时 courseId/lessonId 留空字符串即可。',
+
+  '【精简输出 Concise Output】每节 lesson 的 `description` 只用 1 句中文（≤25 字）概括要点；不要展开长段落、不要举例、不要重复 title；`theme`/`title` 也要简短。整体 JSON 越紧凑越好——一份最多 4 周×7 天×4 节的完整计划必须能在 token 预算内一次性返回，避免被截断（finish_reason=length）。',
 ].join('\n');
 
 /**
