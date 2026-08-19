@@ -46,3 +46,25 @@
 - 连续说话的 `onend` 自动重启在真实浏览器依赖其静音检测行为；若某浏览器在静音后高频 `onend`，可能频繁重启（已 try/catch 兜底，真实使用场景（孩子持续说话）下无影响）。
 - 语言固定 `en-US`，后续如需中英混输再加语言切换（本期不做，设计已声明）。
 - E2E 未本地实跑，已如实标注交 CI `e2e` job 验证。
+
+---
+
+## 追加：覆盖率修复（2026-08-19，cherry-pick 集成后）
+
+**背景**：AI-802 cherry-pick 集成到 `feat/ai-804` 后，CI `test:cov`（`jest --coverage`）跑出全局 **functions 88.96% < 90%** 挂门槛（TEST-101 硬性 90%）。本机复现确认：`jest --coverage` 退出码 1，`Jest: "global" coverage threshold for functions (90%) not met: 88.96%`。
+
+**根因（两处）**：
+1. **migrations 排除失效**：`jest.config.js` 的 `collectCoverageFrom` 已含 `!src/migrations/**`（AI-714 引入），但 Windows 下该否定 glob 对 `src/migrations` 路径匹配失效——3 个迁移文件（`InitSchema.ts` / `ProviderConfigReconcile20260817000000.ts` / `ReconcileSchema20260817090000.ts`）贡献 **20 个 0% 未覆盖函数**，直接把 functions 拉下 90%。注：此前诊断一度被误导——`coverage/coverage-summary.json` 是历史遗留旧文件（jest 默认 reporters 不含 `json-summary`，从不更新），读到旧数据以为 migrations 始终泄漏；以 `coverage-final.json`（`json` reporter）为准核对后确认根因。
+2. **两个 controller 无 spec**：`rewards.controller.ts`（11 函数，仅构造器 1/11 覆盖）与 `ai-word-card.controller.ts`（5 函数 0 覆盖）仅有 service spec，controller 层函数几乎全裸。
+
+**修复**：
+- `server/jest.config.js` 追加 `coveragePathIgnorePatterns: ['/node_modules/', '[\\\\/]migrations[\\\\/]']`——按绝对路径正则兜底（正/反斜杠均可），migrations 从插桩与阈值计算中完全排除（`coverage-final.json` 中 migrations funcs 0/0）。
+- 新增 `server/src/rewards/rewards.controller.spec.ts`（12 例，直接 `new RewardsController(mock)` 绕过 DI，覆盖全部 10 个方法转发）与 `server/src/word-card/ai-word-card.controller.spec.ts`（7 例，含 list 非法 status 抛 `BadRequestException` 同步断言）。
+- 顺带修复 `src/lib/api-stream.spec.ts:196` 的 `init?.signal`（`AbortSignal | null | undefined`）→ `?? undefined`（集成时暴露的遗留类型错误）。
+
+**结果（本机实测）**：
+- `jest --coverage`：**exit 0**，Test Suites 100 / Tests **927/927**（908 + 新增 19），threshold 四门槛全过。
+- 全局 functions **91.86%**（677/737）≥ 90%；statements 92.42% / lines 93.26% / branches 74.54% 均过线。
+- `server tsc --noEmit` 0；前端 tsc / e2e tsc / vitest 全量不受影响（此前已绿）。
+
+**变更文件**：`server/jest.config.js`（+ignorePatterns）、`server/src/rewards/rewards.controller.spec.ts`（新）、`server/src/word-card/ai-word-card.controller.spec.ts`（新）、`src/lib/api-stream.spec.ts`（类型修复，随集成提交）。
