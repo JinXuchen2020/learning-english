@@ -178,6 +178,12 @@ Then(
   }
 );
 
+When("I go back to the home page", async function (this: E2EWorld) {
+  // AI-801 起 apply 成功后不再自动跳转 Home（展示「生成配套课程」入口），
+  // 需点 go-home 按钮主动回首页。
+  await new PlanPage(this.page, this.baseUrl).clickGoHome();
+});
+
 When(
   "I toggle the plan day {int} as done",
   async function (this: E2EWorld, index: number) {

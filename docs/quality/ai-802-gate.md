@@ -68,3 +68,35 @@
 - `server tsc --noEmit` 0；前端 tsc / e2e tsc / vitest 全量不受影响（此前已绿）。
 
 **变更文件**：`server/jest.config.js`（+ignorePatterns）、`server/src/rewards/rewards.controller.spec.ts`（新）、`server/src/word-card/ai-word-card.controller.spec.ts`（新）、`src/lib/api-stream.spec.ts`（类型修复，随集成提交）。
+
+---
+
+## 追加：CI E2E 首次实跑修复（2026-08-19）
+
+**背景**：push 后 CI `e2e` job 首次真正跑全量 cucumber，暴露 **6 个失败场景**（此前均以 `user-accepted-ci` 交 CI 兜底，从未实跑）。逐条定位根因并修复（本机用独立 Playwright 脚本对每个修复做真实验证）。
+
+### 失败与根因
+
+| # | 场景 | 根因 |
+|---|---|---|
+| 1 | chat-voice 场景 1（input 空） | `open()` 的 SPA 点击导航不产生新 document → `addInitScript` 的 fake 不执行 → 误用原生 SpeechRecognition（headless Chromium 自带，触发 `no-speech`）→ onFinal 永不回调 |
+| 2 | chat-voice 场景 2（不支持未 disabled） | **headless Chromium 自带原生 `SpeechRecognition` + `webkitSpeechRecognition`**——不注入 fake 时 `isSpeechDictationSupported()` 仍判 true（构造器存在 + localhost 安全上下文）→ 渲染可点按钮 |
+| 3/4/5 | plan-display / plan-progress（apply 后 Home 不出现） | **AI-801 起产品行为变更**：apply 成功后不再自动跳 Home（`plan/page.tsx` 注释明示），改留 `/plan` 展示「生成配套课程」入口；feature 仍断言「自动回 Home」→ `[data-component="Home"]` 15s 超时 |
+| 6 | practice-variants 组合模式（switchMode 超时） | AI-801 `generateCourses` 生成的课程 words **`(color,category)` 全同**（组合题要求唯一组合）→ `generateCombinationQuestions` 的 `uniqueTargets` 空 → items 空 → `if (!item)` early return → **WordPractice 整页消失**（含模式按钮）→ waitForFunction 找不到按钮；feature 按字母序在 practice 前跑过 plan 场景，生成的污染课程排在课程列表首位 |
+
+### 修复
+
+1. **chat.ts `open()`**：新增 `disableSpeechRecognitionScript()`（两构造器 `defineProperty` 为 `undefined`）用于不支持路径；**一律整页 `goto`**（删除 SPA 点击分支，保证 addInitScript 必执行）；注入后 `waitForFunction` 校验 fake/禁用已生效（fail fast，杜绝静默误用原生）。
+2. **plan-display / plan-progress feature**：apply 成功后插入 `When I go back to the home page`（新增 `PlanPage.clickGoHome()` + steps），与 AI-801 产品行为对齐。
+3. **practice-variants feature**：场景 5/6 改为 `I click the course named "Animal Friends"`（新增 `HomePage.clickCourseNamed(title)` + steps），锁定 seed 课程（words 有唯一 `(color,category)` 组合），不再依赖「第一个课程卡」。
+
+### 本机验证（独立 Playwright 脚本，真实 Chromium + dev 服务）
+
+- 场景 1 路径：点击 mic → input `"Hello Foxy"` **PASS**
+- 场景 2 路径：禁用注入 → `data-state="unsupported"` + `disabled` **PASS**
+- 组合模式：点 `mode-combination` → `aria-selected=true` + `ComboPrompt` 渲染 **PASS**
+- 回归：前端 tsc 0 / e2e tsc 0 / vitest 155/155 / 后端 jest 927/927 + `--coverage` 全门槛过（不变）
+
+**变更文件**：`src/e2e/support/pages/chat.ts`、`src/e2e/support/pages/home.ts`、`src/e2e/support/pages/plan.ts`、`src/e2e/step-definitions/course.steps.ts`、`src/e2e/step-definitions/plan.steps.ts`、`src/e2e/features/plan-display.feature`、`src/e2e/features/plan-progress.feature`、`src/e2e/features/practice-variants.feature`。
+
+**遗留（产品层，非本次范围）**：组合模式对「全同色同分类」课程（AI 生成）会无题可出（页面空提示而非降级）。真实用户若用 AI 生成课程玩组合模式会遇到空屏；建议后续 `generateCombinationQuestions` 增加降级策略（如按 category 分组、或回退 multiple 题）。E2E 已改为锁 seed 课程绕过。

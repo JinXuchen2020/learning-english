@@ -5,7 +5,7 @@ Feature: Practice quiz variants (listen-pick-image and combination)
 
   Scenario: Listen-and-pick-image mode can be answered to completion
     Given I am logged in as a new user
-    When I click the first course card
+    When I click the course named "Animal Friends"
     And I click the first lesson
     Then I should see the practice page
     When I switch to listen practice mode
@@ -15,7 +15,7 @@ Feature: Practice quiz variants (listen-pick-image and combination)
 
   Scenario: Color-combination mode can be answered to completion
     Given I am logged in as a new user
-    When I click the first course card
+    When I click the course named "Animal Friends"
     And I click the first lesson
     Then I should see the practice page
     When I switch to combination practice mode

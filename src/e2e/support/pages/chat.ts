@@ -145,6 +145,34 @@ function fakeSpeechRecognitionScript(): void {
   defineOrAssign(window, "webkitSpeechRecognition", FakeSpeechRecognition);
 }
 
+/**
+ * Disable SpeechRecognition entirely (for the "unsupported" path).
+ * Headless Chromium SHIPS a native `webkitSpeechRecognition`/`SpeechRecognition`,
+ * so merely NOT injecting the fake is NOT enough — `isSpeechDictationSupported()`
+ * would still see a ctor + localhost secure context and render the ENABLED mic
+ * button, breaking the "disabled when unsupported" scenario. Overwrite both
+ * ctors with `undefined` to simulate Firefox / non-secure context.
+ */
+function disableSpeechRecognitionScript(): void {
+  const defineOrAssign = (target: any, key: string, value: unknown) => {
+    try {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    } catch {
+      try {
+        target[key] = value;
+      } catch {
+        /* best-effort */
+      }
+    }
+  };
+  defineOrAssign(window, "SpeechRecognition", undefined);
+  defineOrAssign(window, "webkitSpeechRecognition", undefined);
+}
+
 export default class ChatPage {
   private page: Page;
   private baseUrl: string;
@@ -159,20 +187,33 @@ export default class ChatPage {
     // Inject fake mic BEFORE navigation so read-along recordings work headless.
     await this.page.addInitScript(fakeMicrophoneScript);
     // AI-802：默认注入 fake SpeechRecognition，使语音输入按钮 supported=true。
-    // 传入 { speechRecognition: false } 则不注入（模拟 Firefox / 不支持降级）。
+    // 传入 { speechRecognition: false } 则显式禁用原生构造器（headless Chromium
+    // 自带原生 SpeechRecognition，不注入 fake 时 supported 会误判 true），
+    // 模拟 Firefox / 非安全上下文降级。
     if (injectSpeech) {
       await this.page.addInitScript(fakeSpeechRecognitionScript);
+    } else {
+      await this.page.addInitScript(disableSpeechRecognitionScript);
     }
 
-    // /chat 在「更多」抽屉，TabNav 无直链 → link.count() 为 0 → 走整页 goto 兜底。
+    // 一律整页 goto：addInitScript 只在【新 document】加载时执行，SPA 点击导航
+    // 不产生新 document → fake/禁用脚本不生效 → 误用原生 SpeechRecognition。
     // JWT 已镜像到 localStorage，整页 goto 保留登录态（middleware 重定向到默认 locale 前缀）。
-    const chatLink = this.page.locator('nav a[href="/chat"]');
-    if (await chatLink.count()) {
-      await chatLink.first().click();
-    } else {
-      await this.page.goto(`${this.baseUrl}/chat`);
-    }
+    await this.page.goto(`${this.baseUrl}/chat`);
     await this.page.waitForSelector('[data-component="ChatPage"]', { timeout: 15000 });
+
+    // 防御：确认注入已生效（fake 或禁用），避免静默误用原生构造器导致听写不工作。
+    await this.page.waitForFunction(
+      (wantFake) => {
+        const w = window as unknown as { SpeechRecognition?: unknown };
+        if (wantFake) {
+          return typeof w.SpeechRecognition === "function";
+        }
+        return typeof w.SpeechRecognition === "undefined";
+      },
+      injectSpeech,
+      { timeout: 5000 },
+    );
   }
 
   /** Mock the scenes endpoint so the page is deterministic (no backend scene data dependency). */

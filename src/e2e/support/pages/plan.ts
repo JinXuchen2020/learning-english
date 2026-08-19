@@ -269,6 +269,11 @@ export default class PlanPage {
     await this.page.waitForSelector('[data-component="PlanAppliedSuccess"]', { timeout: 30000 });
   }
 
+  /** AI-801：应用成功后留在 /plan；点「回首页」按钮跳到 Home（不再自动跳转）。 */
+  async clickGoHome(): Promise<void> {
+    await this.page.locator('button[data-action="go-home"]').click();
+  }
+
   /** AI-801：应用成功后「生成配套课程」入口是否可见（GenerateCoursesBlock + 主按钮）。 */
   async isGenerateCoursesVisible(): Promise<boolean> {
     const block = this.page.locator('[data-component="GenerateCoursesBlock"]');

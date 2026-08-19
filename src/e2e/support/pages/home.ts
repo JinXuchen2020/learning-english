@@ -51,6 +51,14 @@ export default class HomePage {
     await this.page.locator('[data-component="CourseProgress"] a').first().click();
   }
 
+  /** 按标题点击课程卡（hasText 精确到卡片，避免 AI-801 生成的同名/近似课程干扰）。 */
+  async clickCourseNamed(title: string): Promise<void> {
+    await this.page
+      .locator('[data-component="CourseProgress"] a', { hasText: title })
+      .first()
+      .click();
+  }
+
   async completeFirstTask(): Promise<void> {
     const btn: Locator = this.page.locator('[data-component="DailyTasks"] button').first();
     await btn.click();
