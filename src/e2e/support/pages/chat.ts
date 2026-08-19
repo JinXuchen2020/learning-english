@@ -9,64 +9,70 @@ import { Locator, Page } from "@playwright/test";
 
 /** Inject a fake microphone + MediaRecorder so SpeechRecorder can run headless.
  *  Uses Object.defineProperty because navigator.mediaDevices/MediaRecorder are
- *  read-only accessors in Chromium — a plain assignment is silently dropped. */
-function fakeMicrophoneScript(): void {
-  const fakeStream = {
-    getTracks: () => [{ stop: () => {} }],
-    getAudioTracks: () => [{ stop: () => {} }],
-    getVideoTracks: () => [],
-  } as unknown as MediaStream;
-  const fakeGetUserMedia = async (): Promise<MediaStream> => fakeStream;
+ *  read-only accessors in Chromium — a plain assignment is silently dropped.
+ *
+ *  NOTE: This must stay a STRING, not a function: tsx/esbuild's keepNames
+ *  transform injects `__name()` helper calls into function bodies, and
+ *  Playwright's addInitScript serializes functions via toString() — so a
+ *  compiled function would ship a `__name is not defined` ReferenceError into
+ *  every page and the fake would never install (AI-802 CI regression). */
+const fakeMicrophoneScript = `
+const fakeStream = {
+  getTracks: () => [{ stop: () => {} }],
+  getAudioTracks: () => [{ stop: () => {} }],
+  getVideoTracks: () => [],
+};
+const fakeGetUserMedia = async () => fakeStream;
 
-  const defineOrAssign = (target: any, key: string, value: unknown) => {
-    try {
-      Object.defineProperty(target, key, {
-        configurable: true,
-        writable: true,
-        value,
-      });
-    } catch {
-      try {
-        target[key] = value;
-      } catch {
-        /* best-effort */
-      }
-    }
-  };
-
+const defineOrAssign = (target, key, value) => {
   try {
-    if (!navigator.mediaDevices) {
-      defineOrAssign(navigator, "mediaDevices", {});
-    }
-    defineOrAssign(navigator.mediaDevices, "getUserMedia", fakeGetUserMedia);
+    Object.defineProperty(target, key, {
+      configurable: true,
+      writable: true,
+      value,
+    });
   } catch {
-    /* best-effort */
-  }
-
-  class FakeMediaRecorder {
-    state = "inactive";
-    ondataavailable: ((e: { data: Blob }) => void) | null = null;
-    onstop: (() => void) | null = null;
-    onerror: ((e: unknown) => void) | null = null;
-    static isTypeSupported(_t: string): boolean {
-      return true;
-    }
-    constructor(_stream: MediaStream) {
-      this.state = "inactive";
-    }
-    start(): void {
-      this.state = "recording";
-    }
-    stop(): void {
-      this.state = "inactive";
-      const blob = new Blob([new Uint8Array(1024)], { type: "audio/webm" });
-      if (this.ondataavailable) this.ondataavailable({ data: blob });
-      if (this.onstop) this.onstop();
+    try {
+      target[key] = value;
+    } catch {
+      /* best-effort */
     }
   }
+};
 
-  defineOrAssign(window, "MediaRecorder", FakeMediaRecorder);
+try {
+  if (!navigator.mediaDevices) {
+    defineOrAssign(navigator, "mediaDevices", {});
+  }
+  defineOrAssign(navigator.mediaDevices, "getUserMedia", fakeGetUserMedia);
+} catch {
+  /* best-effort */
 }
+
+class FakeMediaRecorder {
+  state = "inactive";
+  ondataavailable = null;
+  onstop = null;
+  onerror = null;
+  static isTypeSupported() {
+    return true;
+  }
+  constructor() {
+    this.state = "inactive";
+  }
+  start() {
+    this.state = "recording";
+  }
+  stop() {
+    this.state = "inactive";
+    const blob = new Blob([new Uint8Array(1024)], { type: "audio/webm" });
+    if (this.ondataavailable) this.ondataavailable({ data: blob });
+    if (this.onstop) this.onstop();
+  }
+}
+
+defineOrAssign(window, "MediaRecorder", FakeMediaRecorder);
+`;
 
 /**
  * Inject a fake SpeechRecognition so the AI-802 voice-input button is
@@ -75,75 +81,71 @@ function fakeMicrophoneScript(): void {
  * `window.__SPEECH_FINAL__` (default "Hello Foxy") — no real audio needed.
  * It does NOT auto-onend (stays "listening" until stop()), so the E2E can
  * assert the listening state and the transcribed text without a restart loop.
+ *
+ * NOTE: Must stay a STRING, not a function — see fakeMicrophoneScript.
  */
-function fakeSpeechRecognitionScript(): void {
-  const defineOrAssign = (target: any, key: string, value: unknown) => {
+const fakeSpeechRecognitionScript = `
+const defineOrAssign = (target, key, value) => {
+  try {
+    Object.defineProperty(target, key, {
+      configurable: true,
+      writable: true,
+      value,
+    });
+  } catch {
     try {
-      Object.defineProperty(target, key, {
-        configurable: true,
-        writable: true,
-        value,
-      });
+      target[key] = value;
     } catch {
-      try {
-        target[key] = value;
-      } catch {
-        /* best-effort */
-      }
-    }
-  };
-
-  class FakeSpeechRecognition {
-    lang = "";
-    continuous = false;
-    interimResults = false;
-    maxAlternatives = 1;
-    onresult: ((e: unknown) => void) | null = null;
-    onerror: ((e: unknown) => void) | null = null;
-    onend: (() => void) | null = null;
-    onstart: (() => void) | null = null;
-    private timer: ReturnType<typeof setTimeout> | null = null;
-
-    start(): void {
-      this.timer = setTimeout(() => {
-        const finalText =
-          (window as unknown as { __SPEECH_FINAL__?: string }).__SPEECH_FINAL__ ||
-          "Hello Foxy";
-        const result: any = {
-          isFinal: true,
-          length: 1,
-          "0": { transcript: finalText, confidence: 0.9 },
-          item(i: number) {
-            return this[i];
-          },
-        };
-        const results: any = {
-          length: 1,
-          "0": result,
-          item(i: number) {
-            return this[i];
-          },
-        };
-        if (this.onresult) this.onresult({ resultIndex: 0, results });
-      }, 0);
-    }
-
-    stop(): void {
-      if (this.timer) {
-        clearTimeout(this.timer);
-        this.timer = null;
-      }
-      if (this.onend) this.onend();
-    }
-
-    abort(): void {
-      this.stop();
+      /* best-effort */
     }
   }
+};
 
-  defineOrAssign(window, "SpeechRecognition", FakeSpeechRecognition);
-  defineOrAssign(window, "webkitSpeechRecognition", FakeSpeechRecognition);
+class FakeSpeechRecognition {
+  lang = "";
+  continuous = false;
+  interimResults = false;
+  maxAlternatives = 1;
+  onresult = null;
+  onerror = null;
+  onend = null;
+  onstart = null;
+  timer = null;
+
+  start() {
+    this.timer = setTimeout(() => {
+      const finalText = window.__SPEECH_FINAL__ || "Hello Foxy";
+      const result = {
+        isFinal: true,
+        length: 1,
+        "0": { transcript: finalText, confidence: 0.9 },
+        item(i) { return this[i]; },
+      };
+      const results = {
+        length: 1,
+        "0": result,
+        item(i) { return this[i]; },
+      };
+      if (this.onresult) this.onresult({ resultIndex: 0, results });
+    }, 0);
+  }
+
+  stop() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.onend) this.onend();
+  }
+
+  abort() {
+    this.stop();
+  }
 }
+
+defineOrAssign(window, "SpeechRecognition", FakeSpeechRecognition);
+defineOrAssign(window, "webkitSpeechRecognition", FakeSpeechRecognition);
+`;
 
 /**
  * Disable SpeechRecognition entirely (for the "unsupported" path).
@@ -152,26 +154,29 @@ function fakeSpeechRecognitionScript(): void {
  * would still see a ctor + localhost secure context and render the ENABLED mic
  * button, breaking the "disabled when unsupported" scenario. Overwrite both
  * ctors with `undefined` to simulate Firefox / non-secure context.
+ *
+ * NOTE: Must stay a STRING, not a function — see fakeMicrophoneScript.
  */
-function disableSpeechRecognitionScript(): void {
-  const defineOrAssign = (target: any, key: string, value: unknown) => {
+const disableSpeechRecognitionScript = `
+const defineOrAssign = (target, key, value) => {
+  try {
+    Object.defineProperty(target, key, {
+      configurable: true,
+      writable: true,
+      value,
+    });
+  } catch {
     try {
-      Object.defineProperty(target, key, {
-        configurable: true,
-        writable: true,
-        value,
-      });
+      target[key] = value;
     } catch {
-      try {
-        target[key] = value;
-      } catch {
-        /* best-effort */
-      }
+      /* best-effort */
     }
-  };
-  defineOrAssign(window, "SpeechRecognition", undefined);
-  defineOrAssign(window, "webkitSpeechRecognition", undefined);
-}
+  }
+};
+
+defineOrAssign(window, "SpeechRecognition", undefined);
+defineOrAssign(window, "webkitSpeechRecognition", undefined);
+`;
 
 export default class ChatPage {
   private page: Page;
