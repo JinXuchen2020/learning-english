@@ -4,21 +4,25 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { CoursesService } from './courses.service';
 import { Course } from '../entities/course.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { Word } from '../entities/word.entity';
 import { LessonProgress } from '../entities/lesson-progress.entity';
 
 describe('CoursesService', () => {
   let service: CoursesService;
   let coursesRepo: any;
+  let lessonsRepo: any;
   let progressRepo: any;
 
   beforeEach(async () => {
     coursesRepo = { find: jest.fn(), findOne: jest.fn() };
+    lessonsRepo = { findOne: jest.fn() };
     progressRepo = { find: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
         CoursesService,
         { provide: getRepositoryToken(Course), useValue: coursesRepo },
-        { provide: getRepositoryToken(Lesson), useValue: {} },
+        { provide: getRepositoryToken(Lesson), useValue: lessonsRepo },
+        { provide: getRepositoryToken(Word), useValue: {} },
         { provide: getRepositoryToken(LessonProgress), useValue: progressRepo },
       ],
     }).compile();
@@ -69,5 +73,62 @@ describe('CoursesService', () => {
     expect(res.lessons[1].state).toBe('available');
     expect(res.lessons[2].state).toBe('locked');
     expect(res.completedLessons).toBe(1);
+  });
+
+  describe('getCatalog (AI-803)', () => {
+    it('maps courses + lessons with real ids and safe skill/level defaults', async () => {
+      coursesRepo.find.mockResolvedValue([
+        {
+          id: 'c1',
+          title: 'Animals',
+          lessons: [
+            { id: 'l1', title: 'L1', estimatedMinutes: 6 },
+            { id: 'l2', title: 'L2', estimatedMinutes: 4 },
+          ],
+        },
+      ]);
+      const cat = await service.getCatalog();
+      expect(coursesRepo.find).toHaveBeenCalledWith({
+        order: { sortOrder: 'ASC' },
+        relations: ['lessons'],
+      });
+      expect(cat.courses).toEqual([{ courseId: 'c1', title: 'Animals' }]);
+      expect(cat.lessons).toHaveLength(2);
+      expect(cat.lessons[0]).toMatchObject({
+        lessonId: 'l1',
+        courseId: 'c1',
+        title: 'L1',
+        estimatedMinutes: 6,
+      });
+      // 目录未逐课时持久化 skillType/level → 安全默认值（仅提示用，不进导航）。
+      expect(cat.lessons[0].skillType).toBe('vocab');
+      expect(cat.lessons[0].level).toBe('a1');
+    });
+
+    it('returns empty catalog when no courses', async () => {
+      coursesRepo.find.mockResolvedValue([]);
+      const cat = await service.getCatalog();
+      expect(cat.courses).toEqual([]);
+      expect(cat.lessons).toEqual([]);
+    });
+  });
+
+  describe('lessonExists / courseExists (AI-803)', () => {
+    it('lessonExists true when found', async () => {
+      lessonsRepo.findOne.mockResolvedValue({ id: 'l1' });
+      expect(await service.lessonExists('l1')).toBe(true);
+      expect(lessonsRepo.findOne).toHaveBeenCalledWith({ where: { id: 'l1' } });
+    });
+
+    it('lessonExists false when missing or empty', async () => {
+      lessonsRepo.findOne.mockResolvedValue(null);
+      expect(await service.lessonExists('nope')).toBe(false);
+      expect(await service.lessonExists('')).toBe(false);
+    });
+
+    it('courseExists true when found', async () => {
+      coursesRepo.findOne.mockResolvedValue({ id: 'c1' });
+      expect(await service.courseExists('c1')).toBe(true);
+    });
   });
 });

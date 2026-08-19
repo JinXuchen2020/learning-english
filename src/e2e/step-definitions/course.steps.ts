@@ -9,6 +9,11 @@ When("I click the first course card", async function (this: E2EWorld) {
   await home.clickFirstCourse();
 });
 
+When("I click the course named {string}", async function (this: E2EWorld, title: string) {
+  const home = new HomePage(this.page, this.baseUrl);
+  await home.clickCourseNamed(title);
+});
+
 Then("I should see the course detail with a lesson list", async function (this: E2EWorld) {
   const course = new CoursePage(this.page);
   await course.waitDetail();

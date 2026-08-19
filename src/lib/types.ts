@@ -116,6 +116,12 @@ export interface DailyTask {
   completed: boolean;
   /** AI-605：注入的复习任务携带原词文本，用于深链 `/practice?focusWord=`。 */
   reviewWordText?: string;
+  /** AI-803：引用真实课时（前端深链 /practice?lessonId= 用）。无引用为 undefined。 */
+  courseId?: string;
+  lessonId?: string;
+  skillType?: string;
+  /** AI-803：任务来源（plan/catalog/manual）。全局种子为 undefined。 */
+  source?: string;
 }
 
 /** 句子跟读库条目（AI-309，后端 `sentences` 表）。 */
@@ -203,6 +209,25 @@ export interface GeneratePlanDto {
   useTemplate?: boolean;
 }
 
+/** 流式计划生成错误码（与后端 `PlanStreamEvent` 对齐，AI-804）。 */
+export type PlanStreamErrorCode =
+  | "PLAN_INVALID_JSON"
+  | "PLAN_SCHEMA_INVALID"
+  | "PLAN_TRUNCATED"
+  | "AI_ERROR"
+  | "STREAM_UNSUPPORTED";
+
+/**
+ * 流式计划生成事件（与后端 `PlanStreamEvent` 联合对齐，AI-804）。
+ * 前端 `generatePlanStream` 逐事件回调；流仅用于展示，结构化计划只在 `done` 交付。
+ */
+export type PlanStreamEvent =
+  | { type: "start" }
+  | { type: "token"; text: string }
+  | { type: "progress"; phase: "thinking" | "writing" | "done"; note?: string }
+  | { type: "done"; plan: GeneratedPlan; model: string }
+  | { type: "error"; code: PlanStreamErrorCode; message: string };
+
 /** `POST /api/ai/plan/save` 请求体（AI-206，字段名/类型与后端 `SavePlanDto` 对齐）。 */
 export interface SavePlanDto {
   childId: string;
@@ -238,6 +263,21 @@ export interface PlanStatusResponse {
   completionRatio: number;
   planId?: string;
   appliedAt?: string;
+}
+
+/** `POST /api/ai/plan/:id/generate-courses` 请求体（AI-801）。 */
+export interface GenerateCoursesDto {
+  wordsPerLesson?: number; // 3-8，缺省 5
+}
+
+/** `POST /api/ai/plan/:id/generate-courses` 响应（AI-801）。 */
+export interface GenerateCoursesResponse {
+  courseId: string;
+  title: string;
+  lessonCount: number;
+  wordCount: number;
+  degraded: boolean;
+  model: string;
 }
 
 /* ----------------------- AI Speech (AI-307) ----------------------- */

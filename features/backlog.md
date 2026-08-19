@@ -70,7 +70,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/courses` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | todo | 见 `features/ai-801.md` |
+| AI-801 | **学习计划→课程生成** — 定制计划后按主题/兴趣/等级生成 Course+Lesson+Word（AI 结构化产出 + Schema 校验 + 模板降级），落库后 `/course` 可学；新增 `POST /api/ai/plan/:id/generate-courses` | P1 | AI-202, AI-206, 现有 CoursesModule | done | 见 `features/ai-801.md`（验收全绿；E2E 专属场景 + 相对计数断言，user-accepted-ci 交 CI e2e job 实跑） |
 
 ---
 
@@ -78,7 +78,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | todo | 见 `features/ai-802.md` |
+| AI-802 | **聊天语音输入** — `/chat` 受控 `<textarea>` 加 🎤 按钮，启动浏览器 `SpeechRecognition`(lang=en-US, interimResults, continuous) 实时英文听写，最终文本追加进输入框（发送前可编辑）、中间结果实时预览；不支持浏览器(Firefox/非安全上下文)自动降级隐藏/禁用并提示；新增 `src/lib/useSpeechDictation.ts` hook 复用已声明 `SpeechRecognition` 类型，零新增依赖；补全 Chat 命名空间中英 i18n 键 | P1 | 现有 `/chat` 页, `src/types/speech-recognition.d.ts` | done | 见 `features/ai-802.md` |
 
 ---
 
@@ -89,7 +89,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-803 | **学习计划→真实课程引用落地与学习导航** — 把计划内每节 lesson 的 `courseId`/`lessonId` 从 `StudyPlanDay.content` 文本里**提为正式引用并落库**；`savePlan`/`applyPlan` 按注入目录（`CoursesService`）校验 id 真实存在（**缺失则降级为无深链的通用任务，不整计划失败**，符合「出错即抛」仅限生成期、保存期容错）；`StudyPlanDay`/`DailyTask` 新增 `courseId`/`lessonId`/`skillType` 列；前端每日任务按 `skillType`+id 深链到对应课时（`vocab/listen/write` → `/practice?lessonId=` 或 `/course/<courseId>`、`speak` → `/speech`），让孩子「点哪天就上那节课」而非孤立排期 | P1 | AI-206, 现有 CoursesModule, AI-209, AI-707 | todo | 见 `features/ai-803.md` |
+| AI-803 | **学习计划→真实课程引用落地与学习导航** — 把计划内每节 lesson 的 `courseId`/`lessonId` 从 `StudyPlanDay.content` 文本里**提为正式引用并落库**；`generatePlan` 注入真实课程目录（`CoursesService.getCatalog`）让 AI 产出真实 UUID；`applyPlan` 按注入目录校验 id 真实存在（**缺失则降级为无深链的通用任务，不整计划失败**，保存期容错、生成期仍「出错即抛」）；`StudyPlanDay`/`DailyTask` 新增 `courseId`/`lessonId`/`skillType`/`source` 列；前端每日任务按 `skillType`+id 深链到对应课时（`vocab/listen/write` → `/practice?lessonId=` 或 `/course/<courseId>`、`speak` → `/speech`），让孩子「点哪天就上那节课」而非孤立排期 | P1 | AI-206, 现有 CoursesModule, AI-209, AI-707, AI-801 | done | 见 `features/ai-803.md` |
 
 ---
 
@@ -194,7 +194,7 @@
 
 | ID | Feature | 优先级 | 依赖 | 状态 | 验收标准 |
 |---|---|---|---|---|---|
-| AI-804 | **学习计划生成流式显示** — `PlanService.generatePlanStream` 经 provider 新增 `streamChat`(AsyncIterable, SSE delta) 流式产出逐字文本；`PlanController` 新增 `POST /api/ai/plan/generate/stream` 返回 `text/event-stream`（`start`/`token`/`progress`/`done`/`error` 事件）；前端 `/plan` 页实时显示「狐狸老师正在构思…」渐进草稿，终态切结构化预览并启用保存；流仅展示、末端仍 `extractJson`+`validatePlan` 校验（出错即抛 error 事件，不静默模板）；支持 `AbortController` 取消；原非流式 `generate` 端点保留；附带缓解 Vercel 504 白屏体感 | P1 | AI-204(extractJson/validatePlan), AI-101/AI-102(openai-compatible provider) | todo | 见 `features/ai-804.md` |
+| AI-804 | **学习计划生成流式显示** — `PlanService.generatePlanStream` 经 provider 新增 `streamChat`(AsyncIterable, SSE delta) 流式产出逐字文本；`PlanController` 新增 `POST /api/ai/plan/generate/stream` 返回 `text/event-stream`（`start`/`token`/`progress`/`done`/`error` 事件）；前端 `/plan` 页实时显示「狐狸老师正在构思…」渐进草稿，终态切结构化预览并启用保存；流仅展示、末端仍 `extractJson`+`validatePlan` 校验（出错即抛 error 事件，不静默模板）；支持 `AbortController` 取消；原非流式 `generate` 端点保留；附带缓解 Vercel 504 白屏体感 | P1 | AI-204(extractJson/validatePlan), AI-101/AI-102(openai-compatible provider) | done | 见 `features/ai-804.md` |
 
 ---
 
@@ -211,7 +211,7 @@
 | **Milestone 6** (W7+) | AI-601 ~ AI-606 | 自适应与内容生成增强 |
 | **Milestone 7** (W7+) | AI-701 ~ AI-706 | Home 奖励卡 + 家长 PIN 审批 + 测验变体 + AI 提供商家长配置 + 多语言化 |
 | **Milestone 8** (W8+) | AI-710 ~ AI-712 | 家庭绑定（建/认领孩子）+ 每孩独立 provider（可选）+ 多孩子进度总览 |
-| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/courses` 可学 |
+| **Milestone 9** (W9+) | AI-801 | 定制计划→生成配套课程（Course+Lesson+Word），`/course` 可学 |
 | **Milestone 10** (W10+) | AI-802 | 聊天语音输入（`/chat` 麦克风实时英文听写 + Firefox/非安全上下文降级） |
 | **Milestone 11** (W11+) | AI-803 | 计划→真实课程引用落地与导航（courseId/lessonId 落库+校验+前端深链「点哪天上哪节」） |
 

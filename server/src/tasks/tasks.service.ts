@@ -19,6 +19,12 @@ export interface PlanTaskEntry {
   userId: string;
   planDayId: string;
   date: string;
+  /** AI-803：引用真实课时（导航深链 /practice?lessonId=）。无引用为 null。 */
+  courseId?: string | null;
+  lessonId?: string | null;
+  skillType?: string | null;
+  /** AI-803：任务来源（plan/catalog/manual）。全局种子为 null。 */
+  source?: string | null;
 }
 
 /** 当日任务返回给前端的视图模型（含 AI-605 注入的复习项）。 */
@@ -30,6 +36,11 @@ export interface DailyTaskView {
   completed: boolean;
   /** AI-605：注入的到期复习项携带原词文本，前端据此渲染为 /practice?focusWord= 深链。 */
   reviewWordText?: string;
+  /** AI-803：引用真实课时（前端深链用）。无引用为 null/undefined。 */
+  courseId?: string | null;
+  lessonId?: string | null;
+  skillType?: string | null;
+  source?: string | null;
 }
 
 @Injectable()
@@ -73,6 +84,10 @@ export class TasksService {
       description: task.description,
       icon: task.icon,
       completed: completedIds.has(task.id),
+      courseId: task.courseId ?? null,
+      lessonId: task.lessonId ?? null,
+      skillType: task.skillType ?? null,
+      source: task.source ?? null,
     }));
 
     // AI-605：把「到期/今日待复习」单词作为复习任务注入当日任务列表（不落库，现场附加）。

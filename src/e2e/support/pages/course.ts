@@ -19,4 +19,16 @@ export default class CoursePage {
     // Lesson rows are the direct children of the .space-y-3 container inside LessonList.
     return this.page.locator('[data-component="LessonList"] .space-y-3 > *').count();
   }
+
+  /** Navigate to the course list (locale-agnostic; middleware adds the prefix) and
+   *  wait until it has mounted (post data-load, so cards are present). */
+  async openCourseList(baseUrl: string): Promise<void> {
+    await this.page.goto(`${baseUrl}/course`);
+    await this.page.waitForSelector('[data-component="CourseList"]', { timeout: 30000 });
+  }
+
+  /** Number of course cards currently rendered in the list (each card is an <a>). */
+  async courseCount(): Promise<number> {
+    return this.page.locator('[data-component="CourseList"] a').count();
+  }
 }

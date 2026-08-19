@@ -19,6 +19,11 @@ module.exports = {
     // 升至 ~91.5% 全门槛过。
     '!src/migrations/**',
   ],
+  // Windows 下 collectCoverageFrom 的否定 glob 对 migrations 目录匹配失效（实测
+  // src/migrations 下 3 个迁移文件仍被收集，贡献 20 个未覆盖函数致 functions
+  // 88.96% < 90% 挂 CI），追加 coveragePathIgnorePatterns 按（绝对）路径正则兜底，
+  // 正/反斜杠分隔均可命中。
+  coveragePathIgnorePatterns: ['/node_modules/', '[\\\\/]migrations[\\\\/]'],
   coverageDirectory: './coverage',
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/test/setup.ts'],

@@ -14,64 +14,70 @@ import { Locator, Page } from "@playwright/test";
  *  are read-only accessors in Chromium — a plain assignment is silently
  *  dropped, which is exactly why the real getUserMedia then threw
  *  NotAllowedError. The launch flags in hooks.ts are the primary fix; this is
- *  a deterministic belt-and-suspenders so the recording produces a fixed blob. */
-function fakeMicrophoneScript(): void {
-  const fakeStream = {
-    getTracks: () => [{ stop: () => {} }],
-    getAudioTracks: () => [{ stop: () => {} }],
-    getVideoTracks: () => [],
-  } as unknown as MediaStream;
-  const fakeGetUserMedia = async (): Promise<MediaStream> => fakeStream;
+ *  a deterministic belt-and-suspenders so the recording produces a fixed blob.
+ *
+ *  NOTE: Must stay a STRING, not a function: tsx/esbuild's keepNames transform
+ *  injects `__name()` helper calls into function bodies, and Playwright's
+ *  addInitScript serializes functions via toString() — a compiled function
+ *  would ship a `__name is not defined` ReferenceError into every page and the
+ *  fake would never install (AI-802 CI regression). */
+const fakeMicrophoneScript = `
+const fakeStream = {
+  getTracks: () => [{ stop: () => {} }],
+  getAudioTracks: () => [{ stop: () => {} }],
+  getVideoTracks: () => [],
+};
+const fakeGetUserMedia = async () => fakeStream;
 
-  const defineOrAssign = (target: any, key: string, value: unknown) => {
-    try {
-      Object.defineProperty(target, key, {
-        configurable: true,
-        writable: true,
-        value,
-      });
-    } catch {
-      try {
-        target[key] = value;
-      } catch {
-        /* best-effort: launch flags in hooks.ts cover this case */
-      }
-    }
-  };
-
+const defineOrAssign = (target, key, value) => {
   try {
-    if (!navigator.mediaDevices) {
-      defineOrAssign(navigator, "mediaDevices", {});
-    }
-    defineOrAssign(navigator.mediaDevices, "getUserMedia", fakeGetUserMedia);
+    Object.defineProperty(target, key, {
+      configurable: true,
+      writable: true,
+      value,
+    });
   } catch {
-    /* best-effort */
-  }
-
-  class FakeMediaRecorder {
-    state = "inactive";
-    ondataavailable: ((e: { data: Blob }) => void) | null = null;
-    onstop: (() => void) | null = null;
-    onerror: ((e: unknown) => void) | null = null;
-    static isTypeSupported(_t: string): boolean {
-      return true;
-    }
-    constructor(_stream: MediaStream) {
-      this.state = "inactive";
-    }
-    start(): void {
-      this.state = "recording";
-    }
-    stop(): void {
-      this.state = "inactive";
-      const blob = new Blob([new Uint8Array(1024)], { type: "audio/webm" });
-      if (this.ondataavailable) this.ondataavailable({ data: blob });
-      if (this.onstop) this.onstop();
+    try {
+      target[key] = value;
+    } catch {
+      /* best-effort: launch flags in hooks.ts cover this case */
     }
   }
+};
 
-  defineOrAssign(window, "MediaRecorder", FakeMediaRecorder);
+try {
+  if (!navigator.mediaDevices) {
+    defineOrAssign(navigator, "mediaDevices", {});
+  }
+  defineOrAssign(navigator.mediaDevices, "getUserMedia", fakeGetUserMedia);
+} catch {
+  /* best-effort */
 }
+
+class FakeMediaRecorder {
+  state = "inactive";
+  ondataavailable = null;
+  onstop = null;
+  onerror = null;
+  static isTypeSupported() {
+    return true;
+  }
+  constructor() {
+    this.state = "inactive";
+  }
+  start() {
+    this.state = "recording";
+  }
+  stop() {
+    this.state = "inactive";
+    const blob = new Blob([new Uint8Array(1024)], { type: "audio/webm" });
+    if (this.ondataavailable) this.ondataavailable({ data: blob });
+    if (this.onstop) this.onstop();
+  }
+}
+
+defineOrAssign(window, "MediaRecorder", FakeMediaRecorder);
+`;
 
 export default class SpeechPage {
   private page: Page;

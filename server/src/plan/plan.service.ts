@@ -11,13 +11,18 @@ import { Repository } from 'typeorm';
 import { AiProvider, AI_PROVIDER_TOKEN, ChatMessage, ChatOptions, ChatResult } from '../ai/ai-provider.interface';
 import { GeneratePlanDto } from './dto/generate-plan.dto';
 import { SavePlanDto } from './dto/save-plan.dto';
-import { GeneratePlanResponse, GeneratedPlan, PlanDay, PlanStatusResult } from './plan.types';
+import { GeneratePlanResponse, GeneratedPlan, PlanDay, PlanStatusResult, PlanCatalog, PlanStreamEvent } from './plan.types';
 import { PLAN_SYSTEM_PROMPT, buildPlanUserPrompt } from './plan-agent.prompt';
 import { validatePlan } from './plan-schema';
 import { buildFallbackPlan } from './plan-template';
 import { StudyPlan, StudyPlanSkillType, STUDY_PLAN_SKILL_TYPES } from './study-plan.entity';
 import { StudyPlanDay } from './study-plan-day.entity';
-import { TasksService } from '../tasks/tasks.service';
+import { TasksService, PlanTaskEntry } from '../tasks/tasks.service';
+import { CoursesService } from '../courses/courses.service';
+import { validateCoursePlan, CoursePlanSpec } from './courses-from-plan.schema';
+import { buildFallbackCoursePlan, CourseSpecSeed } from './courses-from-plan.template';
+import { COURSE_FROM_PLAN_SYSTEM_PROMPT, buildCourseFromPlanUserPrompt } from './courses-from-plan.prompt';
+import { GenerateCoursesResponse } from './plan.types';
 
 /** `savePlan` 返回（AI-206）。 */
 export interface SavePlanResult {
@@ -65,6 +70,7 @@ export class PlanService {
     @InjectRepository(StudyPlan) private readonly planRepo: Repository<StudyPlan>,
     @InjectRepository(StudyPlanDay) private readonly dayRepo: Repository<StudyPlanDay>,
     private readonly tasksService: TasksService,
+    private readonly coursesService: CoursesService,
   ) {}
 
   /**
@@ -82,7 +88,7 @@ export class PlanService {
       return { plan: buildFallbackPlan(dto), model: 'template', degraded: false };
     }
 
-    const messages = this.buildMessages(dto);
+    const messages = await this.buildMessages(dto);
     // 关键修复（plan 504 真因）：
     // 1) 关闭推理链 thinking —— 种子 extraBody 的 enable_thinking:true 会产生大量思考 token
     //    并拖慢生成（实测单次 14.9s/37.6s），调用层用同结构 extraBody 覆盖关闭，避免思考
@@ -140,6 +146,92 @@ export class PlanService {
   }
 
   /**
+   * 流式生成学习计划（AI-804）。
+   *
+   * 与非流式 `generatePlan` 共享「末端 `extractJson`+`validatePlan` 校验、出错即抛」口径，
+   * 但过程以事件流逐步吐出，供前端做「正在生成…」渐进展示，缓解长等待白屏（及 Vercel 504 体感）。
+   *
+   * 事件序列：`start` →（可选 `progress:thinking`）→ 逐 `token` → `progress:writing`
+   * → `done(plan)`；任何失败以 `error` 事件收尾（provider 抛 `PLAN_TRUNCATED` 映射该 code，
+   * 其它异常映射 `AI_ERROR`），不向上抛——SSE 已无法回 HTTP 状态，错误走事件通道。
+   *
+   * @param dto 经 class-validator 校验后的请求体
+   * @param signal 可选取消信号（前端 `AbortController.abort()` 透传，中断底层 fetch 流）
+   */
+  async *generatePlanStream(
+    dto: GeneratePlanDto,
+    signal?: AbortSignal,
+  ): AsyncGenerator<PlanStreamEvent> {
+    // 用户主动选模板 → 跳过 LLM，直出模板计划（与 generatePlan 一致，degraded:false）。
+    if (dto.useTemplate) {
+      yield { type: 'start' };
+      yield { type: 'done', plan: buildFallbackPlan(dto), model: 'template' };
+      return;
+    }
+
+    const messages = await this.buildMessages(dto);
+    const options: ChatOptions & { signal?: AbortSignal } = {
+      temperature: 0.4,
+      maxTokens: 8000,
+      extraBody: { chat_template_kwargs: { enable_thinking: false } },
+      timeoutMs: 55_000,
+      maxAttempts: 1,
+      signal,
+    };
+
+    const streamFn = this.ai.streamChat?.bind(this.ai);
+    if (!streamFn) {
+      yield {
+        type: 'error',
+        code: 'STREAM_UNSUPPORTED',
+        message: '当前 provider 不支持流式生成，请改用非流式生成接口',
+      };
+      return;
+    }
+
+    yield { type: 'start' };
+    yield { type: 'progress', phase: 'thinking' };
+
+    let fullText = '';
+    try {
+      for await (const chunk of streamFn(messages, options)) {
+        fullText += chunk;
+        yield { type: 'token', text: chunk };
+      }
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      const code = err?.code === 'PLAN_TRUNCATED' ? 'PLAN_TRUNCATED' : 'AI_ERROR';
+      this.logger.error('[Plan] 流式生成 provider 异常（%s）：%s', code, err?.message ?? e);
+      yield { type: 'error', code, message: err?.message ?? '学习计划生成失败' };
+      return;
+    }
+
+    yield { type: 'progress', phase: 'writing' };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(extractJson(fullText));
+    } catch {
+      this.logger.error('[Plan] 流式 AI 返回内容不是合法 JSON：%s', fullText.slice(0, 500));
+      yield { type: 'error', code: 'PLAN_INVALID_JSON', message: '模型未返回合法 JSON' };
+      return;
+    }
+
+    const validation = validatePlan(parsed);
+    if (!validation.ok) {
+      this.logger.error('[Plan] 流式 AI 返回 JSON 不符合结构：%s', validation.errors.join('; '));
+      yield {
+        type: 'error',
+        code: 'PLAN_SCHEMA_INVALID',
+        message: `结构校验未通过：${validation.errors.join('; ')}`,
+      };
+      return;
+    }
+
+    yield { type: 'done', plan: validation.value!, model: options.model ?? 'ai' };
+  }
+
+  /**
    * 持久化生成计划为草稿（AI-206）。
    * @param dto `{ childId, plan }`
    * @returns 落库后的 `{ id, status }`
@@ -191,15 +283,36 @@ export class PlanService {
     plan.status = 'applied';
     await this.planRepo.save(plan); // cascade 更新 days（含 date）
 
-    const entries = days.map((day) => ({
-      title: day.title,
-      description: summarizeDay(day),
-      icon: iconForSkill(day.skillType),
-      sortOrder: day.dayIndex,
-      userId: plan.userId,
-      planDayId: day.id,
-      date: day.date!,
-    }));
+    // AI-803：每天按「每节一课」拆成独立 DailyTask（Plan A）。每个 lessonRef 校验
+    // 真实存在性：有效 → 写入 courseId/lessonId/skillType（前端可深链）；无效/缺失 →
+    // 降级为无深链的通用任务（不整计划失败，符合「保存期容错、生成期严格」）。
+    const entries: PlanTaskEntry[] = [];
+    let order = 0;
+    for (const day of days) {
+      const refs = parseLessonRefs(day);
+      if (refs.length === 0) {
+        entries.push(buildGenericEntry(day, order++, plan.userId));
+        continue;
+      }
+      for (const ref of refs) {
+        const valid = ref.lessonId
+          ? await this.coursesService.lessonExists(ref.lessonId)
+          : false;
+        entries.push({
+          title: ref.title || day.title,
+          description: ref.title || summarizeDay(day),
+          icon: iconForSkill((ref.skillType as StudyPlanSkillType) || day.skillType),
+          sortOrder: order++,
+          userId: plan.userId,
+          planDayId: day.id,
+          date: day.date!,
+          courseId: valid ? ref.courseId || null : null,
+          lessonId: valid ? ref.lessonId : null,
+          skillType: valid ? (ref.skillType || null) : null,
+          source: 'plan',
+        });
+      }
+    }
     await this.tasksService.replacePlanTasks(
       plan.userId,
       days.map((d) => d.id),
@@ -213,6 +326,90 @@ export class PlanService {
       appliedDays: days.length,
       tasksCreated: entries.length,
       appliedAt: today,
+    };
+  }
+
+  /**
+   * 由已保存计划生成配套课程（AI-801）：推导课程规格 → AI 产出结构化课程 →
+   * `validateCoursePlan` 校验/重试（≤3 次）→ 仍失败降级内置模板课程（degraded） →
+   * 经 `CoursesService.createCourseFromPlan` 事务落库 Course+Lesson+Word。
+   *
+   * 与 `generatePlan` 的「出错即抛」不同，本方法对**课程生成**采用「重试 + 模板降级」
+   * 策略：课程生成是「锦上添花」的写路径，宁可落一门结构合规的模板课程也不 500，
+   * 保证「生成配套课程」永远可用（AI 不可达/输出非法均返回 200 + degraded）。
+   * 单次 AI 调用 `timeoutMs` 18s、最多 3 次 = 最坏 54s < Vercel 60s，避免 504。
+   *
+   * @param id 已保存计划 UUID（StudyPlan）
+   * @param wordsPerLesson 每节单词数（3..8，缺省 5）
+   * @returns 落库课程响应（courseId/title/lessonCount/wordCount/degraded/model）
+   * @throws NotFoundException 计划不存在（code: PLAN_NOT_FOUND）
+   */
+  async generateCoursesForPlan(
+    id: string,
+    wordsPerLesson = 5,
+  ): Promise<GenerateCoursesResponse> {
+    const plan = await this.planRepo.findOne({ where: { id }, relations: ['days'] });
+    if (!plan) {
+      throw new NotFoundException({ code: 'PLAN_NOT_FOUND', message: '学习计划不存在' });
+    }
+
+    const seed = deriveCourseSpec(plan);
+    const options: ChatOptions = {
+      temperature: 0.5,
+      maxTokens: 4096,
+      extraBody: { chat_template_kwargs: { enable_thinking: false } },
+      timeoutMs: 18_000,
+      maxAttempts: 1,
+    };
+
+    let raw: CoursePlanSpec | null = null;
+    let degraded = false;
+    let model = 'template';
+
+    for (let attempt = 1; attempt <= 3 && !raw; attempt++) {
+      try {
+        const result = await this.ai.chat(
+          [
+            { role: 'system', content: COURSE_FROM_PLAN_SYSTEM_PROMPT },
+            { role: 'user', content: buildCourseFromPlanUserPrompt(seed, wordsPerLesson, attempt) },
+          ],
+          options,
+        );
+        model = result.model ?? model;
+        const parsed = JSON.parse(extractJson(result.text));
+        const validation = validateCoursePlan(parsed);
+        if (validation.ok) {
+          raw = validation.value!;
+        } else if (attempt === 3) {
+          this.logger.warn('[Plan] 课程生成连续 3 次结构校验失败，降级模板课程：%s', validation.errors.join('; '));
+        }
+      } catch (err) {
+        this.logger.warn('[Plan] 课程生成第 %d 次调用失败：%s', attempt, (err as Error).message);
+      }
+      if (!raw && attempt === 3) {
+        raw = buildFallbackCoursePlan(seed, wordsPerLesson);
+        degraded = true;
+      }
+    }
+
+    const created = await this.coursesService.createCourseFromPlan(raw!);
+    this.logger.log(
+      '[Plan] 已生成配套课程 %s（%d 节 / %d 词，degraded=%s）',
+      created.courseId,
+      created.lessonCount,
+      created.wordCount,
+      degraded,
+    );
+    // AI-803：把生成的课程 id 写回计划 lessons 引用，使后续 applyPlan 能导航到本课。
+    // 优雅降级：写回失败仅告警，不影响「课程已生成」主响应。
+    await writeBackGeneratedCourse(plan, created.courseId, this.coursesService, this.planRepo, this.logger);
+    return {
+      courseId: created.courseId,
+      title: raw!.course.title,
+      lessonCount: created.lessonCount,
+      wordCount: created.wordCount,
+      degraded,
+      model,
     };
   }
 
@@ -257,6 +454,16 @@ export class PlanService {
       day.skillType = d.skillType ?? firstSkillType([d]) ?? 'vocab';
       day.title = d.title ?? `第 ${i + 1} 天`;
       day.content = d.content ?? JSON.stringify(d.lessons ?? []);
+      // AI-803：把每节 lesson 的引用（courseId/lessonId/skillType/title）提取为可查询索引，
+      // 供 applyPlan 按节精准生成 daily_tasks 并校验真实存在性，无需每次解析 content。
+      day.lessonRefsJson = JSON.stringify(
+        (d.lessons ?? []).map((l) => ({
+          skillType: l.skillType ?? null,
+          courseId: l.courseId ?? null,
+          lessonId: l.lessonId ?? null,
+          title: l.title ?? null,
+        })),
+      );
       day.date = null;
       day.isDone = false;
       return day;
@@ -264,11 +471,22 @@ export class PlanService {
     return studyPlan;
   }
 
-  /** 组装 system + user 消息。system 用双语儿科友好 PlanAgent 提示词（AI-203）；user 含学习者画像、可选课程目录。 */
-  private buildMessages(dto: GeneratePlanDto): ChatMessage[] {
+  /**
+   * 组装 system + user 消息。system 用双语儿科友好 PlanAgent 提示词（AI-203）；
+   * user 含学习者画像 + **真实课程目录**（AI-803 注入，使 AI 产出真实可导航的
+   * lessonId/courseId）。目录获取失败（理论上不会，本地库）则降级为「无目录」分支，
+   * AI 产出空 id 占位，绝不阻断计划生成。
+   */
+  private async buildMessages(dto: GeneratePlanDto): Promise<ChatMessage[]> {
+    let catalog: PlanCatalog | undefined;
+    try {
+      catalog = await this.coursesService.getCatalog();
+    } catch (err) {
+      this.logger.warn('[Plan] 获取课程目录失败，计划将不含真实引用 id：%s', (err as Error).message);
+    }
     return [
       { role: 'system', content: PLAN_SYSTEM_PROMPT },
-      { role: 'user', content: buildPlanUserPrompt(dto) },
+      { role: 'user', content: buildPlanUserPrompt(dto, catalog) },
     ];
   }
 }
@@ -339,4 +557,158 @@ function addDays(isoDate: string, n: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().split('T')[0];
+}
+
+/** 计划节引用（AI-803）：从 `lessonRefsJson`/`content` 提取的精简结构。 */
+interface LessonRef {
+  skillType?: string | null;
+  courseId?: string | null;
+  lessonId?: string | null;
+  title?: string | null;
+}
+
+/**
+ * 从 `StudyPlanDay` 解析每节引用（AI-803）。优先读 `lessonRefsJson`（结构化索引），
+ * 缺失则回退解析 `content`（JSON 化的 lessons）；两者皆空/非法 → 返回空数组（走通用任务）。
+ */
+function parseLessonRefs(day: StudyPlanDay): LessonRef[] {
+  const tryParse = (raw?: string | null): LessonRef[] | null => {
+    if (!raw) return null;
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return null;
+      return arr.map((l: Record<string, unknown>) => ({
+        skillType: (l?.skillType as string) ?? null,
+        courseId: (l?.courseId as string) ?? null,
+        lessonId: (l?.lessonId as string) ?? null,
+        title: (l?.title as string) ?? null,
+      }));
+    } catch {
+      return null;
+    }
+  };
+  const fromRefs = tryParse(day.lessonRefsJson);
+  if (fromRefs && fromRefs.length) return fromRefs;
+  const fromContent = tryParse(day.content);
+  if (fromContent && fromContent.length) return fromContent;
+  return [];
+}
+
+/** 无引用时的通用计划任务条目（AI-803 兜底：每天 1 条、无深链，保留 AI-206 原行为）。 */
+function buildGenericEntry(day: StudyPlanDay, sortOrder: number, userId: string): PlanTaskEntry {
+  return {
+    title: day.title,
+    description: summarizeDay(day),
+    icon: iconForSkill(day.skillType),
+    sortOrder,
+    userId,
+    planDayId: day.id,
+    date: day.date!,
+    source: 'plan',
+  };
+}
+
+/**
+ * AI-803 写回：把 `generateCoursesForPlan` 生成的课程 id 回填到计划每天 lessons 的引用，
+ * 使后续 `applyPlan` 能导航到该生成课程的对应课时（计划天 i ↔ 生成课程课时 i，1:1）。
+ * 失败仅告警、绝不阻断课程生成主响应。
+ */
+async function writeBackGeneratedCourse(
+  plan: StudyPlan,
+  courseId: string,
+  coursesService: CoursesService,
+  planRepo: Repository<StudyPlan>,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const course = await coursesService.findOne(courseId);
+    const lessonIds = (course?.lessons ?? []).map((l) => l.id);
+    if (lessonIds.length === 0) return;
+    const days = (plan.days ?? []).slice().sort((a, b) => a.dayIndex - b.dayIndex);
+    for (let i = 0; i < days.length; i++) {
+      const day = days[i];
+      const lid = lessonIds[i];
+      if (!lid) continue;
+      const refs = parseLessonRefs(day);
+      const base: LessonRef[] =
+        refs.length > 0
+          ? refs
+          : [{ skillType: day.skillType, courseId: '', lessonId: '', title: day.title }];
+      const newRefs = base.map((r) => ({
+        skillType: r.skillType || day.skillType,
+        courseId,
+        lessonId: lid,
+        title: r.title || day.title,
+      }));
+      day.lessonRefsJson = JSON.stringify(newRefs);
+    }
+    await planRepo.save(plan); // cascade 更新 days（含 lessonRefsJson）
+  } catch (err) {
+    logger.warn('[Plan] 写回生成课程引用到计划失败（不影响课程生成）：%s', (err as Error).message);
+  }
+}
+
+/**
+ * 由 `StudyPlan`（含 days）推导课程种子（AI-801）。
+ *
+ * 注意：`StudyPlan` 实体**不持久化** level / interests / week theme（AI-203 设计但断线），
+ * 仅存 day 级 `title` 与 `content`（JSON 化的 lessons）。因此：
+ *  - `dayTitles` 由每 plan day 的 `title` 清洗（去「第 N 天」尾缀）或回退到当日 content
+ *    首 lesson 标题得到，作为每节新课的标题来源；
+ *  - `title`/`description` 由 dayTitles 推导的主题拼接；
+ *  - `level` 无落库值，默认 `a1`（提示词据此约束词汇适龄度）；
+ *  这些偏离已在质量门 docs 中如实说明，不影响「生成可学习的真实课程」主目标。
+ */
+function deriveCourseSpec(plan: StudyPlan): CourseSpecSeed {
+  const days = (plan.days ?? [])
+    .slice()
+    .sort((a, b) => a.dayIndex - b.dayIndex);
+  const dayTitles = days.map((d, i) => cleanDayTitle(d, i));
+  const theme = deriveTheme(dayTitles);
+  return {
+    title: theme ? `${theme} · English` : 'My Learning Plan',
+    description: `由你的 ${days.length} 天学习计划生成的专属英语课程`,
+    level: 'a1',
+    dayTitles,
+    daysCount: days.length,
+  };
+}
+
+/** 清洗某 plan day 的标题：去「第 N 天 / Day N」尾缀，回退取 content 首 lesson 标题。 */
+function cleanDayTitle(day: StudyPlanDay, index: number): string {
+  const raw = (day.title || '').trim();
+  const stripped = raw
+    .replace(/\s*[·•]\s*第\s*\d+\s*天\s*$/i, '')
+    .replace(/\s*[·•]\s*Day\s*\d+\s*$/i, '')
+    .replace(/\s*第\s*\d+\s*天\s*$/i, '')
+    .replace(/\s*Day\s*\d+\s*$/i, '')
+    .trim();
+  if (stripped && !/^(第\s*\d+\s*天|day\s*\d+)$/i.test(stripped)) {
+    return stripped;
+  }
+  const fromContent = firstLessonTitle(day.content);
+  if (fromContent) return fromContent;
+  return `Day ${index + 1}`;
+}
+
+/** 从 day.content（JSON 化的 lessons）取首 lesson 标题（最多 40 字）。 */
+function firstLessonTitle(content?: string): string | null {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed) && parsed.length && parsed[0]?.title) {
+      return String(parsed[0].title).slice(0, 40);
+    }
+  } catch {
+    // content 非 JSON（纯文本），忽略
+  }
+  return null;
+}
+
+/** 从 dayTitles 推导课程主题（取首个非「Day N / 第 N 天」的标题）。 */
+function deriveTheme(dayTitles: string[]): string | null {
+  for (const t of dayTitles) {
+    if (t && !/^(day\s*\d+|第\s*\d+\s*天)/i.test(t)) return t;
+  }
+  return null;
 }

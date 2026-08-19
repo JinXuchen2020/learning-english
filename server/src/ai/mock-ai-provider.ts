@@ -72,4 +72,13 @@ export class MockAiProvider implements AiProvider {
   ): Promise<AudioResult> {
     return { audioBase64: '', mimeType: 'audio/mpeg' };
   }
+
+  async *streamChat(
+    _messages: ChatMessage[],
+    _options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    // 安全桩：一次性产出兜底文案块（非 plan 合法 JSON，下游 extractJson 会判非法 → error 事件，
+    // 与 chat 口径一致——保证 UI 不崩、可演示，不静默掩盖）。
+    yield CHAT_FALLBACK;
+  }
 }

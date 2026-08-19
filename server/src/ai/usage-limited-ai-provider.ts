@@ -13,6 +13,7 @@ import {
   AudioInput,
 } from './ai-provider.interface';
 import { AiUsageLimitService } from './ai-usage-limit.service';
+import { AiProviderException } from './ai-provider.errors';
 
 /** 解析「当前调用属于哪个用户」的钩子；未来由请求级 provider 注入真实 userId。 */
 export type UserIdResolver = () => string;
@@ -89,6 +90,30 @@ export class UsageLimitedAiProvider implements AiProvider {
       () => this.inner.synthesize(text, voice, options),
       () => 0,
     );
+  }
+
+  /**
+   * 流式透传：先配额守卫（超限额抛 429），再委托内层 provider 的流；
+   * 因 AsyncIterable 无法在中途拿到 token 用量，完成时 best-effort 记 0（不阻断主流程）。
+   */
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    const userId = this.resolveUserId();
+    await this.usage.assertWithinQuota(userId);
+    const streamFn = this.inner.streamChat?.bind(this.inner);
+    if (!streamFn) {
+      throw new AiProviderException('当前 provider 不支持流式生成', {
+        statusCode: 400,
+        code: 'STREAM_UNSUPPORTED',
+      });
+    }
+    try {
+      yield* streamFn(messages, options);
+    } finally {
+      await this.usage.recordUsage(userId, 0).catch(() => undefined);
+    }
   }
 }
 

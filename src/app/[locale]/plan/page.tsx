@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import AuthGate from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
-import { ApiError } from "@/lib/api";
+import { ApiError, generatePlanStream } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import {
   PLAN_LEVELS,
@@ -25,7 +25,7 @@ import {
   planLessonTypeLabel,
   formatPlanDay,
 } from "@/lib/plan";
-import type { PlanLevel, GeneratePlanResponse, PlanWeek } from "@/lib/types";
+import type { PlanLevel, GeneratePlanResponse, PlanWeek, PlanStreamEvent, PlanStreamErrorCode } from "@/lib/types";
 import type { PlanFormValues } from "@/lib/plan";
 
 const EMPTY_VALUES: PlanFormValues = {
@@ -81,6 +81,10 @@ function PlanPreview({
   applied,
   checkedDays,
   onToggleDay,
+  savedPlanId,
+  generating,
+  onGenerateCourses,
+  onGoHome,
 }: {
   result: GeneratePlanResponse;
   onRegenerate: () => void;
@@ -89,6 +93,10 @@ function PlanPreview({
   applied: boolean;
   checkedDays: Set<number>;
   onToggleDay: (index: number) => void;
+  savedPlanId: string | null;
+  generating: boolean;
+  onGenerateCourses: () => void;
+  onGoHome: () => void;
 }) {
   const t = useTranslations("Plan");
   const weeks: PlanWeek[] = result.plan.weeks ?? [];
@@ -131,6 +139,36 @@ function PlanPreview({
         >
           {t('appliedNote')}
         </p>
+      )}
+
+      {applied && savedPlanId && (
+        <div className="space-y-3" data-component="GenerateCoursesBlock">
+          <p className="text-sm font-semibold text-kids-muted">
+            {t('generateCoursesHint')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              type="button"
+              variant="success"
+              className="flex-1 justify-center"
+              onClick={onGenerateCourses}
+              disabled={generating}
+              data-action="generate-courses"
+            >
+              {generating ? t('generatingCourses') : t('generateCourses')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={onGoHome}
+              disabled={generating}
+              data-action="go-home"
+            >
+              {t('goHome')}
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="space-y-3">
@@ -253,12 +291,19 @@ function PlanContent() {
   const t = useTranslations("Plan");
   const router = useRouter();
   const [values, setValues] = useState<PlanFormValues>(EMPTY_VALUES);
-  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [streamPhase, setStreamPhase] = useState<"thinking" | "writing" | "done" | null>(null);
+  const [streamError, setStreamError] = useState<{ code: PlanStreamErrorCode; message: string } | null>(null);
+  const [cancelled, setCancelled] = useState(false);
   const [result, setResult] = useState<GeneratePlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [checkedDays, setCheckedDays] = useState<Set<number>>(new Set());
+  const abortRef = useRef<AbortController | null>(null);
 
   const errors = useMemo(() => validatePlanForm(values), [values]);
   const valid = isPlanFormValid(values);
@@ -274,31 +319,76 @@ function PlanContent() {
 
   const handleGenerate = useCallback(async () => {
     if (!valid || !user) return;
-    setLoading(true);
+    // 重置展示态，开始一次新的流式生成。
+    setStreaming(true);
     setError(null);
+    setStreamError(null);
+    setCancelled(false);
     setResult(null);
+    setDraft("");
+    setStreamPhase("thinking");
     setApplied(false);
+    setSavedPlanId(null);
+    setGenerating(false);
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    const onEvent = (ev: PlanStreamEvent) => {
+      switch (ev.type) {
+        case "start":
+          setStreamPhase("thinking");
+          break;
+        case "token":
+          setDraft((d) => d + ev.text);
+          break;
+        case "progress":
+          setStreamPhase(ev.phase === "done" ? "writing" : ev.phase);
+          break;
+        case "done":
+          setResult({ plan: ev.plan, model: ev.model, degraded: ev.model === "template" });
+          setStreamPhase("done");
+          setStreaming(false);
+          break;
+        case "error":
+          setStreamError({ code: ev.code, message: ev.message });
+          setStreaming(false);
+          break;
+      }
+    };
+
     try {
-      const res = await api.generatePlan({
-        childId: user.id,
-        ageRange: values.ageRange,
-        level: values.level as PlanLevel,
-        dailyMinutes: values.dailyMinutes as number,
-        interests: values.interests,
-        weeks: values.weeks as number,
-      });
-      setResult(res);
+      await generatePlanStream(
+        {
+          childId: user.id,
+          ageRange: values.ageRange,
+          level: values.level as PlanLevel,
+          dailyMinutes: values.dailyMinutes as number,
+          interests: values.interests,
+          weeks: values.weeks as number,
+        },
+        onEvent,
+        ac.signal,
+      );
     } catch (err) {
+      // 防御：理论上 generatePlanStream 不向上抛，但兜底处理以免白屏。
       if (err instanceof ApiError) {
         setError(err.message || t('genError'));
       } else {
         setError(t('networkError'));
       }
-      logger.error("generatePlan failed", err);
+      logger.error("generatePlanStream failed", err);
     } finally {
-      setLoading(false);
+      setStreaming(false);
+      abortRef.current = null;
     }
-  }, [valid, user, values]);
+  }, [valid, user, values, t]);
+
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+    setStreaming(false);
+    setCancelled(true);
+  }, []);
 
   const handleApply = useCallback(async () => {
     if (!result || !user) return;
@@ -306,10 +396,11 @@ function PlanContent() {
     setError(null);
     try {
       const saved = await api.savePlan({ childId: user.id, plan: result.plan });
+      setSavedPlanId(saved.id);
       await api.applyPlan(saved.id, {});
       setApplied(true);
-      // 短暂展示成功提示后跳回首页（Home 会渲染新计划任务）。
-      setTimeout(() => router.push("/"), 1200);
+      // 不再自动跳首页：应用成功后展示「生成配套课程」入口（AI-801），
+      // 由用户选择生成课程或稍后回首页。
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || t('applyError'));
@@ -319,7 +410,30 @@ function PlanContent() {
       logger.error("applyPlan failed", err);
       setApplying(false);
     }
-  }, [result, user, router]);
+  }, [result, user]);
+
+  /** AI-801：应用计划后，按已保存计划 id 生成配套课程，成功后跳 /course（课程列表页）。 */
+  const handleGenerateCourses = useCallback(async () => {
+    if (!savedPlanId || !user) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      await api.generateCoursesForPlan(savedPlanId, {});
+      router.push("/course");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message || t('coursesError'));
+      } else {
+        setError(t('networkError'));
+      }
+      logger.error("generateCoursesForPlan failed", err);
+      setGenerating(false);
+    }
+  }, [savedPlanId, user, router, t]);
+
+  const handleGoHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
 
   const toggleDay = useCallback((index: number) => {
     setCheckedDays((prev) => {
@@ -492,26 +606,98 @@ function PlanContent() {
           type="submit"
           variant="success"
           className="w-full justify-center"
-          disabled={!valid || loading}
+          disabled={!valid || streaming}
           data-action="generate"
         >
-          {loading ? t('generating') : t('generate')}
+          {streaming ? t('generating') : t('generate')}
         </Button>
       </form>
 
-      {/* Loading */}
-      {loading && (
-        <div
-          className="flex flex-col items-center justify-center py-10 gap-3"
-          data-component="PlanLoading"
-        >
-          <Mascot expression="thinking" size="large" />
-          <p className="text-kids-muted font-semibold">{t('loadingPlan')}</p>
+      {/* Stream error (AI-804): 错误事件 → 提示 + 重试 */}
+      {streamError && !result && (
+        <div className="space-y-3" data-component="PlanStreamError">
+          <p
+            className="text-sm font-bold text-[var(--color-danger)] bg-[var(--color-danger)]/10 rounded-control px-4 py-2.5"
+            role="alert"
+          >
+            {t('streamError')}：{streamError.message}
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full justify-center"
+            onClick={() => void handleGenerate()}
+            data-action="retry-stream"
+          >
+            {t('retry')}
+          </Button>
+        </div>
+      )}
+
+      {/* Streaming draft (AI-804): 渐进文本 + 取消 */}
+      {streaming && !result && (
+        <div className="space-y-4" data-component="PlanStreaming">
+          <div className="flex items-center gap-3">
+            <Mascot
+              expression={streamPhase === "writing" ? "happy" : "thinking"}
+              size="large"
+            />
+            <div className="relative">
+              <div className="bg-white rounded-panel rounded-bl-none px-5 py-3 shadow-sm">
+                <p className="text-lg font-bold text-kids-title">{t('streaming')}</p>
+                <p className="text-kids-text">
+                  {streamPhase === "writing"
+                    ? t('writingPhase')
+                    : streamPhase === "thinking"
+                      ? t('thinkingPhase')
+                      : t('streamHint')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Card data-component="PlanDraftPanel" className="bg-[var(--seed-surface)]">
+            <pre className="whitespace-pre-wrap break-words font-mono text-sm text-kids-text leading-relaxed">
+              {draft}
+              <span className="inline-block w-2 h-4 align-middle bg-[var(--seed-primary)] animate-pulse" />
+            </pre>
+          </Card>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full justify-center"
+            onClick={handleCancel}
+            data-action="cancel-stream"
+          >
+            {t('cancel')}
+          </Button>
+        </div>
+      )}
+
+      {/* Canceled (AI-804): 保留草稿 + 重新生成 */}
+      {cancelled && !result && !streamError && (
+        <div className="space-y-3" data-component="PlanCanceled">
+          <Card data-component="PlanDraftPanel" className="bg-[var(--seed-surface)]">
+            <pre className="whitespace-pre-wrap break-words font-mono text-sm text-kids-text leading-relaxed">
+              {draft}
+            </pre>
+          </Card>
+          <p className="text-sm font-semibold text-kids-muted">{t('canceled')}</p>
+          <Button
+            type="button"
+            variant="success"
+            className="w-full justify-center"
+            onClick={() => void handleGenerate()}
+            data-action="retry-stream"
+          >
+            {t('retry')}
+          </Button>
         </div>
       )}
 
       {/* Result preview */}
-      {!loading && result && (
+      {!streaming && result && (
         <PlanPreview
           result={result}
           onRegenerate={() => void handleGenerate()}
@@ -520,6 +706,10 @@ function PlanContent() {
           applied={applied}
           checkedDays={checkedDays}
           onToggleDay={toggleDay}
+          savedPlanId={savedPlanId}
+          generating={generating}
+          onGenerateCourses={() => void handleGenerateCourses()}
+          onGoHome={handleGoHome}
         />
       )}
     </div>

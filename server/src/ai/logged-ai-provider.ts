@@ -14,6 +14,7 @@ import {
 } from './ai-provider.interface';
 import { AiCallLogService } from './ai-call-log.service';
 import { UserIdResolver } from './usage-limited-ai-provider';
+import { AiProviderException } from './ai-provider.errors';
 import { logger } from '../common/logger/logger';
 
 /** 解析「当前调用属于哪个业务模块」的钩子；入参为本次 AI 操作名（chat/transcribe/...），便于按能力归因。 */
@@ -200,6 +201,71 @@ export class LoggedAiProvider implements AiProvider {
       (r) => `audio[${r.mimeType}]${r.durationMs != null ? ` ${r.durationMs}ms` : ''}`,
       () => ({ promptTokens: 0, completionTokens: 0, totalTokens: 0 }),
     );
+  }
+
+  /**
+   * 流式透传 + 审计：迭代内层 provider 的流逐块 yield；成功/失败均在 finally 写一条审计
+   * （token 计 0，因流末无 ChatResult.usage）；异常原样向上抛（审计不吞业务异常）。
+   */
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    const userId = this.resolveUserId();
+    const moduleTag = this.resolveModuleTag('streamChat');
+    const provider = this.name;
+    const requestSnippet = truncate(messages.map((m) => `${m.role}:${m.content}`).join(' | '));
+    const start = Date.now();
+    let status: 'ok' | 'error' = 'ok';
+    let errorMessage: string | null = null;
+    let errorStack: string | null = null;
+    try {
+      const streamFn = this.inner.streamChat?.bind(this.inner);
+      if (!streamFn) {
+        throw new AiProviderException('当前 provider 不支持流式生成', {
+          statusCode: 400,
+          code: 'STREAM_UNSUPPORTED',
+        });
+      }
+      yield* streamFn(messages, options);
+    } catch (err) {
+      status = 'error';
+      errorMessage = truncate((err as Error)?.message ?? String(err), ERROR_MAX);
+      errorStack = (err as Error)?.stack ?? null;
+      throw err;
+    } finally {
+      const durationMs = Date.now() - start;
+      logger.info('[AI-CALL]', {
+        provider,
+        operation: 'streamChat',
+        userId,
+        moduleTag,
+        durationMs,
+        status,
+        tokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        request: requestSnippet,
+        response: null,
+        error: errorMessage,
+        errorStack,
+      });
+      await this.callLog
+        .record({
+          userId,
+          provider,
+          operation: 'streamChat',
+          moduleTag,
+          durationMs,
+          status,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          errorMessage,
+          errorStack,
+          requestSnippet,
+          responseSnippet: null,
+        })
+        .catch(() => undefined);
+    }
   }
 }
 

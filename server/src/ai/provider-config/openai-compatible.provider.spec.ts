@@ -8,6 +8,21 @@ function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
   });
 }
 
+/** 构造 SSE 流式 `Response`：frames 为若干 `data: {...}\n\n` 文本块。 */
+function sseResponse(frames: string[]): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const f of frames) controller.enqueue(encoder.encode(f));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  });
+}
+
 describe('OpenAiCompatibleProvider (AI-705 / AI-714)', () => {
   it('chat 构造 /chat/completions 请求并返回文本', async () => {
     const fetchFn = jest.fn(
@@ -163,5 +178,82 @@ describe('OpenAiCompatibleProvider (AI-705 / AI-714)', () => {
     );
     const res = await p.synthesize('hi');
     expect(res.mimeType).toBe('audio/mpeg');
+  });
+
+  describe('streamChat (AI-804 SSE)', () => {
+    it('逐 delta 累积 yield，请求体带 stream:true', async () => {
+      const frames = [
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":" world"}}]}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      const fetchFn = jest.fn<Promise<Response>, [string, RequestInit?]>(
+        async (_url: string, _init?: RequestInit) => sseResponse(frames),
+      );
+      const p = new OpenAiCompatibleProvider(
+        { apiKey: 'k', baseUrl: 'https://api.test/v1', model: 'gpt-4o-mini' },
+        fetchFn,
+      );
+      const out: string[] = [];
+      for await (const chunk of p.streamChat([{ role: 'user', content: 'hi' }])) out.push(chunk);
+      expect(out.join('')).toBe('Hello world');
+      const body = JSON.parse(fetchFn.mock.calls[0][1]!.body as string);
+      expect(body.stream).toBe(true);
+      expect(fetchFn.mock.calls[0][0]).toContain('/chat/completions');
+    });
+
+    it('同一 SSE 块含多行 data → 全部解析；非 JSON 控制行被跳过', async () => {
+      const frames = [
+        'data: {"choices":[{"delta":{"content":"AB"}}]}\n\n' +
+          'data: {"choices":[{"delta":{"content":"CD"}}]}\n\n' +
+          ': heartbeat\n\n' +
+          'data: not-json\n\n',
+        'data: [DONE]\n\n',
+      ];
+      const fetchFn = jest.fn(async () => sseResponse(frames));
+      const p = new OpenAiCompatibleProvider(
+        { apiKey: 'k', baseUrl: 'https://api.test/v1', model: 'gpt-4o-mini' },
+        fetchFn,
+      );
+      const out: string[] = [];
+      for await (const chunk of p.streamChat([{ role: 'user', content: 'hi' }])) out.push(chunk);
+      expect(out.join('')).toBe('ABCD');
+    });
+
+    it('finish_reason=length 在终端帧 → 抛 PLAN_TRUNCATED（提示截断）', async () => {
+      const frames = [
+        'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      const fetchFn = jest.fn(async () => sseResponse(frames));
+      const p = new OpenAiCompatibleProvider(
+        { apiKey: 'k', baseUrl: 'https://api.test/v1', model: 'gpt-4o-mini' },
+        fetchFn,
+      );
+      await expect(
+        (async () => {
+          for await (const _ of p.streamChat([{ role: 'user', content: 'hi' }])) {
+            /* drain */
+          }
+        })(),
+      ).rejects.toThrow(/截断|PLAN_TRUNCATED/);
+    });
+
+    it('capabilities 非空且未声明 chat → streamChat 抛 UnsupportedMethodError', async () => {
+      const fetchFn = jest.fn();
+      const p = new OpenAiCompatibleProvider(
+        { apiKey: 'k', baseUrl: 'https://api.test/v1', model: 'gpt-4o-mini', capabilities: ['tts'] },
+        fetchFn,
+      );
+      await expect(
+        (async () => {
+          for await (const _ of p.streamChat([{ role: 'user', content: 'hi' }])) {
+            /* drain */
+          }
+        })(),
+      ).rejects.toBeInstanceOf(UnsupportedMethodError);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
   });
 });

@@ -268,6 +268,108 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return { audioBase64: buf.toString('base64'), mimeType: this.mimeFromContentType(contentType) };
   }
 
+  /**
+   * 流式对话（SSE）。请求体加 `stream:true`，按行解析 SSE `data: {json}`，
+   * 累积 `choices[0].delta.content` 逐块 yield；遇 `data: [DONE]` 结束。
+   * 终端帧 `finish_reason==='length'`（被 max_tokens 截断）→ 抛
+   * `AiProviderException(code:'PLAN_TRUNCATED')`，由消费方映射为 error 事件。
+   * `options.signal` 透传到 fetch，支持前端取消。
+   */
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    this.assertCapability('chat');
+    if (!this.apiKey) {
+      throw new AiProviderException('OpenAI 兼容 API key 未配置', { statusCode: 401 });
+    }
+    const model = options?.model ?? this.model;
+    const body = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      temperature: options?.temperature,
+      max_tokens: options?.maxTokens ?? 512,
+      stream: true,
+      ...this.extraBody,
+      ...options?.extraBody,
+    };
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const signal = options?.signal ?? AbortSignal.timeout(timeoutMs);
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (e) {
+      const err = e as Error;
+      if (err?.name === 'AbortError') {
+        throw new AiProviderException(`OpenAI 兼容流式请求超时（>${timeoutMs}ms）或被取消`, {
+          statusCode: 504,
+          code: 'ABORTED',
+        });
+      }
+      throw new AiProviderException(`OpenAI 兼容流式网络请求失败：${err?.message ?? 'unknown'}`, {
+        statusCode: 0,
+        code: 'NETWORK',
+      });
+    }
+    if (!res.ok) await this.throwOnError(res);
+    const stream = res.body;
+    if (!stream) {
+      throw new AiProviderException('OpenAI 兼容流式响应无 body', { statusCode: 502 });
+    }
+
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let truncated = false;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line.startsWith('data:')) continue;
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') break;
+          let json: { choices?: Array<{ delta?: { content?: string }; finish_reason?: string }> };
+          try {
+            json = JSON.parse(data);
+          } catch {
+            continue; // 跳过非 JSON 控制行（如注释/心跳）
+          }
+          const choice = json?.choices?.[0];
+          const delta = choice?.delta?.content;
+          if (typeof delta === 'string' && delta.length > 0) yield delta;
+          if (choice?.finish_reason === 'length') truncated = true;
+        }
+        if (truncated) break;
+      }
+    } finally {
+      try {
+        await reader.cancel().catch(() => undefined);
+      } catch {
+        /* noop */
+      }
+    }
+
+    if (truncated) {
+      throw new AiProviderException('AI 输出被 max_tokens 截断（finish_reason=length），未返回完整 JSON', {
+        statusCode: 400,
+        code: 'PLAN_TRUNCATED',
+      });
+    }
+  }
+
   private mimeFromContentType(contentType: string): string {
     if (contentType.includes('audio/wav') || contentType.includes('audio/x-wav')) return 'audio/wav';
     if (contentType.includes('audio/mpeg') || contentType.includes('audio/mp3')) return 'audio/mpeg';

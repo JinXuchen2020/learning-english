@@ -16,7 +16,8 @@ Feature: Plan progress write-back and Home completion display (AI-209)
     And I click the generate button
     And I click the apply button
     Then I should see the plan applied success message
-    And I should be on the Home page with daily tasks
+    When I go back to the home page
+    Then I should be on the Home page with daily tasks
     And the plan progress card should be visible
     And the plan progress should show done "0" of total at least "1"
 
@@ -30,7 +31,8 @@ Feature: Plan progress write-back and Home completion display (AI-209)
     And I click the generate button
     And I click the apply button
     Then I should see the plan applied success message
-    And I should be on the Home page with daily tasks
+    When I go back to the home page
+    Then I should be on the Home page with daily tasks
     And the plan progress should show done "0" of total at least "1"
     When I complete all daily tasks on Home
     Then the plan progress done count should be greater than "0"

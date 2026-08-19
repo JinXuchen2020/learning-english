@@ -6,11 +6,14 @@ import type {
   DailyTask,
   GeneratePlanDto,
   GeneratePlanResponse,
+  PlanStreamEvent,
   SavePlanDto,
   SavePlanResponse,
   ApplyPlanDto,
   ApplyPlanResponse,
   PlanStatusResponse,
+  GenerateCoursesDto,
+  GenerateCoursesResponse,
   SpeechFeedback,
   EvaluateSpeechOptions,
   ChatScene,
@@ -435,6 +438,152 @@ export function savePlan(dto: SavePlanDto) {
 }
 
 /**
+ * 流式生成学习计划（AI-804）。
+ *
+ * 调 `POST /api/ai/plan/generate/stream`（SSE，`text/event-stream`），逐帧解析
+ * `data: <JSON>\n\n` 并回调 `onEvent`。流仅用于**展示**；结构化计划只在 `done`
+ * 事件交付（后端末端 `extractJson`+`validatePlan` 校验）。错误一律走 `error`
+ * 事件（含网络/中止外的异常），不向上抛，与后端「事件通道收尾」口径一致。
+ *
+ * 取消：传入 `signal`（来自 `AbortController`），`fetch` 中止后读流会抛
+ * `AbortError`，本函数静默返回（不触发 `error` 事件）。
+ *
+ * 兜底：环境不支持 `ReadableStream`（极旧运行时）时，退化为普通
+ * `generatePlan` 并合成 `start → done` 事件。
+ *
+ * @param dto     计划生成请求体（与 `generatePlan` 同）
+ * @param onEvent 每收到一个 SSE 事件回调
+ * @param signal  可选中止信号
+ */
+export async function generatePlanStream(
+  dto: GeneratePlanDto,
+  onEvent: (ev: PlanStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/ai/plan/generate/stream`, {
+      method: "POST",
+      body: JSON.stringify(dto),
+      headers,
+      signal,
+    });
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") return;
+    onEvent({
+      type: "error",
+      code: "AI_ERROR",
+      message: (err as { message?: string })?.message ?? t_untranslated("networkError"),
+    });
+    return;
+  }
+
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const text = await res.text();
+      const body = text ? JSON.parse(text) : null;
+      if (body && typeof body === "object") {
+        const candidate = (body as Record<string, unknown>).message ??
+          (body as Record<string, unknown>).error;
+        if (typeof candidate === "string") message = candidate;
+      }
+    } catch {
+      /* 响应体非 JSON —— 沿用默认 message */
+    }
+    onEvent({ type: "error", code: "AI_ERROR", message });
+    return;
+  }
+
+  // 不支持流（无 body/读流）时退化到非流式端点，合成事件。
+  if (!res.body || typeof res.body.getReader !== "function") {
+    try {
+      const full = await generatePlan(dto);
+      onEvent({ type: "start" });
+      onEvent({ type: "done", plan: full.plan, model: full.model ?? "unknown" });
+    } catch (err) {
+      onEvent({
+        type: "error",
+        code: "AI_ERROR",
+        message: err instanceof ApiError ? err.message : t_untranslated("networkError"),
+      });
+    }
+    return;
+  }
+
+  await consumeSse(res.body, onEvent);
+}
+
+/** 无 i18n 依赖的兜底文案（避免 api 模块引入 next-intl）。 */
+function t_untranslated(key: "networkError"): string {
+  return key === "networkError" ? "Network error" : key;
+}
+
+/**
+ * 消费 SSE `ReadableStream<Uint8Array>`，按 `data: ` 帧解析并回调。
+ * 纯逻辑（导出供单测）；遇 `AbortError` 静默返回，遇其他读流异常回 `error` 事件。
+ * 帧边界以 `\n\n` 切分；单行可含多个 `data:` 行；非 JSON / 空 data 行忽略。
+ */
+export async function consumeSse(
+  body: ReadableStream<Uint8Array>,
+  onEvent: (ev: PlanStreamEvent) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let sep: number;
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        emitFrame(frame, onEvent);
+      }
+    }
+    // 冲刷残留缓冲（服务端可能未以空行结尾）。
+    const remainder = (buffer + decoder.decode()).trim();
+    if (remainder.startsWith("data:")) emitFrame(remainder, onEvent);
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") return;
+    onEvent({
+      type: "error",
+      code: "AI_ERROR",
+      message: (err as { message?: string })?.message ?? "stream read error",
+    });
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* 已结束/已取消，忽略 */
+    }
+  }
+}
+
+/** 解析单个 SSE 帧（可含多行 `data:`），逐行回调已解析事件。 */
+function emitFrame(frame: string, onEvent: (ev: PlanStreamEvent) => void): void {
+  for (const line of frame.split("\n")) {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload) continue;
+    try {
+      onEvent(JSON.parse(payload) as PlanStreamEvent);
+    } catch {
+      /* 心跳/非 JSON 控制行 —— 忽略 */
+    }
+  }
+}
+
+/**
  * 应用已保存的计划：置 `applied`、按天写 `daily_tasks`（AI-206/AI-208）。
  * 已 applied 且 `confirm!==true` → 409 `{ code:'PLAN_ALREADY_APPLIED', needsConfirm:true }`，
  * 前端弹确认后用 `applyPlan(id, { confirm:true })` 重应用（覆盖式）。
@@ -455,6 +604,25 @@ export function applyPlan(id: string, dto: ApplyPlanDto = {}) {
 export function getPlanStatus(childId: string) {
   return request<PlanStatusResponse>(
     `/ai/plan/status?childId=${encodeURIComponent(childId)}`
+  );
+}
+
+/**
+ * 由已保存计划生成配套课程（AI-801）。
+ * `POST /api/ai/plan/:id/generate-courses`，body 与后端 `GenerateCoursesDto` 对齐。
+ * 返回 200 + 课程信息（degraded=true 表示 AI 不可达/校验失败、落库了模板课程，
+ * 前端仍可正常前往 /courses 学习；失败（4xx/5xx）抛 `ApiError`）。
+ *
+ * @param id 已保存计划 UUID（来自 `savePlan` 响应）
+ * @param dto 可选 { wordsPerLesson?: number }
+ */
+export function generateCoursesForPlan(
+  id: string,
+  dto: GenerateCoursesDto = {}
+) {
+  return request<GenerateCoursesResponse>(
+    `/ai/plan/${encodeURIComponent(id)}/generate-courses`,
+    { method: "POST", body: JSON.stringify(dto) }
   );
 }
 

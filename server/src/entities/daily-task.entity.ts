@@ -50,4 +50,34 @@ export class DailyTask {
    */
   @Column({ type: 'varchar', length: 10, nullable: true })
   date: string | null;
+
+  /**
+   * 关联真实课程 UUID（AI-803，引用落地）。
+   * 来自计划 lessons 引用的 `courses` 表真实 id；无引用（通用任务 / 全局种子）为 NULL。
+   */
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  courseId: string | null;
+
+  /**
+   * 关联真实课时 UUID（AI-803）。`lessons` 表真实 id；导航深链 `/practice?lessonId=` 的落点。
+   * 无引用为 NULL。
+   */
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  lessonId: string | null;
+
+  /**
+   * 计划节技能类型（AI-803）：`vocab`/`listen`/`speak`/`write`，用于前端按 `skillType` 选择
+   * 深链目标（`speak` → `/speech`，其余 → `/practice?lessonId=`）。无引用为 NULL。
+   */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  skillType: string | null;
+
+  /**
+   * 任务来源（AI-803）：`plan`（计划引用/通用任务）/ `catalog`（目录直出）/ `manual`（手动）/ NULL（全局种子）。
+   * 便于进度聚合与未来区分展示。
+   */
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  source: string | null;
 }
