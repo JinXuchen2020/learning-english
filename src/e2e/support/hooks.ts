@@ -46,13 +46,29 @@ Before(async function (this: E2EWorld) {
   this.page.on("console", (msg) => {
     const type = msg.type();
     if (type === "error" || type === "warning") {
-      console.log(`[browser:${type}] ${msg.text()}`);
+      const text = msg.text();
+      // Chromium logs this for every 401 network response; during parent
+      // scenarios the JWT held by the app is not attached to Next.js <Link>
+      // RSC prefetches, so the browser aborts them (ERR_ABORTED) or the
+      // backend rejects a role-switch race with 401. No scenario asserts on
+      // these, so they are pure log noise — drop them.
+      if (text.startsWith("Failed to load resource: the server responded with a status of 401")) {
+        return;
+      }
+      console.log(`[browser:${type}] ${text}`);
     }
   });
   this.page.on("pageerror", (err: Error) => {
     console.log(`[browser:pageerror] ${err.message}`);
   });
   this.page.on("requestfailed", (req) => {
+    // Next.js <Link> auto-prefetches route RSC payloads (?_rsc=...). When the
+    // test navigates away before the prefetch finishes, the browser cancels
+    // the in-flight request with ERR_ABORTED — normal App Router behavior,
+    // never a real failure, so don't pollute the CI log with it.
+    if (req.url().includes("_rsc=") && req.failure()?.errorText === "net::ERR_ABORTED") {
+      return;
+    }
     console.log(`[browser:requestfailed] ${req.method()} ${req.url()} -> ${req.failure()?.errorText}`);
   });
 });
