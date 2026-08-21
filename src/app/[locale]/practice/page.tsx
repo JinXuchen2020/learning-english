@@ -395,6 +395,14 @@ function Quiz({
         <p className="text-kids-muted">
           {t("emptyModeHint")}
         </p>
+        {courseId && (
+          <Button variant="soft" size="sm" asChild>
+            <Link href={backHref} data-component="BackToCourse" data-action="back-to-course">
+              <ArrowLeft size={18} className="mr-2" />
+              {t("backToCourse")}
+            </Link>
+          </Button>
+        )}
       </div>
     );
   }
@@ -403,6 +411,20 @@ function Quiz({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
+      {/* 返回课程页：仅跟课练习显示（从课程页带 courseId 进入）；
+          自由练习是 tab 根页面，靠底部导航切换即可。
+          提前退出不调用 completeLesson，不计完成。 */}
+      {courseId && (
+        <div>
+          <Button variant="soft" size="sm" asChild>
+            <Link href={backHref} data-component="BackToCourse" data-action="back-to-course">
+              <ArrowLeft size={18} className="mr-2" />
+              {t("backToCourse")}
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {/* AI-703：模式切换器 */}
       <div
         className="flex justify-center gap-2 flex-wrap"

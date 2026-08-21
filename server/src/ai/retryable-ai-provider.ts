@@ -11,6 +11,7 @@ import {
   AudioResult,
   SynthesizeOptions,
   AudioInput,
+  UnsupportedMethodError,
 } from './ai-provider.interface';
 import { withRetry, DEFAULT_RETRY_OPTIONS, AiRetryOptions } from './ai-retry';
 import { ConcurrencyLimiter } from './concurrency-limiter';
@@ -56,6 +57,24 @@ export class RetryableAiProvider implements AiProvider {
         this.resolveRetryOptions(options),
       ),
     );
+  }
+
+  /**
+   * 流式对话（AI-804）：委托内层 provider 的 `streamChat`。
+   * - 内层不支持流式 → 抛 `UnsupportedMethodError`（与 `ChatProvider.streamChat`
+   *   的「底层 client 无 streamChat → 回退 Mock 桩」口径配合，绝不静默产出空流）。
+   * - 不套重试/并发限流：SSE 已产出部分增量后重试会重复内容，无法原子重放；
+   *   并发由调用方（业务模块）自控。
+   */
+  async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatOptions & { signal?: AbortSignal },
+  ): AsyncIterable<string> {
+    const innerStream = this.inner.streamChat;
+    if (!innerStream) {
+      throw new UnsupportedMethodError(`provider ${this.inner.name} 不支持流式对话`);
+    }
+    yield* innerStream.call(this.inner, messages, options);
   }
 
   /**

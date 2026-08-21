@@ -129,6 +129,7 @@ cd src && npm run dev
 | `AGNES_API_KEY` | seed 阶段用于加密落库「系统默认主用 provider」（Agnes AI, openai-compatible）；运行期不读 env | 见 `.env.example` |
 | `PROVIDER_ENC_KEY` | AES-256-GCM 密钥，加密 provider apiKey 落库；seed 与运行期必须一致 | 见 `.env.example` |
 | `AI_DAILY_CALL_LIMIT` / `AI_DAILY_TOKEN_LIMIT` | 每用户每日调用/Token 配额 | `200` / `100000` |
+| `AI_COURSE_TIMEOUT_MS` | 课程生成单次 AI 调用超时（默认 18s × 最多 3 次 < Vercel 60s；本地慢模型如 Agnes 建议设 `150000`） | `18000` |
 
 > 运行期 AI 调用一律走数据库中的系统 provider 配置（seed 加密落库），不再从 env 读取端点/模型。家长还可在 **家长面板 → AI Provider 配置** 中为每个家庭运行时配置 OpenAI 兼容服务商；孩子账号自动继承其所属家长的默认 Provider。
 

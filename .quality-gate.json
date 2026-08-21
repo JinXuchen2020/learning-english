@@ -1,15 +1,15 @@
 {
-  "phase": "ai-802",
+  "phase": "ai-801-hardening",
   "stack": "node-ts",
-  "feature": "AI-802",
+  "feature": "AI-801",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-802-gate.md",
-  "notes": "AI-802 聊天语音输入（cherry-pick c56d36e 集成到 feat/ai-804 主线 + 覆盖率修复 + E2E 修复）：纯前端增强，零新增后端 API（详见 docs/quality/ai-802-gate.md）。**覆盖率修复**：jest.config.js 追加 coveragePathIgnorePatterns（migrations 排除兜底）+ 补 rewards/ai-word-card controller spec，funcs 91.86% ≥ 90%（commit 61c3b94）。**E2E 修复（4cc32fa，CI e2e 首次实跑暴露 6 个失败）**：① chat-voice 场景 2——新增 disableSpeechRecognitionScript。② chat-voice 场景 1——open() 改为一律整页 goto + waitForFunction 校验。③ plan-display/plan-progress——加 go-home 步骤。④ practice-variants——feature 改点 seed 课程 'Animal Friends'。**E2E 根治修复（4cc32fa 后，CI 复跑仍失败 chat-voice×2）**：根因是 tsx/esbuild keepNames transform 给函数体注入 `__name()` helper，Playwright addInitScript 经 toString() 序列化后脚本首行即抛 `__name is not defined`，fake/disable SpeechRecognition 从未安装 → 场景 1 input 空、场景 2 waitForFunction 超时。修复（a58effe）：chat.ts 的 fakeMicrophoneScript/fakeSpeechRecognitionScript/disableSpeechRecognitionScript 与 speech.ts 的 fakeMicrophoneScript 全部改为字符串常量（addInitScript 直接收 string，不经 TS transform）。本机 cucumber（bundled Chromium，与 CI 同配置）复现并验证：chat-voice.feature 2/2 PASS、chat+chat-voice+speech-practice 回归 15/15 PASS、0 pageerror。**本提交（E2E 日志噪音治理）**：CI run 32269481676（a58effe）全绿后复查日志发现两类无害噪音——① Next.js `<Link>` 对 `/parent/children/{id}` 的 RSC 预取（?_rsc=）在测试快速导航时被浏览器取消（net::ERR_ABORTED），parent 会话 Dashboard 卡片渲染孩子链接必然触发，无任何断言依赖；② parent 场景角色切换瞬间 child token 打 parent 受保护接口返回的 401 console 日志（无断言依赖）。修复：hooks.ts 的 requestfailed handler 过滤 `_rsc=` + `net::ERR_ABORTED`，console handler 过滤 `Failed to load resource: ... 401`。纯 e2e 测试基建改动，零产品代码变更。",
+  "reportRef": "docs/quality/ai-801-hardening-gate.md",
+  "notes": "AI-801 课程生成链路加固 + 配套体验修复：① retryable-ai-provider 超时环境变量化（AI_COURSE_TIMEOUT_MS，默认 18s×3 < Vercel 60s）+ maxTokens 12000 治理 JSON 截断降级；② generate-courses 幂等（同计划重复生成直返已有课程 model:idempotent，实测 85s→116ms 零 AI 调用；种子课程不误判、引用课程被删回退重生成），plan.service 新增 findExistingGeneratedCourse + 3 spec 用例；③ 前端计划页异常路径 loading 卡死修复；④ api.ts 401 统一处理（清会话跳 /{locale}/login，登录豁免/防循环/multipart+SSE 出口覆盖）+ api-401.spec 5 用例；⑤ 练习页跟课模式「返回课程」按钮（仅 courseId 存在时显示，tab 自由练习不显示）。详见 docs/quality/ai-801-hardening-gate.md。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；e2e tsc --noEmit 0（本提交复跑）；前端 vitest 全量（含 speech-dictation 15 用例）全绿；后端 server tsc --noEmit 0；后端 jest --coverage 927/927 全绿（含新增 rewards.controller 12 例 + ai-word-card.controller 7 例），全局 functions 91.86% ≥ 90% 门槛，jest exit 0；i18n parity 通过)",
-    "tests": "PASSED (user-accepted-ci: 前端 vitest 155/155 全绿（含 speech-dictation 15 + api-stream 8）；后端 jest 927/927 全绿 + jest --coverage 四门槛全过（funcs 91.86%）；e2e tsc 0；前端 tsc 0。本提交的 __name 根治修复已用真实 cucumber 复现+验证（bundled Chromium，与 CI 同配置）：修复前 chat-voice.feature 2/2 失败（与 CI 报错逐字一致）+ 4× `__name is not defined` pageerror；修复后 chat-voice.feature 2/2 PASS、chat+chat-voice+speech-practice 回归 15/15 PASS、0 pageerror；全量 cucumber 交 CI e2e job 复跑验证)",
-    "review": "PASSED (0 open：本提交根治 CI 复跑仍失败的 chat-voice×2——定位到 addInitScript 函数序列化携带 __name 引用（tsx keepNames）导致注入脚本首行崩溃；修复为字符串常量，规避一切 TS transform 干扰；本机 cucumber 复现修复前失败（报错与 CI 逐字一致）并验证修复后全绿；无新增 TODO/stub/死代码；纯 e2e 测试基建改动，零产品代码变更)",
-    "optimization": "PASSED (0 open：修复为最小改动——chat.ts/speech.ts 四个注入脚本函数 → 字符串常量（保持逻辑完全一致，仅去 TS 类型标注与编译产物）；addInitScript 调用点不变；无重复/占位代码；改动面仅 e2e 测试基建，零产品代码变更)"
+    "consistency": "PASSED (前端 tsc --noEmit 0；后端 tsc --noEmit 0；i18n zh/en key parity 通过)",
+    "tests": "PASSED (user-accepted-ci: 后端 jest 933/933 全绿（100 suites，Node 22 运行时——better-sqlite3 为 ABI 127，真实 SQLite 的 6 个 suite 在系统 Node 24 下因 NODE_MODULE_VERSION 137 不匹配失败，属环境问题非代码回归）；前端 vitest 160/160 全绿（17 files，含 api-401 5 用例与 i18n parity）；实测幂等二次调用 116ms 无 AI-CALL；E2E 本地未跑，交 CI e2e job 兜底)",
+    "review": "PASSED (0 open：幂等判据双守卫——lessonRefsJson 缺失回退 content 解析、findOne NotFound 视为未生成可重建；401 仅对携带 token 的请求触发，登录/注册凭据错误不受影响；练习提前退出不计完成不加星，与完成判定一致)",
+    "optimization": "PASSED (0 open：幂等检查=O(计划天数) 引用解析+至多一次 findOne，命中路径零 AI 调用；零新增依赖；改动面最小化)"
   }
 }

@@ -148,6 +148,7 @@
     "whichCorrect": "哪个是对的？",
     "emptyModeTitle": "这个模式暂时没有问题！",
     "emptyModeHint": "试试「看字选词」模式，或者先完成更多课程。",
+    "backToCourse": "返回课程",
     "quizWordProgress": "单词 {index} / {total}",
     "correctCount": "{count} 答对",
     "pronunciationHintLabel": "显示发音提示",

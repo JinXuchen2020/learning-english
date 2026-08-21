@@ -336,8 +336,15 @@ export class PlanService {
    *
    * 与 `generatePlan` 的「出错即抛」不同，本方法对**课程生成**采用「重试 + 模板降级」
    * 策略：课程生成是「锦上添花」的写路径，宁可落一门结构合规的模板课程也不 500，
-   * 保证「生成配套课程」永远可用（AI 不可达/输出非法均返回 200 + degraded）。
-   * 单次 AI 调用 `timeoutMs` 18s、最多 3 次 = 最坏 54s < Vercel 60s，避免 504。
+    * 保证「生成配套课程」永远可用（AI 不可达/输出非法均返回 200 + degraded）。
+    *
+    * 幂等去重：若该计划已有配套课程（计划天引用指向存在且标题匹配派生主题的课程），
+    * 直接返回既有课程（model='idempotent'），不调 AI、不新建——重复点击零成本零副作用。
+    * 单次 AI 调用 `timeoutMs` 默认 18s、最多 3 次 = 最坏 54s < Vercel 60s，避免 504；
+   * 可经 env `AI_COURSE_TIMEOUT_MS` 覆盖单次超时：Agnes 实测生成耗时 25~160s，默认 18s
+   * 在慢模型下必超时（→Mock 兜底文案→JSON 解析失败→3 连败降级模板）。本地开发建议
+   * 设 150000 给真实 AI 课程机会（maxTokens 12000 约 100 tok/s 需 ~2 分钟）；
+   * 最坏等待仅影响开发体验，Vercel 部署保持默认。
    *
    * @param id 已保存计划 UUID（StudyPlan）
    * @param wordsPerLesson 每节单词数（3..8，缺省 5）
@@ -354,11 +361,35 @@ export class PlanService {
     }
 
     const seed = deriveCourseSpec(plan);
+
+    // 幂等去重：同一计划重复点击「生成配套课程」→ 直接返回已有课程，
+    // 不调 AI、不新建（避免产生内容雷同的重复课程）。
+    const existing = await this.findExistingGeneratedCourse(plan, seed.title);
+    if (existing) {
+      this.logger.log(
+        '[Plan] 计划 %s 已有配套课程 %s，直接返回（幂等）',
+        id,
+        existing.id,
+      );
+      return {
+        courseId: existing.id,
+        title: existing.title,
+        lessonCount: existing.totalLessons,
+        wordCount: existing.wordCount,
+        degraded: false,
+        model: 'idempotent',
+      };
+    }
+
     const options: ChatOptions = {
       temperature: 0.5,
-      maxTokens: 4096,
+      // 28 天计划 ≈ 300 tok/节 × 28 + 头部 ≈ 9000+ tok，4096 必截断（finish_reason=length，
+      // 实测 completionTokens 恰为 4096 三连）→JSON 不完整→解析失败降级模板。
+      // 与 generatePlan 的 8000 同理再放宽到 12000 留余量。
+      maxTokens: 12_000,
       extraBody: { chat_template_kwargs: { enable_thinking: false } },
-      timeoutMs: 18_000,
+      // 默认 18s（Vercel 60s 约束），可经 AI_COURSE_TIMEOUT_MS 覆盖（见方法注释）
+      timeoutMs: Number(process.env.AI_COURSE_TIMEOUT_MS) || 18_000,
       maxAttempts: 1,
     };
 
@@ -411,6 +442,35 @@ export class PlanService {
       degraded,
       model,
     };
+  }
+
+  /**
+   * 幂等去重检测：该计划是否已生成过配套课程。
+   * 判据：任一计划天引用（lessonRefsJson，缺失回退 content）指向的课程真实存在，
+   * 且其标题等于由计划内容确定性推导的标题（deriveCourseSpec().title）。
+   * buildStudyPlan 写入的种子课程引用标题不同（如「Animal Friends」），不会误判；
+   * 课程已被删除（findOne 抛 NotFound）则视为未生成，允许重新生成。
+   * @returns 已存在的课程（findOne 结果）；无则 null
+   */
+  private async findExistingGeneratedCourse(
+    plan: StudyPlan,
+    expectedTitle: string,
+  ): Promise<{ id: string; title: string; totalLessons: number; wordCount: number } | null> {
+    const candidateIds = new Set<string>();
+    for (const day of plan.days ?? []) {
+      for (const ref of parseLessonRefs(day)) {
+        if (ref?.courseId) candidateIds.add(ref.courseId);
+      }
+    }
+    for (const courseId of candidateIds) {
+      try {
+        const course = await this.coursesService.findOne(courseId);
+        if (course && course.title === expectedTitle) return course;
+      } catch {
+        // 课程不存在（已删除）→ 候选失效，继续检查其余引用
+      }
+    }
+    return null;
   }
 
   /**

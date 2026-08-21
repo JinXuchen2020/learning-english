@@ -148,6 +148,7 @@
     "whichCorrect": "Which one is correct?",
     "emptyModeTitle": "No questions for this mode yet!",
     "emptyModeHint": "Try the \"Pick the Word\" mode, or finish more lessons first.",
+    "backToCourse": "Back to Course",
     "quizWordProgress": "Word {index} of {total}",
     "correctCount": "{count} correct",
     "pronunciationHintLabel": "Show pronunciation hint",

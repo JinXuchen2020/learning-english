@@ -399,6 +399,7 @@ function PlanContent() {
       setSavedPlanId(saved.id);
       await api.applyPlan(saved.id, {});
       setApplied(true);
+      setApplying(false);
       // 不再自动跳首页：应用成功后展示「生成配套课程」入口（AI-801），
       // 由用户选择生成课程或稍后回首页。
     } catch (err) {
@@ -419,6 +420,7 @@ function PlanContent() {
     setError(null);
     try {
       await api.generateCoursesForPlan(savedPlanId, {});
+      setGenerating(false);
       router.push("/course");
     } catch (err) {
       if (err instanceof ApiError) {

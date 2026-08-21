@@ -126,6 +126,23 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
+/**
+ * 会话失效统一处理（401）：清除本地过期会话并送回登录页。
+ * 仅在「携带 token 的请求被服务端判为未认证」时调用——登录/注册接口的 401
+ * （凭据错误）不属于会话失效，不触发清会话/跳转。已在登录页时不重复跳转，
+ * 避免循环。locale 取自路径首段（zh/en），无前缀默认 zh。
+ */
+function handleSessionExpired(): void {
+  setToken(null);
+  setStoredUser(null);
+  if (typeof window === "undefined") return;
+  const pathname = window.location?.pathname ?? "";
+  if (pathname.endsWith("/login")) return;
+  const seg = pathname.split("/")[1];
+  const locale = seg === "en" ? "en" : "zh";
+  window.location.assign(`/${locale}/login`);
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -144,11 +161,13 @@ async function request<T>(
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+  let sentToken = false;
   if (auth) {
     // 允许调用方显式覆盖鉴权令牌（如家长会话令牌），缺省沿用内存 child token。
     const tok = token !== undefined ? token : accessToken;
     if (tok) {
       headers.Authorization = `Bearer ${tok}`;
+      sentToken = true;
     }
   }
 
@@ -171,6 +190,10 @@ async function request<T>(
       const candidate = payload.message ?? payload.error;
       if (typeof candidate === "string") message = candidate;
       else if (Array.isArray(candidate)) message = candidate.map(String).join(", ");
+    }
+    if (res.status === 401 && sentToken) {
+      // 携带 token 仍被拒 → token 过期/无效：清本地会话并送回登录页重新登录。
+      handleSessionExpired();
     }
     throw new ApiError(message, res.status);
   }
@@ -496,6 +519,10 @@ export async function generatePlanStream(
     } catch {
       /* 响应体非 JSON —— 沿用默认 message */
     }
+    if (res.status === 401 && headers.Authorization) {
+      // 流式请求 401 → 会话过期：清本地会话并送回登录页，再以 error 事件收尾。
+      handleSessionExpired();
+    }
     onEvent({ type: "error", code: "AI_ERROR", message });
     return;
   }
@@ -693,6 +720,10 @@ async function postFormData<T>(
       const candidate = payload.message ?? payload.error;
       if (typeof candidate === "string") message = candidate;
       else if (Array.isArray(candidate)) message = candidate.map(String).join(", ");
+    }
+    if (res.status === 401 && headers.Authorization) {
+      // 携带 token 上传仍被拒 → 会话过期：清本地会话并送回登录页。
+      handleSessionExpired();
     }
     throw new ApiError(message, res.status);
   }

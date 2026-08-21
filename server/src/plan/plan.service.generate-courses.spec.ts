@@ -16,7 +16,7 @@ import { AI_PROVIDER_TOKEN, ChatResult } from '../ai/ai-provider.interface';
 describe('PlanService.generateCoursesForPlan (AI-801)', () => {
   let service: PlanService;
   let ai: { chat: jest.Mock };
-  let coursesService: { createCourseFromPlan: jest.Mock };
+  let coursesService: { createCourseFromPlan: jest.Mock; findOne: jest.Mock };
   let planRepo: { findOne: jest.Mock };
 
   const planWithDays = (days: Partial<StudyPlanDay>[]) => ({
@@ -26,7 +26,7 @@ describe('PlanService.generateCoursesForPlan (AI-801)', () => {
 
   beforeEach(async () => {
     ai = { chat: jest.fn() };
-    coursesService = { createCourseFromPlan: jest.fn() };
+    coursesService = { createCourseFromPlan: jest.fn(), findOne: jest.fn() };
     planRepo = { findOne: jest.fn() };
 
     const mod = await Test.createTestingModule({
@@ -96,5 +96,63 @@ describe('PlanService.generateCoursesForPlan (AI-801)', () => {
     expect(coursesService.createCourseFromPlan).toHaveBeenCalledTimes(1);
     const spec = coursesService.createCourseFromPlan.mock.calls[0][0];
     expect(spec.lessons).toHaveLength(2); // 模板按天数生成 2 节
+  });
+
+  it('幂等：计划已有配套课程（refs 指向存在且标题匹配派生主题）→ 直接返回不调 AI', async () => {
+    planRepo.findOne.mockResolvedValue(planWithDays([
+      { lessonRefsJson: JSON.stringify([{ skillType: 'vocab', courseId: 'c9', lessonId: 'l1', title: 'T' }]) },
+      { lessonRefsJson: JSON.stringify([{ skillType: 'vocab', courseId: 'c9', lessonId: 'l2', title: 'T' }]) },
+    ]));
+    // deriveCourseSpec(['Theme', 'Theme']).title === 'Theme · English'
+    coursesService.findOne.mockResolvedValue({ id: 'c9', title: 'Theme · English', totalLessons: 2, wordCount: 10 });
+
+    const res = await service.generateCoursesForPlan('p1');
+    expect(res).toEqual({
+      courseId: 'c9',
+      title: 'Theme · English',
+      lessonCount: 2,
+      wordCount: 10,
+      degraded: false,
+      model: 'idempotent',
+    });
+    expect(ai.chat).not.toHaveBeenCalled();
+    expect(coursesService.createCourseFromPlan).not.toHaveBeenCalled();
+  });
+
+  it('幂等不误判：refs 指向标题不同的种子课程 → 仍正常生成新课程', async () => {
+    planRepo.findOne.mockResolvedValue(planWithDays([
+      { lessonRefsJson: JSON.stringify([{ skillType: 'vocab', courseId: 'seed1', lessonId: 'sl1', title: 'S' }]) },
+    ]));
+    coursesService.findOne.mockResolvedValue({ id: 'seed1', title: 'Animal Friends', totalLessons: 5, wordCount: 25 });
+    const aiCourse = {
+      course: { title: 'New Course', description: 'd', icon: 'book', color: '#abcdef' },
+      lessons: [{ title: 'L', words: [{ text: 'a', phonics: '/a/', meaning: 'm', options: ['a', 'b'], correctIndex: 0 }] }],
+    };
+    ai.chat.mockResolvedValue({ text: JSON.stringify(aiCourse), model: 'agnes' } as ChatResult);
+    coursesService.createCourseFromPlan.mockResolvedValue({ courseId: 'c-new', lessonCount: 1, wordCount: 1 });
+
+    const res = await service.generateCoursesForPlan('p1');
+    expect(res.degraded).toBe(false);
+    expect(res.model).toBe('agnes');
+    expect(ai.chat).toHaveBeenCalledTimes(1);
+    expect(coursesService.createCourseFromPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it('幂等失效回退：引用课程已被删除 → 正常走 AI 重新生成', async () => {
+    planRepo.findOne.mockResolvedValue(planWithDays([
+      { lessonRefsJson: JSON.stringify([{ skillType: 'vocab', courseId: 'gone', lessonId: 'l1', title: 'T' }]) },
+    ]));
+    coursesService.findOne.mockRejectedValue(new Error('Course not found'));
+    const aiCourse = {
+      course: { title: 'Regenerated', description: 'd', icon: 'book', color: '#abcdef' },
+      lessons: [{ title: 'L', words: [{ text: 'a', phonics: '/a/', meaning: 'm', options: ['a', 'b'], correctIndex: 0 }] }],
+    };
+    ai.chat.mockResolvedValue({ text: JSON.stringify(aiCourse), model: 'agnes' } as ChatResult);
+    coursesService.createCourseFromPlan.mockResolvedValue({ courseId: 'c-regen', lessonCount: 1, wordCount: 1 });
+
+    const res = await service.generateCoursesForPlan('p1');
+    expect(res.degraded).toBe(false);
+    expect(res.courseId).toBe('c-regen');
+    expect(ai.chat).toHaveBeenCalledTimes(1);
   });
 });

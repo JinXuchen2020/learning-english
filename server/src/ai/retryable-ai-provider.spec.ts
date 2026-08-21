@@ -1,6 +1,6 @@
 import { createRetryableProvider, RetryableAiProvider } from './retryable-ai-provider';
 import { ConcurrencyLimiter } from './concurrency-limiter';
-import { AiProvider, ChatMessage, ImageInput } from './ai-provider.interface';
+import { AiProvider, ChatMessage, ChatOptions, ImageInput, UnsupportedMethodError } from './ai-provider.interface';
 import { AiProviderException, AiAccessError } from './ai-provider.errors';
 
 const noDelay = async () => undefined;
@@ -130,6 +130,53 @@ describe('RetryableAiProvider', () => {
     const res = await p.synthesize('hi');
     expect(res.mimeType).toBe('audio/mp3');
     expect(inner.calls).toEqual(['synthesize']);
+  });
+
+  it('streamChat 委托内层 provider（逐 chunk 透传）', async () => {
+    const inner = fakeInner({
+      streamChat: async function* () {
+        yield 'Hello ';
+        yield 'world';
+      },
+    });
+    const p = createRetryableProvider(inner, { maxAttempts: 3, delay: noDelay }, new ConcurrencyLimiter(2));
+    const out: string[] = [];
+    for await (const chunk of p.streamChat([{ role: 'user', content: 'hi' }])) {
+      out.push(chunk);
+    }
+    expect(out.join('')).toBe('Hello world');
+    expect(inner.calls).toEqual([]); // 委托调用不记录在 calls（streamChat 未 push）
+  });
+
+  it('streamChat 内层不支持 → 抛 UnsupportedMethodError（不静默产出空流）', async () => {
+    const inner = fakeInner(); // 无 streamChat 方法
+    const p = createRetryableProvider(inner, { maxAttempts: 3, delay: noDelay }, new ConcurrencyLimiter(2));
+    await expect(
+      (async () => {
+        for await (const _ of p.streamChat([{ role: 'user', content: 'hi' }])) {
+          /* drain */
+        }
+      })(),
+    ).rejects.toBeInstanceOf(UnsupportedMethodError);
+  });
+
+  it('streamChat 透传 signal 到内层（取消中断链路不丢）', async () => {
+    const ac = new AbortController();
+    let seenSignal: AbortSignal | undefined;
+    const inner = fakeInner({
+      streamChat: async function* (
+        _msgs: ChatMessage[],
+        options?: ChatOptions & { signal?: AbortSignal },
+      ) {
+        seenSignal = options?.signal;
+        yield 'ok';
+      },
+    });
+    const p = createRetryableProvider(inner, { maxAttempts: 3, delay: noDelay }, new ConcurrencyLimiter(2));
+    for await (const _ of p.streamChat([{ role: 'user', content: 'hi' }], { signal: ac.signal })) {
+      /* drain */
+    }
+    expect(seenSignal).toBe(ac.signal);
   });
 
   it('passes through the inner provider name', () => {
