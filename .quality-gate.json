@@ -1,15 +1,15 @@
 {
-  "phase": "ai-805-dialog-primitive",
+  "phase": "ai-806-design-token-contrast",
   "stack": "node-ts",
-  "feature": "AI-805",
+  "feature": "AI-806",
   "cleared": true,
   "enforced": true,
-  "reportRef": "features/ai-805.md",
-  "notes": "AI-805 共享 Dialog 原语收口三处弹层：① 新建 src/components/ui/dialog.tsx（自建 focus-trap + Esc 关闭 + 遮罩 target===currentTarget 关闭 + 焦点还原 + body 滚动锁 + open=false 渲染 null，零新增依赖，不引入 Radix）；② MoreDrawer 删手写遮罩与 Esc useEffect 改 Dialog bottom 变体；③ 首页 MascotStoryModal 改 Dialog center 并加 id=mascot-story-title（aria-labelledby）；④ picture-book reader modal 改 Dialog center 并加 id=picture-book-title，内部 book 改为可选链 book?；⑤ 新增 dialog-a11y.feature（5 场景：MoreDrawer Esc 关闭与焦点还原、MoreDrawer 遮罩关闭、MoreDrawer Tab 陷阱、Mascot 弹窗 Esc 关闭与焦点还原、Mascot 弹窗 Tab 陷阱）与 DialogAssert POM，复用既有 open 步骤，既有 data-component 选择器不破。详见 features/ai-805.md。",
+  "reportRef": "features/ai-806.md",
+  "notes": "AI-806 设计 token 统一与对比度核算：① globals.css 下调主色系（--seed-primary #19C8B9→#0B7A70、--color-success #6FBA2C→#3F7A18 及 hover/active/shadow），新增 .ring-progress class 供 reduced-motion 守卫接管；② LevelRing 进度环 fallback 对齐 #0B7A70 并改用 .ring-progress class，与 progress-ring 一致；③ tailwind 新增 kids.teal-deep/pink-deep/blue-deep/sun-deep（#0F766E/#BE185D/#4338CA/#B45309），kids.mint 系列同步深青主色；④ lib/plan.ts 新增 PLAN_SKILL_COLORS_DEEP + planSkillColorDeep()，formatPlanDay 改用深色调；⑤ plan 页技能徽章由浅底彩字改深色调实填充+白字、日卡色条随 fmt.color 转深；⑥ practice 答题按钮改 kids.*-deep 实填充+白字；⑦ design-system.md 更新 token 值、修正错误对比度声明、新增 §5.1 核算与深色调 token 表；⑧ scripts/contrast-audit.mjs 更新 AFTER 段。详见 features/ai-806.md。",
   "gates": {
     "consistency": "PASSED (前端 tsc --noEmit 0；e2e typecheck:e2e 0)",
-    "tests": "PASSED (user-accepted-ci: 新增 dialog-a11y.feature 5 场景 + DialogAssert POM + steps；本地仅 e2e tsc（typecheck:e2e）验证编译，全量 Playwright 实跑交 CI e2e job 兜底；前端 tsc --noEmit 0；弹层为纯展示组件，依项目约定豁免单测，无新增 jest/vitest)",
-    "review": "PASSED (0 open：三处弹层迁移保留全部既有 data-component 钩子与内部结构，既有 more-drawer/mascot-story/picture-book 场景继续有效；遮罩关闭改为 target===currentTarget 校验更正确；焦点还原用 document.activeElement 快照且含 document.contains 保护)",
-    "optimization": "PASSED (0 open：单一 Dialog 原语收口三处样板，零新增依赖，改动面最小化)"
+    "tests": "PASSED (user-accepted-ci: 改动为纯 token/样式与展示组件，依项目约定展示型组件豁免单测；本地仅 e2e tsc（typecheck:e2e）验证编译，全量 Playwright 实跑交 CI e2e job 兜底；前端 tsc --noEmit 0)",
+    "review": "PASSED (0 open：主色统一为单一 --seed-primary，progress-ring/LevelRing 一致；practice/plan 硬编码色全部收口进 design-system.md token 与 PLAN_SKILL_COLORS_DEEP；对比度核算 19/19 达标；reduced-motion 全局守卫覆盖 .ring-progress)",
+    "optimization": "PASSED (0 open：复用既有 token 体系与 reduced-motion 守卫，零新增依赖，改动面最小化，新增 scripts/contrast-audit.mjs 作为可复现核算工具)"
   }
 }

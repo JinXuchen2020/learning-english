@@ -49,9 +49,9 @@ const config: Config = {
           text: "#725D42",
           muted: "#9F927D",
           disabled: "#C4B89E",
-          mint: "#19C8B9",
-          "mint-hover": "#3DD4C6",
-          "mint-active": "#11A89B",
+          mint: "#0B7A70",
+          "mint-hover": "#0A6E63",
+          "mint-active": "#095F57",
           "mint-wash": "#E6F9F6",
           sun: "#FFCC00",
           "sun-shadow": "#E0B800",
@@ -64,6 +64,12 @@ const config: Config = {
           blue: "#889DF0",
           orange: "#E59266",
           teal: "#82D5BB",
+          // 深色调变体（AI-806 对比度整改）：用于「实色填充 + 白字」的答题按钮，
+          // 浅色 kids.* 配白字不达标 WCAG AA（2.7~3.6:1）。白字对比度均 ≥4.5:1。
+          "teal-deep": "#0F766E",
+          "pink-deep": "#BE185D",
+          "blue-deep": "#4338CA",
+          "sun-deep": "#B45309",
         },
       },
       borderRadius: {

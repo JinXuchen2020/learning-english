@@ -43,17 +43,17 @@ const MODE_LABELS: Record<QuizMode, string> = {
 };
 
 const answerColors = [
-  "bg-kids-teal hover:bg-kids-teal/80",
-  "bg-kids-pink hover:bg-kids-pink/80",
-  "bg-kids-blue hover:bg-kids-blue/80",
-  "bg-kids-sun/80 hover:bg-kids-sun",
+  "bg-kids-teal-deep hover:bg-kids-teal-deep/90",
+  "bg-kids-pink-deep hover:bg-kids-pink-deep/90",
+  "bg-kids-blue-deep hover:bg-kids-blue-deep/90",
+  "bg-kids-sun-deep hover:bg-kids-sun-deep/90",
 ];
 
 const answerTextColors = [
   "text-white",
   "text-white",
   "text-white",
-  "text-kids-text",
+  "text-white",
 ];
 
 /* Distinct animal SVG illustrations for vocabulary learning */

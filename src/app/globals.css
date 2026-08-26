@@ -6,7 +6,9 @@
   /* Seed tokens — Nudge-controllable */
   --seed-bg: #f8f8f0;
   --seed-fg: #725d42;
-  --seed-primary: #19c8b9;
+  /* 主色下调至 #0b7a70：原 #19c8b9 配白字仅 2.1:1，未达 WCAG AA
+     文本 4.5:1（AI-806 对比度整改）。下调后白字/链接/进度环均达标。 */
+  --seed-primary: #0b7a70;
   --seed-accent: #ffcc00;
   --seed-surface: #f7f3df;
   --seed-radius: 24px;
@@ -15,11 +17,11 @@
   --color-title: #794f27;
   --color-muted: #9f927d;
   --color-disabled: #c4b89e;
-  --color-primary-hover: #3dd4c6;
-  --color-primary-active: #11a89b;
+  --color-primary-hover: #0a6e63;
+  --color-primary-active: #095f57;
   --color-primary-wash: #e6f9f6;
-  --color-success: #6fba2c;
-  --color-success-shadow: #5a9e1e;
+  --color-success: #3f7a18;
+  --color-success-shadow: #2e5c12;
   --color-warning: #f5c31c;
   --color-danger: #e05a5a;
   --color-button-shadow: #bdaea0;
@@ -197,6 +199,12 @@
     transition: stroke-dashoffset 0.5s ease;
     transform: rotate(-90deg);
     transform-origin: 50% 50%;
+  }
+
+  /* LevelRing 进度环过渡（与 progress-ring-circle 同源，但无旋转）；
+     抽成 CSS class 以便 reduced-motion 守卫统一接管（AI-806）。 */
+  .ring-progress {
+    transition: stroke-dashoffset 0.5s ease;
   }
 }
 
