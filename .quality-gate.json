@@ -1,15 +1,15 @@
 {
-  "phase": "ai-808-responsive",
+  "phase": "ai-809-forms",
   "stack": "node-ts",
-  "feature": "AI-808",
+  "feature": "AI-809",
   "cleared": true,
   "enforced": true,
-  "reportRef": "features/ai-808.md",
-  "notes": "AI-808 响应式精修：① course/page.tsx CourseHeader 改 flex-wrap + 进度块 w-full sm:w-40 sm:shrink-0，文本列 min-w-0 防长标题撑破，消除 320px 横向溢出；② TabNav 去 overflow-x-auto/min-w/touch-target-lg，改 flex-1 等宽（320px 每项≈60.8px≥44px 且不溢出）；③ LocaleSwitcher 语言按钮补 min-h/min-w-[44px]；④ MoreDrawer 关闭按钮 h-10→h-11(44px)；⑤ progress-ring 内环圆 inline transition 抽为 .ring-progress class（LevelRing 已在 AI-806 完成），功能性 transform 保留 inline；⑥ globals.css 既有 reduced-motion 全局 * 守卫已覆盖 button/card/input/select/progress 全部 transition。详见 features/ai-808.md。",
+  "reportRef": "features/ai-809.md",
+  "notes": "AI-809 表单体验与标签关联加固：① parent/settings 两个表单（ProviderConfigForm / AddChildForm）包 <form onSubmit>，支持回车提交；name/baseUrl/model/apiKey/nickname/username/password 补 id+htmlFor 程序化关联，必填项加 required（apiKey 仅新增时 required 保留编辑态留空逻辑）；保存按钮 type=submit、取消按钮 type=button；② scan 文件输入补 aria-label={t('imageUploadLabel')}，保留 capture=environment；③ TabNav 内联 div 加 role=group，LocaleSwitcher 容器加 role=group（aria-pressed 此前已就位），word-cards 状态筛选按钮补 aria-pressed；④ 新增 Scan.imageUploadLabel（en/zh）。详见 features/ai-809.md。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；纯展示/布局改动，无跨域逻辑)",
-    "tests": "PASSED (user-accepted-ci: 改动为布局/触摸目标/动效 class，展示型组件豁免单测；本地仅 e2e tsc（typecheck:e2e）验证编译，全量 Playwright/视口断言交 CI e2e job 兜底；前端 tsc --noEmit 0)",
-    "review": "PASSED (0 open：320px 溢出收口；TabNav/命中区达标；reduced-motion 守卫就位；progress-ring 抽类)",
-    "optimization": "PASSED (0 open：复用既有原语与 token，零新增依赖，改动面最小化)"
+    "consistency": "PASSED (前端 tsc --noEmit 0；纯表单/标签/状态属性改动，无跨域逻辑)",
+    "tests": "PASSED (user-accepted-ci: 改动为表单 onSubmit/label 关联/aria 状态属性，展示型组件豁免单测；本地仅 e2e tsc 验证编译，全量 Playwright/axe 交 CI e2e job 兜底；前端 tsc --noEmit 0)",
+    "review": "PASSED (0 open：表单回车提交+原生校验；label 程序化关联；文件输入可访问名；toggle/筛选 aria-pressed/role=group 就位)",
+    "optimization": "PASSED (0 open：复用既有 Input/Select 原语与 i18n 体系，零新增依赖，改动面最小化)"
   }
 }

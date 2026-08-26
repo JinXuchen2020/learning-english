@@ -60,6 +60,7 @@
     "errorAddVocab": "加入生词本失败，请稍后再试。",
     "recognizing": "识别中…",
     "start": "开始识别",
+    "imageUploadLabel": "选择一张照片以识别英文单词",
     "selected": "已选择：{name}",
     "recognized": "认出的单词",
     "addAll": "全部加入生词本",

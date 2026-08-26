@@ -60,6 +60,7 @@
     "errorAddVocab": "Failed to add to vocab book. Please try again.",
     "recognizing": "Recognizing…",
     "start": "Start Recognition",
+    "imageUploadLabel": "Choose a photo to scan for English words",
     "selected": "Selected: {name}",
     "recognized": "Words Found",
     "addAll": "Add All to Vocab",

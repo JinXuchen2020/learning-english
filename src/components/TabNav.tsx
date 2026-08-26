@@ -97,7 +97,11 @@ export default function TabNav() {
         data-component="TabNav"
         aria-label={t("mainNav")}
       >
-        <div className="flex items-center max-w-3xl mx-auto px-2 sm:px-4 py-2">
+        <div
+          className="flex items-center max-w-3xl mx-auto px-2 sm:px-4 py-2"
+          role="group"
+          aria-label={t("mainNav")}
+        >
           {tabs.map((tab) => {
             const active = isActive(tab);
             const Icon = tab.icon;
