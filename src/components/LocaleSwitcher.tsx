@@ -26,7 +26,7 @@ export default function LocaleSwitcher() {
           key={l}
           type="button"
           onClick={() => router.replace(pathname, { locale: l })}
-          className={`px-2 py-0.5 rounded-full transition-colors ${
+          className={`flex min-h-[44px] min-w-[44px] items-center justify-center px-2 rounded-full transition-colors ${
             l === locale
               ? "bg-[var(--seed-primary)] text-white"
               : "text-kids-muted hover:text-kids-title"

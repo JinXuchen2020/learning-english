@@ -78,10 +78,10 @@ export const ProgressRing = React.forwardRef<SVGSVGElement, ProgressRingProps>(
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
+          className="ring-progress"
           style={{
             transform: "rotate(-90deg)",
             transformOrigin: "50% 50%",
-            transition: "stroke-dashoffset 0.5s ease",
           }}
         />
         {text != null && text !== "" && (
