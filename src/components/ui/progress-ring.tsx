@@ -53,7 +53,10 @@ export const ProgressRing = React.forwardRef<SVGSVGElement, ProgressRingProps>(
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className={cn("shrink-0", className)}
-        role="img"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
         aria-label={typeof text === "string" ? text : "progress"}
         {...props}
       >

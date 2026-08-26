@@ -101,7 +101,7 @@ function RewardsInner() {
       </Card>
 
       {error && (
-        <Card className="flex items-center gap-3" data-component="RewardsError">
+        <Card role="alert" className="flex items-center gap-3" data-component="RewardsError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
         </Card>

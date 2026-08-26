@@ -271,9 +271,11 @@ export default function SpeechRecorder({
       )}
 
       {status === "requesting" && (
-        <Button size="lg" disabled aria-busy="true">
-          <span className="mr-2 animate-pulse">…</span> {t("requestingMic")}
-        </Button>
+        <div role="status" aria-live="polite">
+          <Button size="lg" disabled aria-busy="true">
+            <span className="mr-2 animate-pulse">…</span> {t("requestingMic")}
+          </Button>
+        </div>
       )}
 
       {status === "recording" && (

@@ -16,6 +16,7 @@
     "parentSettings": "Parent",
     "parent": "Parent",
     "mainNav": "Main navigation",
+    "skipToContent": "Skip to main content",
     "logout": "Sign out"
   },
   "MoreDrawer": {
@@ -161,7 +162,11 @@
     "browseCourses": "Browse Courses",
     "answerReveal": "The answer is \"{answer}\" — {phonics}",
     "finish": "Finish",
-    "nextWord": "Next Word"
+    "nextWord": "Next Word",
+    "practiceTitle": "Practice",
+    "currentWord": "Current word: ",
+    "listenPromptHeading": "Listen and choose the picture",
+    "progressLabel": "Practice progress"
   },
   "Plan": {
     "previewTitle": "Your study plan is ready!",

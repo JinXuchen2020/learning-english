@@ -137,7 +137,7 @@ function PictureBookInner() {
                   disabled={loading}
                   className="rounded-control bg-[var(--seed-primary)] px-4 py-2 text-sm font-bold text-white shadow-button transition-colors hover:opacity-90 disabled:opacity-50"
                 >
-                  t('generate')
+                  {t('generate')}
                 </button>
               </li>
             ))}

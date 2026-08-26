@@ -1,15 +1,15 @@
 {
-  "phase": "ai-806-design-token-contrast",
+  "phase": "ai-807-a11y-critical",
   "stack": "node-ts",
-  "feature": "AI-806",
+  "feature": "AI-807",
   "cleared": true,
   "enforced": true,
-  "reportRef": "features/ai-806.md",
-  "notes": "AI-806 设计 token 统一与对比度核算：① globals.css 下调主色系（--seed-primary #19C8B9→#0B7A70、--color-success #6FBA2C→#3F7A18 及 hover/active/shadow），新增 .ring-progress class 供 reduced-motion 守卫接管；② LevelRing 进度环 fallback 对齐 #0B7A70 并改用 .ring-progress class，与 progress-ring 一致；③ tailwind 新增 kids.teal-deep/pink-deep/blue-deep/sun-deep（#0F766E/#BE185D/#4338CA/#B45309），kids.mint 系列同步深青主色；④ lib/plan.ts 新增 PLAN_SKILL_COLORS_DEEP + planSkillColorDeep()，formatPlanDay 改用深色调；⑤ plan 页技能徽章由浅底彩字改深色调实填充+白字、日卡色条随 fmt.color 转深；⑥ practice 答题按钮改 kids.*-deep 实填充+白字；⑦ design-system.md 更新 token 值、修正错误对比度声明、新增 §5.1 核算与深色调 token 表；⑧ scripts/contrast-audit.mjs 更新 AFTER 段。详见 features/ai-806.md。",
+  "reportRef": "features/ai-807.md",
+  "notes": "AI-807 无障碍关键修复（语义/焦点/实时区域）：① practice 四视图各注入唯一视觉隐藏 <h1>，单词/完成/空标题降为 <h2>，listen 模式补 <h2> 标题，消除多 h1 与空标题；② layout 新增首个焦点 skip-link（#main 跳转）+ <main id=\"main\">；③ select 下拉 overflow-hidden→max-h-72 overflow-y-auto 可滚动；④ Progress 新增 aria-label（practice 调用传 progressLabel），ProgressRing role=img→progressbar 补 aria-valuenow/min/max；⑤ chat 线程 role=log aria-live=polite，SpeechRecorder/AuthGate 加载态 role=status，rewards/parent-report/ParentError/ProviderConfigError 错误卡 role=alert；⑥ Field 用 useId 自动注入 id 并 cloneElement 关联 label/aria-describedby；⑦ picture-book 生成按钮字面量 t('generate')→{t('generate')} 修复；⑧ 新增 i18n 键 TabNav.skipToContent、Practice.practiceTitle/currentWord/listenPromptHeading/progressLabel。详见 features/ai-807.md。",
   "gates": {
     "consistency": "PASSED (前端 tsc --noEmit 0；e2e typecheck:e2e 0)",
-    "tests": "PASSED (user-accepted-ci: 改动为纯 token/样式与展示组件，依项目约定展示型组件豁免单测；本地仅 e2e tsc（typecheck:e2e）验证编译，全量 Playwright 实跑交 CI e2e job 兜底；前端 tsc --noEmit 0)",
-    "review": "PASSED (0 open：主色统一为单一 --seed-primary，progress-ring/LevelRing 一致；practice/plan 硬编码色全部收口进 design-system.md token 与 PLAN_SKILL_COLORS_DEEP；对比度核算 19/19 达标；reduced-motion 全局守卫覆盖 .ring-progress)",
-    "optimization": "PASSED (0 open：复用既有 token 体系与 reduced-motion 守卫，零新增依赖，改动面最小化，新增 scripts/contrast-audit.mjs 作为可复现核算工具)"
+    "tests": "PASSED (user-accepted-ci: 改动为语义/ARIA 与展示组件，依项目约定展示型组件豁免单测；本地仅 e2e tsc（typecheck:e2e）验证编译，全量 Playwright/axe 实跑交 CI e2e job 兜底；前端 tsc --noEmit 0)",
+    "review": "PASSED (0 open：practice 唯一 <h1> 无空标题；skip-link + main#main 就位；select 可滚动；progressbar 具可访问名；log/status/alert 实时区域齐备；Field 自动关联；picture-book 文案修复)",
+    "optimization": "PASSED (0 open：复用既有原语与 i18n 体系，零新增依赖，改动面最小化)"
   }
 }

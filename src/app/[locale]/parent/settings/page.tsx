@@ -129,7 +129,7 @@ function ParentSettingsInner() {
       </section>
 
       {error && (
-        <section className="card-kids flex items-center gap-3" data-component="ParentError">
+        <section role="alert" className="card-kids flex items-center gap-3" data-component="ParentError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
         </section>
@@ -451,7 +451,7 @@ function ProviderConfigSection() {
       </div>
 
       {error && (
-        <p className="text-kids-orange text-sm font-semibold" data-component="ProviderConfigError">
+        <p role="alert" className="text-kids-orange text-sm font-semibold" data-component="ProviderConfigError">
           {error}
         </p>
       )}

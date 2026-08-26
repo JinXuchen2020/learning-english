@@ -188,7 +188,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             id={listId}
             role="listbox"
             aria-orientation="vertical"
-            className="absolute z-50 mt-2 w-full overflow-hidden rounded-card bg-kids-card shadow-card border border-kids-secondary animate-fade-in"
+            className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-card bg-kids-card shadow-card border border-kids-secondary animate-fade-in"
           >
             {options.map((option, index) => {
               const selected = option.value === value;

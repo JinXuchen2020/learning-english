@@ -348,8 +348,9 @@ function Quiz({
         className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-6"
         data-component="QuizComplete"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="celebrating" size="large" />
-        <h1 className="text-3xl">Amazing Job!</h1>
+        <h2 className="text-3xl">Amazing Job!</h2>
         <p className="text-xl text-kids-text">
           You got{" "}
           <span className="font-extrabold text-[var(--color-success)]">
@@ -390,8 +391,9 @@ function Quiz({
         className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
         data-component="PracticeEmpty"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">{t("emptyModeTitle")}</h1>
+        <h2 className="text-2xl">{t("emptyModeTitle")}</h2>
         <p className="text-kids-muted">
           {t("emptyModeHint")}
         </p>
@@ -410,8 +412,9 @@ function Quiz({
   const isImage = item.optionKind === "image";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
-      {/* 返回课程页：仅跟课练习显示（从课程页带 courseId 进入）；
+      <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
+        {/* 返回课程页：仅跟课练习显示（从课程页带 courseId 进入）；
           自由练习是 tab 根页面，靠底部导航切换即可。
           提前退出不调用 completeLesson，不计完成。 */}
       {courseId && (
@@ -459,7 +462,7 @@ function Quiz({
             {t("correctCount", { count: correctCount })}
           </span>
         </div>
-        <Progress value={progress} className="h-4" />
+        <Progress value={progress} aria-label={t("progressLabel")} className="h-4" />
       </div>
 
       {/* Word Card */}
@@ -471,7 +474,7 @@ function Quiz({
               <WordIllustration word={item.word.text} />
             </div>
             <div className="space-y-2">
-              <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{item.word.text}</h1>
+              <h2 className="text-4xl tracking-tight" data-component="QuizWordText"><span className="sr-only">{t("currentWord")}</span>{item.word.text}</h2>
               <p className="text-kids-muted">{item.word.meaning}</p>
               {difficultyMap && difficultyMap.get(item.word.id) && (
                 <span
@@ -505,7 +508,7 @@ function Quiz({
                 style={{ background: colorHex(item.color) }}
                 aria-label={`color ${item.color}`}
               />
-              <h1 className="text-3xl tracking-tight" data-component="QuizWordText">{item.promptText}</h1>
+              <h2 className="text-3xl tracking-tight" data-component="QuizWordText"><span className="sr-only">{t("currentWord")}</span>{item.promptText}</h2>
             </div>
             <p className="text-kids-muted">{t("findMatch")}</p>
           </div>
@@ -514,6 +517,7 @@ function Quiz({
         {/* 听音选图：音频优先，隐藏文字 */}
         {mode === "listen" && (
           <div className="space-y-3" data-component="ListenPrompt">
+            <h2 className="sr-only">{t("listenPromptHeading")}</h2>
             <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center">
               <Volume2 size={64} className="text-[var(--seed-primary)]" />
             </div>
@@ -662,8 +666,9 @@ function PracticeInner() {
         className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
         data-component="PracticeEmpty"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">{t("emptyWords")}</h1>
+        <h2 className="text-2xl">{t("emptyWords")}</h2>
         <p className="text-kids-muted">
           {t("emptyWordsHint")}
         </p>

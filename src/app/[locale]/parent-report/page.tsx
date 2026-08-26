@@ -109,7 +109,7 @@ function ParentReportInner() {
       )}
 
       {error && !loading && (
-        <Card className="flex items-center gap-4" data-component="ReportError">
+        <Card role="alert" className="flex items-center gap-4" data-component="ReportError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{t("reportLoadError")}</p>
         </Card>

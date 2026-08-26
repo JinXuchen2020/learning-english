@@ -701,6 +701,9 @@ function ChatInner() {
       {/* Chat thread */}
       <div
         ref={threadRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
         className="space-y-3 max-h-[42vh] sm:max-h-[55vh] overflow-y-auto pr-1"
         data-component="ChatThread"
       >
