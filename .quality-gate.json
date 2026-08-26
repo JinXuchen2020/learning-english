@@ -1,15 +1,15 @@
 {
-  "phase": "ai-810-i18n",
+  "phase": "ai-806-plan-spec-fix",
   "stack": "node-ts",
-  "feature": "AI-810",
+  "feature": "AI-806",
   "cleared": true,
   "enforced": true,
-  "reportRef": "features/ai-810.md",
-  "notes": "AI-810 i18n 文案遗漏收口：① practice 庆祝屏三处硬编码英文（Amazing Job! / Practice Again / Back to Course）改 t()；成绩摘要改用 t.rich 富文本插值保留加粗高亮（strong 回调套 --color-success）；② 练习页 10 个动物插画 aria-label 硬编码英文描述句（A cute cat 等）改 aria-label={word}（词汇本身=学习内容，保持英文且随内容一致）；③ 新增 Practice.amazingJob/practiceAgain/quizCompleteSummary（en/zh）；④ 全站 grep（JSX 文本子节点 / aria-label,placeholder,title,alt 属性 / 客户端 toast,setError 等）清零裸英文 UI 串（logger.error 技术性日志与 data-component 钩子不计入）。详见 features/ai-810.md。",
+  "reportRef": "src/lib/plan.spec.ts",
+  "notes": "AI-806 对比度整改回归修复：plan.ts formatPlanDay.color 已改走 planSkillColorDeep（深琥珀 #B45309 / 深蓝 #1D4ED8 等），但 plan.spec.ts 三处 formatPlanDay 色值断言仍停在旧浅色（#F59E0B / #3B82F6），pre-commit 钩子只查 JSON 字符串门未真跑测试，导致 CI test 挂。本次同步断言到 deep 色值，并新增 planSkillColorDeep 单测（4 映射 + 2 fallback）覆盖新增深色调 helper。前端 vitest run 全绿 17 文件 / 162 测试，tsc --noEmit 0。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；纯 i18n 文案与 aria-label 属性改动，无跨域逻辑)",
-    "tests": "PASSED (user-accepted-ci: 改动为 UI 文案 t() 化与 aria-label 数据化，展示型组件豁免单测；本地仅 e2e tsc 验证编译，全量 Playwright/axe 交 CI e2e job 兜底；前端 tsc --noEmit 0)",
-    "review": "PASSED (0 open：庆祝屏三串经 t() 可中/英切换；成绩摘要 t.rich 保留样式；插画 aria-label 数据化=词汇；全站裸英文 UI 串 grep 清零)",
-    "optimization": "PASSED (0 open：复用 next-intl t.rich 原生能力，零新增依赖，改动面最小化)"
+    "consistency": "PASSED (前端 tsc --noEmit 0；仅单测色值断言与新增 helper 断言，无跨域逻辑)",
+    "tests": "PASSED (local-vitest: src vitest run 全绿 17 files / 162 tests，含 plan.spec.ts 16 tests；tsc --noEmit 0；user-accepted-ci 兜底仍有效)",
+    "review": "PASSED (0 open：断言与 plan.ts planSkillColorDeep 实现一致；planSkillColor 浅色键未动、既有断言保留；新增 deep helper 单测)",
+    "optimization": "PASSED (0 open：纯测试同步，零运行时改动)"
   }
 }

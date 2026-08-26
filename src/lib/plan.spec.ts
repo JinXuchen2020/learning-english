@@ -3,6 +3,7 @@ import {
   isPlanFormValid,
   validatePlanForm,
   planSkillColor,
+  planSkillColorDeep,
   planLessonTypeLabel,
   formatPlanDay,
   type PlanFormValues,
@@ -86,6 +87,18 @@ describe("plan display helpers (AI-208)", () => {
     expect(planSkillColor("unknown" as never)).toBe("#F59E0B");
   });
 
+  it("planSkillColorDeep maps each skill type to its WCAG-AA deep variant (AI-806)", () => {
+    expect(planSkillColorDeep("vocab")).toBe("#B45309"); // 深琥珀
+    expect(planSkillColorDeep("listen")).toBe("#1D4ED8"); // 深蓝
+    expect(planSkillColorDeep("speak")).toBe("#C2185B"); // 深粉
+    expect(planSkillColorDeep("write")).toBe("#047857"); // 深绿
+  });
+
+  it("planSkillColorDeep falls back to vocab deep color for undefined", () => {
+    expect(planSkillColorDeep(undefined)).toBe("#B45309");
+    expect(planSkillColorDeep("unknown" as never)).toBe("#B45309");
+  });
+
   it("planLessonTypeLabel reflects lesson type", () => {
     expect(planLessonTypeLabel({ type: "main" })).toBe("主课");
     expect(planLessonTypeLabel({ type: "review" })).toBe("复习");
@@ -101,7 +114,7 @@ describe("plan display helpers (AI-208)", () => {
     expect(r.label).toBe("第 3 天");
     expect(r.lessonCount).toBe(0);
     expect(r.skills).toEqual([]);
-    expect(r.color).toBe("#F59E0B"); // undefined skill → vocab fallback
+    expect(r.color).toBe("#B45309"); // undefined skill → vocab deep fallback (AI-806)
   });
 
   it("formatPlanDay derives color and skills from lessons when day.skillType absent", () => {
@@ -117,7 +130,7 @@ describe("plan display helpers (AI-208)", () => {
     expect(r.label).toBe("动物的一天");
     expect(r.lessonCount).toBe(3);
     expect(r.skills).toEqual(["vocab", "speak"]);
-    expect(r.color).toBe("#F59E0B"); // first lesson skill = vocab
+    expect(r.color).toBe("#B45309"); // first lesson skill = vocab deep (AI-806)
   });
 
   it("formatPlanDay uses day.skillType over lesson skills", () => {
@@ -126,7 +139,7 @@ describe("plan display helpers (AI-208)", () => {
       lessons: [{ skillType: "vocab", title: "x" }],
     };
     const r = formatPlanDay(day, 0);
-    expect(r.color).toBe("#3B82F6"); // listen
+    expect(r.color).toBe("#1D4ED8"); // listen deep (AI-806)
     expect(r.skills).toEqual(["vocab"]);
   });
 });
