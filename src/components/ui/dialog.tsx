@@ -49,6 +49,13 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
  *   - 打开期间锁定 body 滚动（移动端底部抽屉尤其必要）
  *
  * 设计为「零新增依赖」：不引入 Radix，焦点管理与键盘处理全部自建。
+ *
+ * 关键实现说明（AI-805 修复 CI e2e 回归）：
+ *   - 键盘监听挂在 `document` 捕获阶段（而非仅 overlay div），这样无论焦点此刻
+ *     在弹层内还是仍停留在触发按钮 / body，Esc 与 Tab 都能被拦截。否则焦点未进入
+ *     弹层时按 Esc/Tab 不会冒泡到 overlay，导致「不关 / Tab 逃逸」。
+ *   - 打开时**同步**聚焦首个可聚焦元素（不再用 requestAnimationFrame），消除
+ *     「弹层已可见但焦点尚未进入」的竞态窗口，保证键盘用户一进来就被困在弹层内。
  */
 export function Dialog({
   open,
@@ -64,8 +71,11 @@ export function Dialog({
   dataComponent,
 }: DialogProps) {
   const panelRef = React.useRef<HTMLDivElement | null>(null);
+  // 用 ref 持有最新 onClose，避免 keydown 监听因 onClose 标识变化反复重订阅。
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
-  // 打开：捕获触发焦点 + 锁定背景滚动 + 聚焦弹层内首焦点元素。
+  // 打开：捕获触发焦点 + 锁定背景滚动 + 同步聚焦弹层内首焦点元素。
   // 关闭（或卸载）：还原触发焦点 + 还原滚动。
   React.useEffect(() => {
     if (!open) return;
@@ -73,53 +83,60 @@ export function Dialog({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const raf = requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      if (!panel) return;
-      const focusables = getFocusable(panel);
-      (focusables[0] ?? panel).focus();
-    });
+    const panel = panelRef.current;
+    const focusables = panel ? getFocusable(panel) : [];
+    (focusables[0] ?? panel)?.focus();
 
     return () => {
-      cancelAnimationFrame(raf);
       document.body.style.overflow = prevOverflow;
       if (prevFocus && document.contains(prevFocus)) {
-        prevFocus.focus();
+        try {
+          prevFocus.focus();
+        } catch {
+          /* 触发元素不可聚焦（如已被禁用/卸载）时静默跳过，焦点回退 body。 */
+        }
       }
     };
   }, [open]);
 
-  if (!open) return null;
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-    if (e.key === "Tab") {
-      const panel = panelRef.current;
-      if (!panel) return;
-      const focusables = getFocusable(panel);
-      if (focusables.length === 0) {
+  // 键盘处理挂在 document 捕获阶段：无论焦点在弹层内还是弹层外都能拦截，
+  // 彻底消除「焦点未进入弹层 → 按键不冒泡到 overlay → Esc 不关 / Tab 逃逸」。
+  React.useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         e.preventDefault();
-        panel.focus();
+        onCloseRef.current();
         return;
       }
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-      if (e.shiftKey) {
-        if (active === first || !panel.contains(active)) {
+      if (e.key === "Tab") {
+        const panel = panelRef.current;
+        if (!panel) return;
+        const focusables = getFocusable(panel);
+        if (focusables.length === 0) {
           e.preventDefault();
-          last.focus();
+          panel.focus();
+          return;
         }
-      } else if (active === last || !panel.contains(active)) {
-        e.preventDefault();
-        first.focus();
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey) {
+          if (active === first || !panel.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !panel.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
       }
-    }
-  };
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open]);
+
+  if (!open) return null;
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (closeOnBackdrop && e.target === e.currentTarget) {
@@ -141,7 +158,6 @@ export function Dialog({
       data-component={dataComponent}
       className={overlayClassName}
       onClick={handleOverlayClick}
-      onKeyDown={handleKeyDown}
     >
       <div
         ref={panelRef}

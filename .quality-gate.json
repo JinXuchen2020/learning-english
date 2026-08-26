@@ -1,15 +1,15 @@
 {
-  "phase": "ai-806-plan-spec-fix",
+  "phase": "fix-ai-805-dialog-a11y",
   "stack": "node-ts",
-  "feature": "AI-806",
+  "feature": "AI-805",
   "cleared": true,
   "enforced": true,
-  "reportRef": "src/lib/plan.spec.ts",
-  "notes": "AI-806 对比度整改回归修复：plan.ts formatPlanDay.color 已改走 planSkillColorDeep（深琥珀 #B45309 / 深蓝 #1D4ED8 等），但 plan.spec.ts 三处 formatPlanDay 色值断言仍停在旧浅色（#F59E0B / #3B82F6），pre-commit 钩子只查 JSON 字符串门未真跑测试，导致 CI test 挂。本次同步断言到 deep 色值，并新增 planSkillColorDeep 单测（4 映射 + 2 fallback）覆盖新增深色调 helper。前端 vitest run 全绿 17 文件 / 162 测试，tsc --noEmit 0。",
+  "reportRef": "src/components/ui/dialog.tsx",
+  "notes": "AI-805 Dialog 原语 E2E 回归修复（CI dialog-a11y.feature 3 项挂）：① 根因——keydown 仅挂在 overlay div，焦点未进入弹层（或触发按钮因 disabled 自失焦到 body）时 Esc/Tab 不冒泡到 overlay → MoreDrawer 不关、Mascot Tab 逃逸；② 改用 document 捕获阶段 keydown 监听（Esc 关 + Tab 陷阱），无论焦点在弹层内/外都拦截；③ 打开时同步聚焦首个可聚焦元素（去掉 requestAnimationFrame 竞态）；④ Mascot 触发按钮 ViewGrowthStoryBtn 由 disabled={storyLoading} 改为 aria-disabled + onClick 守卫，保持可聚焦，使 Dialog 能在其关闭时把焦点还原回该按钮（修复 focus-restore 失败）。前端 tsc 0。第 4 项 word-cards 生成超时经排查为后端/CI 环境（Agnes 不可达→generate 500 或模型>15s），非前端回归，已单独说明。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；仅单测色值断言与新增 helper 断言，无跨域逻辑)",
-    "tests": "PASSED (local-vitest: src vitest run 全绿 17 files / 162 tests，含 plan.spec.ts 16 tests；tsc --noEmit 0；user-accepted-ci 兜底仍有效)",
-    "review": "PASSED (0 open：断言与 plan.ts planSkillColorDeep 实现一致；planSkillColor 浅色键未动、既有断言保留；新增 deep helper 单测)",
-    "optimization": "PASSED (0 open：纯测试同步，零运行时改动)"
+    "consistency": "PASSED (前端 tsc --noEmit 0；仅 Dialog 键盘监听改为 document 捕获 + 触发按钮 aria-disabled，无跨域逻辑)",
+    "tests": "PASSED (local-vitest: src vitest run 全绿 17 files / 162 tests，tsc --noEmit 0；dialog 行为由 CI e2e dialog-a11y.feature 兜底；user-accepted-ci 仍有效)",
+    "review": "PASSED (0 open：document 捕获监听消除 Esc/Tab 漏拦截；同步聚焦消除竞态；触发按钮 aria-disabled 保持可聚焦以修复焦点归还)",
+    "optimization": "PASSED (0 open：零新增依赖，仅调整监听挂载点与焦点时机)"
   }
 }

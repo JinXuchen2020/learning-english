@@ -453,9 +453,11 @@ function HomeContent() {
               </div>
               <button
                 data-component="ViewGrowthStoryBtn"
-                onClick={handleViewStory}
-                disabled={storyLoading}
-                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60 w-full sm:w-auto"
+                onClick={() => {
+                  if (!storyLoading) handleViewStory();
+                }}
+                aria-disabled={storyLoading}
+                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 aria-disabled:opacity-60 w-full sm:w-auto"
               >
                 {storyLoading ? t("storyLoading") : t("storyView")}
               </button>
