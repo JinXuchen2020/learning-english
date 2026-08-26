@@ -1,15 +1,15 @@
 {
-  "phase": "ai-809-forms",
+  "phase": "ai-810-i18n",
   "stack": "node-ts",
-  "feature": "AI-809",
+  "feature": "AI-810",
   "cleared": true,
   "enforced": true,
-  "reportRef": "features/ai-809.md",
-  "notes": "AI-809 表单体验与标签关联加固：① parent/settings 两个表单（ProviderConfigForm / AddChildForm）包 <form onSubmit>，支持回车提交；name/baseUrl/model/apiKey/nickname/username/password 补 id+htmlFor 程序化关联，必填项加 required（apiKey 仅新增时 required 保留编辑态留空逻辑）；保存按钮 type=submit、取消按钮 type=button；② scan 文件输入补 aria-label={t('imageUploadLabel')}，保留 capture=environment；③ TabNav 内联 div 加 role=group，LocaleSwitcher 容器加 role=group（aria-pressed 此前已就位），word-cards 状态筛选按钮补 aria-pressed；④ 新增 Scan.imageUploadLabel（en/zh）。详见 features/ai-809.md。",
+  "reportRef": "features/ai-810.md",
+  "notes": "AI-810 i18n 文案遗漏收口：① practice 庆祝屏三处硬编码英文（Amazing Job! / Practice Again / Back to Course）改 t()；成绩摘要改用 t.rich 富文本插值保留加粗高亮（strong 回调套 --color-success）；② 练习页 10 个动物插画 aria-label 硬编码英文描述句（A cute cat 等）改 aria-label={word}（词汇本身=学习内容，保持英文且随内容一致）；③ 新增 Practice.amazingJob/practiceAgain/quizCompleteSummary（en/zh）；④ 全站 grep（JSX 文本子节点 / aria-label,placeholder,title,alt 属性 / 客户端 toast,setError 等）清零裸英文 UI 串（logger.error 技术性日志与 data-component 钩子不计入）。详见 features/ai-810.md。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；纯表单/标签/状态属性改动，无跨域逻辑)",
-    "tests": "PASSED (user-accepted-ci: 改动为表单 onSubmit/label 关联/aria 状态属性，展示型组件豁免单测；本地仅 e2e tsc 验证编译，全量 Playwright/axe 交 CI e2e job 兜底；前端 tsc --noEmit 0)",
-    "review": "PASSED (0 open：表单回车提交+原生校验；label 程序化关联；文件输入可访问名；toggle/筛选 aria-pressed/role=group 就位)",
-    "optimization": "PASSED (0 open：复用既有 Input/Select 原语与 i18n 体系，零新增依赖，改动面最小化)"
+    "consistency": "PASSED (前端 tsc --noEmit 0；纯 i18n 文案与 aria-label 属性改动，无跨域逻辑)",
+    "tests": "PASSED (user-accepted-ci: 改动为 UI 文案 t() 化与 aria-label 数据化，展示型组件豁免单测；本地仅 e2e tsc 验证编译，全量 Playwright/axe 交 CI e2e job 兜底；前端 tsc --noEmit 0)",
+    "review": "PASSED (0 open：庆祝屏三串经 t() 可中/英切换；成绩摘要 t.rich 保留样式；插画 aria-label 数据化=词汇；全站裸英文 UI 串 grep 清零)",
+    "optimization": "PASSED (0 open：复用 next-intl t.rich 原生能力，零新增依赖，改动面最小化)"
   }
 }

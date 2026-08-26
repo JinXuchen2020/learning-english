@@ -167,7 +167,10 @@
     "practiceTitle": "练习",
     "currentWord": "当前单词：",
     "listenPromptHeading": "听一听，选出正确的图",
-    "progressLabel": "练习进度"
+    "progressLabel": "练习进度",
+    "amazingJob": "太棒了！",
+    "practiceAgain": "再练一次",
+    "quizCompleteSummary": "你答对了 <strong>{correct}</strong> / {total} 个单词！"
   },
   "Plan": {
     "previewTitle": "你的学习计划来啦！",

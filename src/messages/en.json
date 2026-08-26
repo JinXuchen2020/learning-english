@@ -167,7 +167,10 @@
     "practiceTitle": "Practice",
     "currentWord": "Current word: ",
     "listenPromptHeading": "Listen and choose the picture",
-    "progressLabel": "Practice progress"
+    "progressLabel": "Practice progress",
+    "amazingJob": "Amazing Job!",
+    "practiceAgain": "Practice Again",
+    "quizCompleteSummary": "You got <strong>{correct}</strong> out of {total} words correct!"
   },
   "Plan": {
     "previewTitle": "Your study plan is ready!",
