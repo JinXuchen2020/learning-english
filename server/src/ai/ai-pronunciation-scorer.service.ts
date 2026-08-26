@@ -122,7 +122,13 @@ export class AiPronunciationScorerService {
               `请用中文给儿童鼓励性反馈，并标注薄弱音素。`,
           },
         ],
-        { temperature: 0.3 },
+        {
+          temperature: 0.3,
+          // 单次超时收紧到 15s + 重试 3 次（≈46s）救回偶发抖动的 Agnes；即便全部失败，
+          // 外层 try/catch 退回本地相似度反馈，面板仍会在 60s e2e 窗口内出现。
+          timeoutMs: 15000,
+          maxAttempts: 3,
+        },
       );
       const parsed = parseLlmAssessment(chat.text);
       feedback = parsed.feedback || chat.text;

@@ -152,7 +152,7 @@ export default class SpeechPage {
 
   async waitFeedback(): Promise<void> {
     await this.page.waitForSelector('[data-component="SpeechFeedbackPanel"]', {
-      timeout: 20000,
+      timeout: 60000,
     });
   }
 

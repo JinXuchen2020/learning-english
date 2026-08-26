@@ -70,7 +70,13 @@ export class AiWordCardService {
 
     for (let attempt = 1; attempt <= AiWordCardService.MAX_ATTEMPTS; attempt++) {
       const messages: ChatMessage[] = this.buildMessages(interest, count, dto.courseId, attempt);
-      const options: ChatOptions = { temperature: 0.7, maxTokens: 1500 };
+      const options: ChatOptions = {
+        temperature: 0.7,
+        maxTokens: 1500,
+        // 单次超时收紧到 15s，配合底层 RetryableAiProvider(maxAttempts:3) 让 Agnes
+        // 偶发超时快速失败 + 重试救回；3×15s+退避≈46s 落在 60s e2e/vercel 窗口内。
+        timeoutMs: 15000,
+      };
 
       const result = await this.ai.chat(messages, options);
       let data: unknown;

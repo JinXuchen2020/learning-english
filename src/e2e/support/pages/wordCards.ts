@@ -72,7 +72,7 @@ export default class WordCardsPage {
   }
 
   /** Wait until at least `n` pending cards are rendered (generation is async). */
-  async waitForPendingCards(n: number, timeout = 15000): Promise<void> {
+  async waitForPendingCards(n: number, timeout = 60000): Promise<void> {
     await this.page.waitForFunction(
       (target: number) =>
         document.querySelectorAll(

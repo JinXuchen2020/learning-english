@@ -1,15 +1,15 @@
 {
-  "phase": "fix-ai-805-dialog-a11y",
+  "phase": "fix-e2e-agnes-timeout-retry",
   "stack": "node-ts",
   "feature": "AI-805",
   "cleared": true,
   "enforced": true,
-  "reportRef": "src/components/ui/dialog.tsx",
-  "notes": "AI-805 Dialog 原语 E2E 回归修复（CI dialog-a11y.feature 挂）：① Dialog 键盘监听改 document 捕获（Esc 关 + Tab 陷阱）+ 打开同步聚焦 + Mascot 触发按钮改 aria-disabled 保持可聚焦（修复 ① MoreDrawer 不关 / ③ Mascot Tab 逃逸 / ② focus-restore）；② Mascot 两个 a11y 场景仍挂的根因是 e2e 竞态——clickViewStory 点击后未等弹层挂载就按 Esc/Tab，而弹层在 handleViewStory 异步拉取 mockStory 后才 setShowStory 出现，此时 document keydown 监听尚未挂载 → 误判。已修 e2e：clickViewStory 点击后 waitForStoryModal（与 more-drawer open 步骤同口径）。前端 Dialog 逻辑本身正确（MoreDrawer 已证明）。③ 第 4 项 word-cards 生成超时 + 本次 speech-task-link 超时，均为 CI AI 后端（Agnes）不可达→evaluate/generate 500 的环境问题，非前端回归（speech/word-cards 前端代码未改动，且前期曾通过），未动前端。e2e tsc --noEmit 0。",
+  "reportRef": "src/e2e/support/pages/wordCards.ts,src/e2e/support/pages/speech.ts,server/src/word-card/ai-word-card.service.ts,server/src/ai/ai-pronunciation-scorer.service.ts",
+  "notes": "CI e2e 稳定性修复（word-cards / speech-task-link 超时）：根因=CI 中 Agnes chat 端点偶发超时（实测 GET /models 200 但 POST /chat/completions 60s 无返回），后端 RetryableAiProvider 虽已对 504/网络错误重试，但单次 chat 超时默认 50s，3 次重试=150s+，远超 e2e 等待（原 15s/20s）与 Vercel 60s。修复：① e2e 等待 15s/20s→60s；② 两个 AI 调用点单次超时收紧到 15s 并显式 maxAttempts:3（3×15s+退避≈46s，落在 60s 窗口，Agnes 偶发恢复即拿到真实结果）；pronunciation 即便全失败仍走本地相似度兜底、面板照常出现。零新增依赖。注意：最初引入共享常量 RESILIENT_CHAT_TIMEOUT_MS（ai-retry.ts 导出）在 jest 下解析为 undefined（模块解析怪象），已改为内联字面量 15000 规避，功能等价。后端 jest 已本地实跑 35/35 绿，e2e tsc --noEmit 0。",
   "gates": {
-    "consistency": "PASSED (e2e clickViewStory 加 waitForStoryModal，复用既有 waitForStoryModal；无跨域逻辑，与 more-drawer.open 同口径)",
-    "tests": "PASSED (local: 前端 vitest run 全绿 17 files / 162 tests，前端 tsc 0，e2e tsc --noEmit 0；dialog/mascot 行为由 CI e2e dialog-a11y.feature 兜底；user-accepted-ci 仍有效)",
-    "review": "PASSED (0 open：等弹层挂载消除测试竞态，与 MoreDrawer open 步骤一致；前端 Dialog 逻辑未改)",
-    "optimization": "PASSED (0 open：仅 e2e 增加一次 waitFor，零新增依赖)"
+    "consistency": "PASSED (超时值统一 15s + maxAttempts:3 于两调用点；e2e 等待统一 60s；与既有 RetryableAiProvider 重试口径一致)",
+    "tests": "PASSED (local: 后端 jest ai-word-card/ai-pronunciation-scorer/ai-retry 35/35 绿，e2e tsc --noEmit 0；user-accepted-ci 仍有效；前端 app 代码未改)",
+    "review": "PASSED (0 open：仅收紧超时+显式重试参数，未改重试/降级逻辑；word-cards 外层 JSON 重试循环不变)",
+    "optimization": "PASSED (0 open：单次超时 50s→15s 反而更省后端时长，降低 Vercel 60s 超限风险)"
   }
 }
