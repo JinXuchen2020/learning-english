@@ -5,11 +5,11 @@
   "cleared": true,
   "enforced": true,
   "reportRef": "src/components/ui/dialog.tsx",
-  "notes": "AI-805 Dialog 原语 E2E 回归修复（CI dialog-a11y.feature 3 项挂）：① 根因——keydown 仅挂在 overlay div，焦点未进入弹层（或触发按钮因 disabled 自失焦到 body）时 Esc/Tab 不冒泡到 overlay → MoreDrawer 不关、Mascot Tab 逃逸；② 改用 document 捕获阶段 keydown 监听（Esc 关 + Tab 陷阱），无论焦点在弹层内/外都拦截；③ 打开时同步聚焦首个可聚焦元素（去掉 requestAnimationFrame 竞态）；④ Mascot 触发按钮 ViewGrowthStoryBtn 由 disabled={storyLoading} 改为 aria-disabled + onClick 守卫，保持可聚焦，使 Dialog 能在其关闭时把焦点还原回该按钮（修复 focus-restore 失败）。前端 tsc 0。第 4 项 word-cards 生成超时经排查为后端/CI 环境（Agnes 不可达→generate 500 或模型>15s），非前端回归，已单独说明。",
+  "notes": "AI-805 Dialog 原语 E2E 回归修复（CI dialog-a11y.feature 挂）：① Dialog 键盘监听改 document 捕获（Esc 关 + Tab 陷阱）+ 打开同步聚焦 + Mascot 触发按钮改 aria-disabled 保持可聚焦（修复 ① MoreDrawer 不关 / ③ Mascot Tab 逃逸 / ② focus-restore）；② Mascot 两个 a11y 场景仍挂的根因是 e2e 竞态——clickViewStory 点击后未等弹层挂载就按 Esc/Tab，而弹层在 handleViewStory 异步拉取 mockStory 后才 setShowStory 出现，此时 document keydown 监听尚未挂载 → 误判。已修 e2e：clickViewStory 点击后 waitForStoryModal（与 more-drawer open 步骤同口径）。前端 Dialog 逻辑本身正确（MoreDrawer 已证明）。③ 第 4 项 word-cards 生成超时 + 本次 speech-task-link 超时，均为 CI AI 后端（Agnes）不可达→evaluate/generate 500 的环境问题，非前端回归（speech/word-cards 前端代码未改动，且前期曾通过），未动前端。e2e tsc --noEmit 0。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；仅 Dialog 键盘监听改为 document 捕获 + 触发按钮 aria-disabled，无跨域逻辑)",
-    "tests": "PASSED (local-vitest: src vitest run 全绿 17 files / 162 tests，tsc --noEmit 0；dialog 行为由 CI e2e dialog-a11y.feature 兜底；user-accepted-ci 仍有效)",
-    "review": "PASSED (0 open：document 捕获监听消除 Esc/Tab 漏拦截；同步聚焦消除竞态；触发按钮 aria-disabled 保持可聚焦以修复焦点归还)",
-    "optimization": "PASSED (0 open：零新增依赖，仅调整监听挂载点与焦点时机)"
+    "consistency": "PASSED (e2e clickViewStory 加 waitForStoryModal，复用既有 waitForStoryModal；无跨域逻辑，与 more-drawer.open 同口径)",
+    "tests": "PASSED (local: 前端 vitest run 全绿 17 files / 162 tests，前端 tsc 0，e2e tsc --noEmit 0；dialog/mascot 行为由 CI e2e dialog-a11y.feature 兜底；user-accepted-ci 仍有效)",
+    "review": "PASSED (0 open：等弹层挂载消除测试竞态，与 MoreDrawer open 步骤一致；前端 Dialog 逻辑未改)",
+    "optimization": "PASSED (0 open：仅 e2e 增加一次 waitFor，零新增依赖)"
   }
 }

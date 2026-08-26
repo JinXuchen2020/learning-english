@@ -41,6 +41,11 @@ export default class MascotPage {
       .locator('[data-component="ViewGrowthStoryBtn"]')
       .first()
       .click();
+    // 成长剧情弹层在 handleViewStory 异步拉取（mockStory）完成后才 setShowStory(true)
+    // 挂载。必须等弹层可见再返回，否则 dialog-a11y 场景会在弹层存在前就按 Esc/Tab，
+    // 此时 document 级 keydown 监听尚未挂载 → 误判「不关 / Tab 逃逸」。
+    // 与 more-drawer.steps 的 open 步骤显式 waitFor visible 保持同口径。
+    await this.waitForStoryModal();
   }
 
   /**
