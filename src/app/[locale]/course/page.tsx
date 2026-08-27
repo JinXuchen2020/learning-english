@@ -142,14 +142,14 @@ function CourseDetail({ courseId }: { courseId: string }) {
       </Link>
 
       {/* Course Header */}
-      <Card className="flex items-center gap-6" data-component="CourseHeader">
+      <Card className="flex flex-wrap items-center gap-4 sm:gap-6" data-component="CourseHeader">
         <div
           className="w-20 h-20 rounded-panel flex items-center justify-center text-4xl shrink-0"
           style={{ backgroundColor: `${course.color}33` }}
         >
           {courseEmoji(course.icon)}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1>{course.title}</h1>
           <p className="text-kids-muted mt-1">{course.description}</p>
           <div className="flex items-center gap-4 mt-3">
@@ -163,7 +163,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
             </span>
           </div>
         </div>
-        <div className="w-40 shrink-0">
+        <div className="w-full mt-3 sm:mt-0 sm:w-40 sm:shrink-0">
           <div className="flex justify-between text-sm font-bold mb-2">
             <span className="text-kids-muted">{t("progress")}</span>
             <span className="text-[var(--color-success)]">{progress}%</span>

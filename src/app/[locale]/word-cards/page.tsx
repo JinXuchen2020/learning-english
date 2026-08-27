@@ -175,6 +175,7 @@ function WordCardsInner() {
             key={s}
             data-component="StatusTab"
             data-status={s}
+            aria-pressed={filter === s}
             onClick={() => setFilter((f) => (f === s ? null : s))}
             className={`rounded-control px-3 py-2 text-sm font-semibold transition-colors ${
               filter === s

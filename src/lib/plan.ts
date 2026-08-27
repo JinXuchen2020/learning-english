@@ -105,6 +105,25 @@ export function planSkillColor(skill?: PlanSkillType): string {
   return PLAN_SKILL_COLORS.vocab;
 }
 
+/**
+ * 技能类型 → 深色调展示配色（用于「实色填充 + 白字」徽章与左侧色条）。
+ * 浅色 `PLAN_SKILL_COLORS` 配白字 / 作色条均不达标 WCAG AA（AI-806 对比度整改）：
+ * 原配色白字仅 2.1~3.7:1、作色条仅 1.9~3.3:1，全部低于阈值。
+ * 这里提供色相一致的深色变体，白字对比度 ≥4.5:1、实色条 ≥3:1。
+ */
+export const PLAN_SKILL_COLORS_DEEP: Record<PlanSkillType, string> = {
+  vocab: "#B45309", // 词汇 · 深琥珀（原 #F59E0B）
+  listen: "#1D4ED8", // 听力 · 深蓝（原 #3B82F6）
+  speak: "#C2185B", // 口语 · 深粉（原 #EC4899）
+  write: "#047857", // 书写 · 深绿（原 #10B981）
+};
+
+/** 取技能类型对应的深色展示色；未指定时回落到词汇深色（AI-806 对比度整改）。 */
+export function planSkillColorDeep(skill?: PlanSkillType): string {
+  if (skill && skill in PLAN_SKILL_COLORS_DEEP) return PLAN_SKILL_COLORS_DEEP[skill];
+  return PLAN_SKILL_COLORS_DEEP.vocab;
+}
+
 /** 单节任务的简短类型标签（用于卡片内 lesson 小标）。 */
 export function planLessonTypeLabel(lesson?: PlanLesson): string {
   if (!lesson) return "";
@@ -157,7 +176,7 @@ export function formatPlanDay(
   );
   return {
     label: day.title ?? `第 ${index + 1} 天`,
-    color: planSkillColor(skill),
+    color: planSkillColorDeep(skill),
     lessonCount: lessons.length,
     skills,
   };

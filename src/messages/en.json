@@ -16,6 +16,7 @@
     "parentSettings": "Parent",
     "parent": "Parent",
     "mainNav": "Main navigation",
+    "skipToContent": "Skip to main content",
     "logout": "Sign out"
   },
   "MoreDrawer": {
@@ -59,6 +60,7 @@
     "errorAddVocab": "Failed to add to vocab book. Please try again.",
     "recognizing": "Recognizing…",
     "start": "Start Recognition",
+    "imageUploadLabel": "Choose a photo to scan for English words",
     "selected": "Selected: {name}",
     "recognized": "Words Found",
     "addAll": "Add All to Vocab",
@@ -161,7 +163,14 @@
     "browseCourses": "Browse Courses",
     "answerReveal": "The answer is \"{answer}\" — {phonics}",
     "finish": "Finish",
-    "nextWord": "Next Word"
+    "nextWord": "Next Word",
+    "practiceTitle": "Practice",
+    "currentWord": "Current word: ",
+    "listenPromptHeading": "Listen and choose the picture",
+    "progressLabel": "Practice progress",
+    "amazingJob": "Amazing Job!",
+    "practiceAgain": "Practice Again",
+    "quizCompleteSummary": "You got <strong>{correct}</strong> out of {total} words correct!"
   },
   "Plan": {
     "previewTitle": "Your study plan is ready!",

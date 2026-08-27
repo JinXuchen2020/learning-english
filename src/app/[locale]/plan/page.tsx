@@ -20,7 +20,7 @@ import {
   WEEK_OPTIONS,
   validatePlanForm,
   isPlanFormValid,
-  planSkillColor,
+  planSkillColorDeep,
   planSkillLabel,
   planLessonTypeLabel,
   formatPlanDay,
@@ -233,11 +233,11 @@ function PlanPreview({
                             className="text-sm text-kids-text flex items-center gap-2"
                           >
                             <span
-                              className="rounded px-1.5 py-0.5 text-xs font-semibold"
+                              className="rounded px-1.5 py-0.5 text-xs font-semibold text-white"
                               style={{
-                                backgroundColor:
-                                  planSkillColor(lesson.skillType) + "22",
-                                color: planSkillColor(lesson.skillType),
+                                backgroundColor: planSkillColorDeep(
+                                  lesson.skillType,
+                                ),
                               }}
                             >
                               {planLessonTypeLabel(lesson) || t('task')}

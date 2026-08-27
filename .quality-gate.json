@@ -1,15 +1,15 @@
 {
-  "phase": "ai-801-hardening",
+  "phase": "fix-e2e-agnes-timeout-retry",
   "stack": "node-ts",
-  "feature": "AI-801",
+  "feature": "AI-805",
   "cleared": true,
   "enforced": true,
-  "reportRef": "docs/quality/ai-801-hardening-gate.md",
-  "notes": "AI-801 课程生成链路加固 + 配套体验修复：① retryable-ai-provider 超时环境变量化（AI_COURSE_TIMEOUT_MS，默认 18s×3 < Vercel 60s）+ maxTokens 12000 治理 JSON 截断降级；② generate-courses 幂等（同计划重复生成直返已有课程 model:idempotent，实测 85s→116ms 零 AI 调用；种子课程不误判、引用课程被删回退重生成），plan.service 新增 findExistingGeneratedCourse + 3 spec 用例；③ 前端计划页异常路径 loading 卡死修复；④ api.ts 401 统一处理（清会话跳 /{locale}/login，登录豁免/防循环/multipart+SSE 出口覆盖）+ api-401.spec 5 用例；⑤ 练习页跟课模式「返回课程」按钮（仅 courseId 存在时显示，tab 自由练习不显示）。详见 docs/quality/ai-801-hardening-gate.md。",
+  "reportRef": "src/e2e/support/pages/wordCards.ts,src/e2e/support/pages/speech.ts,server/src/word-card/ai-word-card.service.ts,server/src/ai/ai-pronunciation-scorer.service.ts",
+  "notes": "CI e2e 稳定性修复（word-cards / speech-task-link 超时）：根因=CI 中 Agnes chat 端点偶发超时（实测 GET /models 200 但 POST /chat/completions 60s 无返回），后端 RetryableAiProvider 虽已对 504/网络错误重试，但单次 chat 超时默认 50s，3 次重试=150s+，远超 e2e 等待（原 15s/20s）与 Vercel 60s。修复：① e2e 等待 15s/20s→60s；② 两个 AI 调用点单次超时收紧到 15s 并显式 maxAttempts:3（3×15s+退避≈46s，落在 60s 窗口，Agnes 偶发恢复即拿到真实结果）；pronunciation 即便全失败仍走本地相似度兜底、面板照常出现。零新增依赖。注意：最初引入共享常量 RESILIENT_CHAT_TIMEOUT_MS（ai-retry.ts 导出）在 jest 下解析为 undefined（模块解析怪象），已改为内联字面量 15000 规避，功能等价。后端 jest 已本地实跑 35/35 绿，e2e tsc --noEmit 0。",
   "gates": {
-    "consistency": "PASSED (前端 tsc --noEmit 0；后端 tsc --noEmit 0；i18n zh/en key parity 通过)",
-    "tests": "PASSED (user-accepted-ci: 后端 jest 933/933 全绿（100 suites，Node 22 运行时——better-sqlite3 为 ABI 127，真实 SQLite 的 6 个 suite 在系统 Node 24 下因 NODE_MODULE_VERSION 137 不匹配失败，属环境问题非代码回归）；前端 vitest 160/160 全绿（17 files，含 api-401 5 用例与 i18n parity）；实测幂等二次调用 116ms 无 AI-CALL；E2E 本地未跑，交 CI e2e job 兜底)",
-    "review": "PASSED (0 open：幂等判据双守卫——lessonRefsJson 缺失回退 content 解析、findOne NotFound 视为未生成可重建；401 仅对携带 token 的请求触发，登录/注册凭据错误不受影响；练习提前退出不计完成不加星，与完成判定一致)",
-    "optimization": "PASSED (0 open：幂等检查=O(计划天数) 引用解析+至多一次 findOne，命中路径零 AI 调用；零新增依赖；改动面最小化)"
+    "consistency": "PASSED (超时值统一 15s + maxAttempts:3 于两调用点；e2e 等待统一 60s；与既有 RetryableAiProvider 重试口径一致)",
+    "tests": "PASSED (local: 后端 jest ai-word-card/ai-pronunciation-scorer/ai-retry 35/35 绿，e2e tsc --noEmit 0；user-accepted-ci 仍有效；前端 app 代码未改)",
+    "review": "PASSED (0 open：仅收紧超时+显式重试参数，未改重试/降级逻辑；word-cards 外层 JSON 重试循环不变)",
+    "optimization": "PASSED (0 open：单次超时 50s→15s 反而更省后端时长，降低 Vercel 60s 超限风险)"
   }
 }

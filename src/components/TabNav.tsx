@@ -97,7 +97,11 @@ export default function TabNav() {
         data-component="TabNav"
         aria-label={t("mainNav")}
       >
-        <div className="flex items-center overflow-x-auto scrollbar-hide max-w-3xl mx-auto px-2 sm:px-4 py-2">
+        <div
+          className="flex items-center max-w-3xl mx-auto px-2 sm:px-4 py-2"
+          role="group"
+          aria-label={t("mainNav")}
+        >
           {tabs.map((tab) => {
             const active = isActive(tab);
             const Icon = tab.icon;
@@ -112,7 +116,7 @@ export default function TabNav() {
                   aria-haspopup="dialog"
                   aria-expanded={moreOpen}
                   aria-label={t("more")}
-                  className={`flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg ${
+                  className={`flex flex-col flex-1 items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 ${
                     active
                       ? "bg-[var(--seed-primary)] text-white shadow-button scale-105"
                       : "text-kids-muted hover:text-kids-title hover:bg-kids-secondary"
@@ -130,7 +134,7 @@ export default function TabNav() {
               <Link
                 key={tab.key}
                 href={tab.href}
-                className={`flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg ${
+                className={`flex flex-col flex-1 items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 ${
                   active
                     ? "bg-[var(--seed-primary)] text-white shadow-button scale-105"
                     : "text-kids-muted hover:text-kids-title hover:bg-kids-secondary"
@@ -149,7 +153,7 @@ export default function TabNav() {
             onClick={handleSignOut}
             aria-label={t("logout")}
             data-component="SignOutBtn"
-            className="flex flex-col flex-1 min-w-[64px] sm:min-w-[72px] items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 touch-target-lg text-kids-muted hover:text-[var(--color-danger)] hover:bg-kids-pink/20"
+            className="flex flex-col flex-1 items-center justify-center gap-1 rounded-control px-1 sm:px-2 py-3 transition-all duration-200 text-kids-muted hover:text-[var(--color-danger)] hover:bg-kids-pink/20"
           >
             <LogOut size={26} strokeWidth={2.2} />
             <span className="text-[10px] sm:text-xs font-bold tracking-wide whitespace-nowrap">{t("logout")}</span>

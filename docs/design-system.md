@@ -26,12 +26,12 @@
 | 表面 | `--seed-surface` | `#F7F3DF` | 卡片渐变起点 |
 | 卡片面 | `kids-card` | `#F7F3DF` | Card 默认底面 |
 | 次表面 | `kids-secondary` | `#F0E8D8` | 列表行 / 胶囊底 |
-| 主色 | `--seed-primary` / `kids.mint` | `#19C8B9` | 主按钮、链接、进度环 |
-| 主色 hover | `kids.mint-hover` | `#3DD4C6` | |
-| 主色 active | `kids.mint-active` | `#11A89B` | |
+| 主色 | `--seed-primary` / `kids.mint` | `#0B7A70` | 主按钮、链接、进度环（**AI-806 由 #19C8B9 下调**：原配白字仅 2.1:1，未达 WCAG AA 文本 4.5:1） |
+| 主色 hover | `--color-primary-hover` / `kids.mint-hover` | `#0A6E63` | |
+| 主色 active | `--color-primary-active` / `kids.mint-active` | `#095F57` | |
 | 主色 wash | `kids.mint-wash` | `#E6F9F6` | 完成态底色 |
 | 强调 | `--seed-accent` / `kids.sun` | `#FFCC00` | 星星、焦点环、强调按钮 |
-| 成功 | `--color-success` / `kids.leaf` | `#6FBA2C` | 正确反馈、完成勾 |
+| 成功 | `--color-success` / `kids.leaf` | `#3F7A18` | 正确反馈、完成勾（**AI-806 由 #6FBA2C 下调**：原配白字仅 2.4:1） |
 | 警示 | `kids.warning` | `#F5C31C` | |
 | 危险 | `kids.danger` | `#E05A5A` | 错误、删除确认 |
 | 标题文字 | `kids.title` | `#794F27` | h1–h3、卡标题 |
@@ -126,12 +126,31 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 
 ## 5. 可访问性（WCAG AA）
 
-- **对比度**：正文 `#725D42` on `#F8F8F0` ≈ 7:1；主色按钮白字 `#19C8B9`/白 ≈ 2.5:1（大号粗体按钮，符合 3:1 大文本/UI 组件阈值）。重点文字用 `kids.title` 保证正常文本 4.5:1。
+- **对比度**：正文 `#725D42` on `#F8F8F0` ≈ 7:1；主色按钮白字 on `#0B7A70` ≈ 5.21:1（达标 4.5:1 文本阈值）。重点文字用 `kids.title` 保证正常文本 4.5:1。全站关键文本/非文本对比度核算见 §5.1。
 - **键盘**：全局 `:focus-visible` 焦点环（阳光黄 3px，offset 2px）；所有交互元素可用 Tab 抵达，`aria-pressed`/`aria-current`/`aria-expanded` 到位。
 - **读屏**：进度环 `role="img"+aria-label`；错误 `role="alert"`；图标按钮带 `aria-label`。
 - **触控**：最小 56px（按钮）/ 64px（TabNav），满足儿童手指与 44px 规范。
 - **动效敏感**：`prefers-reduced-motion` 下关闭动画。
 - **E2E 契约**：每个关键节点保留稳定的 `data-component` 与 `data-*` 属性（如 `data-task-id`、`data-review-word-id`），**禁止依赖随 locale 变化的文案做断言**。
+
+### 5.1 对比度核算与彩色实填充 token（AI-806）
+
+**原则**：浅色「粉/蓝/青/黄/绿」多彩板仅适合做分类强调（图标、场景标签），**绝不用于白字实填充按钮或浅底+彩色文字**——它们与奶油底/白卡对比度普遍 <3:1，不达标。需要「彩色实填充 + 文字」的控件（答题按钮、计划技能徽章/日卡色条）一律使用下方**深色调变体**，保证白字 ≥4.5:1、实色条 ≥3:1。
+
+| 用途 | token / 常量 | 色值 | 白字对比度 |
+| --- | --- | --- | --- |
+| 答题按钮·青 | `kids.teal-deep` | `#0F766E` | 5.47:1 |
+| 答题按钮·粉 | `kids.pink-deep` | `#BE185D` | 6.04:1 |
+| 答题按钮·蓝 | `kids.blue-deep` | `#4338CA` | 7.90:1 |
+| 答题按钮·黄 | `kids.sun-deep` | `#B45309` | 5.02:1 |
+| 计划·词汇 | `PLAN_SKILL_COLORS_DEEP.vocab` | `#B45309` | 5.02:1 |
+| 计划·听力 | `PLAN_SKILL_COLORS_DEEP.listen` | `#1D4ED8` | 6.70:1 |
+| 计划·口语 | `PLAN_SKILL_COLORS_DEEP.speak` | `#C2185B` | 5.87:1 |
+| 计划·书写 | `PLAN_SKILL_COLORS_DEEP.write` | `#047857` | 5.48:1 |
+
+- 浅色原值（`kids.teal/pink/blue/sun`、`PLAN_SKILL_COLORS`）保留用于图标、插画、`bg-kids-*-wash` 等**非文字**场景，**禁止**在其实色填充上叠白字或在浅底上用其作文字色。
+- **核算工具**：`scripts/contrast-audit.mjs`（WCAG 2.1 相对亮度法），运行 `node scripts/contrast-audit.mjs` 可复现 BEFORE/AFTER 全量记录。AI-806 整改后 19 项关键对全部 ✅（文本 ≥4.5:1、非文本 ≥3:1）。
+- **已知残余**：`kids.muted` `#9F927D` on 卡片 `#F7F3DF` ≈ 2.72:1（次要辅助文字），超出 AI-806 重点范围，留作后续专项处理。
 
 ---
 

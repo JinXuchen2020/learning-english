@@ -16,6 +16,7 @@
     "parentSettings": "家长",
     "parent": "家长",
     "mainNav": "主导航",
+    "skipToContent": "跳到主要内容",
     "logout": "退出登录"
   },
   "MoreDrawer": {
@@ -59,6 +60,7 @@
     "errorAddVocab": "加入生词本失败，请稍后再试。",
     "recognizing": "识别中…",
     "start": "开始识别",
+    "imageUploadLabel": "选择一张照片以识别英文单词",
     "selected": "已选择：{name}",
     "recognized": "认出的单词",
     "addAll": "全部加入生词本",
@@ -161,7 +163,14 @@
     "browseCourses": "浏览课程",
     "answerReveal": "答案是「{answer}」—— {phonics}",
     "finish": "完成",
-    "nextWord": "下一个"
+    "nextWord": "下一个",
+    "practiceTitle": "练习",
+    "currentWord": "当前单词：",
+    "listenPromptHeading": "听一听，选出正确的图",
+    "progressLabel": "练习进度",
+    "amazingJob": "太棒了！",
+    "practiceAgain": "再练一次",
+    "quizCompleteSummary": "你答对了 <strong>{correct}</strong> / {total} 个单词！"
   },
   "Plan": {
     "previewTitle": "你的学习计划来啦！",

@@ -126,6 +126,7 @@ function ScanInner() {
           accept="image/*"
           capture="environment"
           data-component="ImageUploadInput"
+          aria-label={t("imageUploadLabel")}
           className="block w-full text-sm text-kids-muted file:mr-3 file:rounded-control file:border-0 file:bg-[var(--seed-primary)] file:px-4 file:py-2 file:font-bold file:text-white"
           onChange={handleFileChange}
         />

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { SectionTitle } from "@/components/ui/section-title";
+import { Dialog } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
 import * as api from "@/lib/api";
 import { isSpeakingTask, speakingTaskHref, isLessonTask, lessonTaskHref } from "@/lib/tasks";
@@ -452,48 +453,47 @@ function HomeContent() {
               </div>
               <button
                 data-component="ViewGrowthStoryBtn"
-                onClick={handleViewStory}
-                disabled={storyLoading}
-                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 disabled:opacity-60 w-full sm:w-auto"
+                onClick={() => {
+                  if (!storyLoading) handleViewStory();
+                }}
+                aria-disabled={storyLoading}
+                className="rounded-control bg-kids-sun px-4 py-2 font-bold text-white hover:opacity-90 aria-disabled:opacity-60 w-full sm:w-auto"
               >
                 {storyLoading ? t("storyLoading") : t("storyView")}
               </button>
             </Card>
           )}
 
-          {/* AI-603：成长剧情弹层（fixed overlay） */}
-          {showStory && (
-            <div
-              data-component="MascotStoryModal"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-              onClick={() => setShowStory(false)}
-            >
-              <Card
-                className="max-w-md w-full space-y-4"
-                onClick={(e) => e.stopPropagation()}
+          {/* AI-603：成长剧情弹层（收口至共享 Dialog 原语，AI-805） */}
+          <Dialog
+            open={showStory}
+            onClose={() => setShowStory(false)}
+            dataComponent="MascotStoryModal"
+            aria-labelledby="mascot-story-title"
+            panelClassName="max-w-md w-full"
+          >
+            <Card className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Mascot expression="celebrating" size="medium" level={mascotLevel?.level} />
+                <h3 id="mascot-story-title" data-component="MascotStoryTitle" className="font-bold text-kids-title text-lg">
+                  {mascotStory?.title}
+                </h3>
+              </div>
+              <p data-component="MascotStoryText" className="text-kids-text leading-relaxed">
+                {mascotStory?.storyText}
+              </p>
+              {mascotStory?.isDefault && (
+                <p className="text-xs text-kids-muted">{t("storyTip")}</p>
+              )}
+              <button
+                data-component="MascotStoryClose"
+                className="w-full rounded-control bg-kids-secondary px-4 py-2 font-bold text-kids-title hover:opacity-90"
+                onClick={() => setShowStory(false)}
               >
-                <div className="flex items-center gap-3">
-                  <Mascot expression="celebrating" size="medium" level={mascotLevel?.level} />
-                  <h3 data-component="MascotStoryTitle" className="font-bold text-kids-title text-lg">
-                    {mascotStory?.title}
-                  </h3>
-                </div>
-                <p data-component="MascotStoryText" className="text-kids-text leading-relaxed">
-                  {mascotStory?.storyText}
-                </p>
-                {mascotStory?.isDefault && (
-                  <p className="text-xs text-kids-muted">{t("storyTip")}</p>
-                )}
-                <button
-                  data-component="MascotStoryClose"
-                  className="w-full rounded-control bg-kids-secondary px-4 py-2 font-bold text-kids-title hover:opacity-90"
-                  onClick={() => setShowStory(false)}
-                >
-                  {t("storyClose")}
-                </button>
-              </Card>
-            </div>
-          )}
+                {t("storyClose")}
+              </button>
+            </Card>
+          </Dialog>
 
           {/* AI-701：{t("rewardsTitle")} — 余额 + 等级环 + {t("rewardsGo")}深链 */}
           {progress && (

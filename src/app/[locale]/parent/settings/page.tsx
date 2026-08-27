@@ -129,7 +129,7 @@ function ParentSettingsInner() {
       </section>
 
       {error && (
-        <section className="card-kids flex items-center gap-3" data-component="ParentError">
+        <section role="alert" className="card-kids flex items-center gap-3" data-component="ParentError">
           <Mascot expression="encouraging" size="medium" />
           <p className="text-kids-muted">{error}</p>
         </section>
@@ -451,7 +451,7 @@ function ProviderConfigSection() {
       </div>
 
       {error && (
-        <p className="text-kids-orange text-sm font-semibold" data-component="ProviderConfigError">
+        <p role="alert" className="text-kids-orange text-sm font-semibold" data-component="ProviderConfigError">
           {error}
         </p>
       )}
@@ -567,10 +567,19 @@ function ProviderConfigSection() {
           <h3 className="font-bold text-kids-title">
             {editingId ? t("editProviderTitle") : t("addProviderTitle")}
           </h3>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSubmit();
+            }}
+            className="space-y-3"
+          >
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">{t("nameLabel")}</label>
+            <label htmlFor="provider-name" className="text-sm font-semibold text-kids-title">{t("nameLabel")}</label>
             <input
+              id="provider-name"
               data-component="ProviderNameInput"
+              required
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               placeholder={t("namePlaceholder")}
@@ -579,8 +588,9 @@ function ProviderConfigSection() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">{t("typeLabel")}</label>
+            <label htmlFor="provider-type" className="text-sm font-semibold text-kids-title">{t("typeLabel")}</label>
             <Select
+              id="provider-type"
               data-component="ProviderTypeSelect"
               value={formType}
               onChange={(v) => setFormType(v as ProviderType)}
@@ -591,11 +601,13 @@ function ProviderConfigSection() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">
+            <label htmlFor="provider-base-url" className="text-sm font-semibold text-kids-title">
               {t("baseUrlLabel")}{t("required")}
             </label>
             <input
+              id="provider-base-url"
               data-component="ProviderBaseUrlInput"
+              required
               value={formBaseUrl}
               onChange={(e) => setFormBaseUrl(e.target.value)}
               placeholder="https://api.example.com/v1"
@@ -604,12 +616,14 @@ function ProviderConfigSection() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">
+            <label htmlFor="provider-api-key" className="text-sm font-semibold text-kids-title">
               {t("apiKeyLabel")}{editingId ? t("apiKeyEditHint") : t("required")}
             </label>
             <input
+              id="provider-api-key"
               data-component="ProviderApiKeyInput"
               type="password"
+              required={!editingId}
               value={formApiKey}
               onChange={(e) => setFormApiKey(e.target.value)}
               placeholder={editingId ? t("apiKeyPlaceholderEdit") : t("apiKeyPlaceholderNew")}
@@ -618,18 +632,21 @@ function ProviderConfigSection() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">
+            <label htmlFor="provider-model" className="text-sm font-semibold text-kids-title">
               {t("modelLabel")}{t("required")}
             </label>
             <input
+              id="provider-model"
               data-component="ProviderModelInput"
+              required
+              aria-describedby="provider-model-hint"
               value={formModel}
               onChange={(e) => setFormModel(e.target.value)}
               placeholder={t("modelPlaceholder")}
               autoComplete="off"
               className="rounded-control border border-kids-border px-3 py-2"
             />
-            <p className="text-xs text-kids-muted">{t("modelHint")}</p>
+            <p id="provider-model-hint" className="text-xs text-kids-muted">{t("modelHint")}</p>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-kids-title">{t("capabilitiesLabel")}</label>
@@ -675,14 +692,15 @@ function ProviderConfigSection() {
           )}
           <div className="flex items-center gap-2">
             <button
+              type="submit"
               data-component="SaveProviderBtn"
               disabled={busy}
-              onClick={() => void handleSubmit()}
               className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
             >
               {busy ? t("saving") : t("save")}
             </button>
             <button
+              type="button"
               data-component="CancelProviderBtn"
               disabled={busy}
               onClick={() => resetForm()}
@@ -691,6 +709,7 @@ function ProviderConfigSection() {
               {t("cancel")}
             </button>
           </div>
+          </form>
         </section>
       )}
     </section>
@@ -1017,6 +1036,13 @@ function ChildrenSection() {
 
       {showForm && (
         <section className="card-kids space-y-3" data-component="AddChildForm">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSubmit();
+            }}
+            className="space-y-3"
+          >
           {/* Tab switch: create / claim */}
           <div className="grid grid-cols-2 gap-2 bg-kids-secondary rounded-control p-1.5">
             <button
@@ -1049,9 +1075,11 @@ function ChildrenSection() {
 
           {formMode === "create" && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-kids-title">{t("childNicknameLabel")}</label>
+              <label htmlFor="child-nickname" className="text-sm font-semibold text-kids-title">{t("childNicknameLabel")}</label>
               <input
+                id="child-nickname"
                 data-component="ChildNicknameInput"
+                required
                 value={formNickname}
                 onChange={(e) => setFormNickname(e.target.value)}
                 autoComplete="off"
@@ -1061,9 +1089,11 @@ function ChildrenSection() {
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">{t("childUsernameLabel")}</label>
+            <label htmlFor="child-username" className="text-sm font-semibold text-kids-title">{t("childUsernameLabel")}</label>
             <input
+              id="child-username"
               data-component="ChildUsernameInput"
+              required
               value={formUsername}
               onChange={(e) => setFormUsername(e.target.value)}
               autoComplete="off"
@@ -1072,10 +1102,12 @@ function ChildrenSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-kids-title">{t("childPasswordLabel")}</label>
+            <label htmlFor="child-password" className="text-sm font-semibold text-kids-title">{t("childPasswordLabel")}</label>
             <input
+              id="child-password"
               data-component="ChildPasswordInput"
               type="password"
+              required
               value={formPassword}
               onChange={(e) => setFormPassword(e.target.value)}
               autoComplete={formMode === "create" ? "new-password" : "current-password"}
@@ -1085,14 +1117,15 @@ function ChildrenSection() {
 
           <div className="flex items-center gap-2">
             <button
+              type="submit"
               data-component="SubmitChildBtn"
               disabled={busy}
-              onClick={() => void handleSubmit()}
               className="rounded-control bg-[var(--seed-primary)] text-white px-4 py-2 font-bold shadow-button hover:opacity-90 disabled:opacity-50"
             >
               {busy ? t("saving") : t("addChild")}
             </button>
             <button
+              type="button"
               data-component="CancelChildBtn"
               disabled={busy}
               onClick={() => resetForm()}
@@ -1101,6 +1134,7 @@ function ChildrenSection() {
               {t("cancel")}
             </button>
           </div>
+          </form>
         </section>
       )}
     </section>

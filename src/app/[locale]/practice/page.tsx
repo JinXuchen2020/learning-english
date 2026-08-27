@@ -43,24 +43,24 @@ const MODE_LABELS: Record<QuizMode, string> = {
 };
 
 const answerColors = [
-  "bg-kids-teal hover:bg-kids-teal/80",
-  "bg-kids-pink hover:bg-kids-pink/80",
-  "bg-kids-blue hover:bg-kids-blue/80",
-  "bg-kids-sun/80 hover:bg-kids-sun",
+  "bg-kids-teal-deep hover:bg-kids-teal-deep/90",
+  "bg-kids-pink-deep hover:bg-kids-pink-deep/90",
+  "bg-kids-blue-deep hover:bg-kids-blue-deep/90",
+  "bg-kids-sun-deep hover:bg-kids-sun-deep/90",
 ];
 
 const answerTextColors = [
   "text-white",
   "text-white",
   "text-white",
-  "text-kids-text",
+  "text-white",
 ];
 
 /* Distinct animal SVG illustrations for vocabulary learning */
 function WordIllustration({ word }: { word: string }) {
   const illustrations: Record<string, React.ReactNode> = {
     Cat: (
-      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label="A cute cat">
+      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label={word}>
         <ellipse cx="60" cy="95" rx="30" ry="12" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="60" cy="70" rx="24" ry="22" fill="#F5A25D" />
         <circle cx="60" cy="42" r="20" fill="#F5A25D" />
@@ -80,7 +80,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Dog: (
-      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label="A happy dog">
+      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label={word}>
         <ellipse cx="60" cy="95" rx="30" ry="12" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="60" cy="72" rx="25" ry="20" fill="#D4A054" />
         <circle cx="60" cy="42" r="20" fill="#D4A054" />
@@ -95,7 +95,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Fish: (
-      <svg width="130" height="100" viewBox="0 0 130 100" fill="none" role="img" aria-label="A colorful fish">
+      <svg width="130" height="100" viewBox="0 0 130 100" fill="none" role="img" aria-label={word}>
         <ellipse cx="65" cy="85" rx="40" ry="8" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="60" cy="50" rx="32" ry="20" fill="#889DF0" />
         <path d="M92 50 L112 35 L112 65 Z" fill="#6B7FD4" />
@@ -109,7 +109,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Bird: (
-      <svg width="110" height="110" viewBox="0 0 110 110" fill="none" role="img" aria-label="A little bird">
+      <svg width="110" height="110" viewBox="0 0 110 110" fill="none" role="img" aria-label={word}>
         <ellipse cx="55" cy="95" rx="20" ry="8" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="55" cy="62" rx="18" ry="20" fill="#889DF0" />
         <circle cx="55" cy="38" r="14" fill="#889DF0" />
@@ -126,7 +126,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Rabbit: (
-      <svg width="100" height="120" viewBox="0 0 100 120" fill="none" role="img" aria-label="A cute rabbit">
+      <svg width="100" height="120" viewBox="0 0 100 120" fill="none" role="img" aria-label={word}>
         <ellipse cx="50" cy="105" rx="22" ry="10" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="50" cy="78" rx="20" ry="22" fill="#F0E8D8" />
         <circle cx="50" cy="50" r="16" fill="#F0E8D8" />
@@ -142,7 +142,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Frog: (
-      <svg width="120" height="100" viewBox="0 0 120 100" fill="none" role="img" aria-label="A green frog">
+      <svg width="120" height="100" viewBox="0 0 120 100" fill="none" role="img" aria-label={word}>
         <ellipse cx="60" cy="88" rx="35" ry="10" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="60" cy="65" rx="30" ry="22" fill="#6FBA2C" />
         <circle cx="45" cy="38" r="12" fill="#6FBA2C" />
@@ -158,7 +158,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Horse: (
-      <svg width="110" height="120" viewBox="0 0 110 120" fill="none" role="img" aria-label="A brown horse">
+      <svg width="110" height="120" viewBox="0 0 110 120" fill="none" role="img" aria-label={word}>
         <ellipse cx="55" cy="108" rx="28" ry="9" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="55" cy="75" rx="22" ry="28" fill="#9A835A" />
         <ellipse cx="55" cy="35" rx="14" ry="18" fill="#9A835A" />
@@ -175,7 +175,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Duck: (
-      <svg width="110" height="110" viewBox="0 0 110 110" fill="none" role="img" aria-label="A yellow duck">
+      <svg width="110" height="110" viewBox="0 0 110 110" fill="none" role="img" aria-label={word}>
         <ellipse cx="55" cy="95" rx="28" ry="10" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="55" cy="68" rx="24" ry="22" fill="#F7CD67" />
         <circle cx="55" cy="38" r="16" fill="#F7CD67" />
@@ -191,7 +191,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Bear: (
-      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label="A friendly bear">
+      <svg width="120" height="110" viewBox="0 0 120 110" fill="none" role="img" aria-label={word}>
         <ellipse cx="60" cy="98" rx="30" ry="10" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="60" cy="70" rx="26" ry="24" fill="#9A835A" />
         <circle cx="60" cy="40" r="22" fill="#9A835A" />
@@ -208,7 +208,7 @@ function WordIllustration({ word }: { word: string }) {
       </svg>
     ),
     Turtle: (
-      <svg width="130" height="100" viewBox="0 0 130 100" fill="none" role="img" aria-label="A small turtle">
+      <svg width="130" height="100" viewBox="0 0 130 100" fill="none" role="img" aria-label={word}>
         <ellipse cx="65" cy="88" rx="38" ry="9" fill="#82D5BB" opacity="0.3" />
         <ellipse cx="65" cy="60" rx="32" ry="24" fill="#6FBA2C" />
         <path d="M45 48 L55 60 L45 72" stroke="#5A9E1E" strokeWidth="2" fill="none" />
@@ -348,14 +348,17 @@ function Quiz({
         className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-6"
         data-component="QuizComplete"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="celebrating" size="large" />
-        <h1 className="text-3xl">Amazing Job!</h1>
+        <h2 className="text-3xl">{t("amazingJob")}</h2>
         <p className="text-xl text-kids-text">
-          You got{" "}
-          <span className="font-extrabold text-[var(--color-success)]">
-            {correctCount}
-          </span>{" "}
-          out of {totalWords} words correct!
+          {t.rich("quizCompleteSummary", {
+            correct: correctCount,
+            total: totalWords,
+            strong: (chunks) => (
+              <span className="font-extrabold text-[var(--color-success)]">{chunks}</span>
+            ),
+          })}
         </p>
         <div className="flex gap-2">
           {Array.from({ length: Math.min(correctCount, 5) }).map((_, i) => (
@@ -370,12 +373,12 @@ function Quiz({
         <div className="flex gap-4 pt-4">
           <Button onClick={handleRestart} variant="default">
             <RotateCcw size={20} className="mr-2" />
-            Practice Again
+            {t("practiceAgain")}
           </Button>
           <Button variant="secondary" asChild>
             <Link href={backHref}>
               <ArrowLeft size={20} className="mr-2" />
-              Back to Course
+              {t("backToCourse")}
             </Link>
           </Button>
         </div>
@@ -390,8 +393,9 @@ function Quiz({
         className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
         data-component="PracticeEmpty"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">{t("emptyModeTitle")}</h1>
+        <h2 className="text-2xl">{t("emptyModeTitle")}</h2>
         <p className="text-kids-muted">
           {t("emptyModeHint")}
         </p>
@@ -410,8 +414,9 @@ function Quiz({
   const isImage = item.optionKind === "image";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
-      {/* 返回课程页：仅跟课练习显示（从课程页带 courseId 进入）；
+      <div className="max-w-2xl mx-auto space-y-6" data-component="WordPractice">
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
+        {/* 返回课程页：仅跟课练习显示（从课程页带 courseId 进入）；
           自由练习是 tab 根页面，靠底部导航切换即可。
           提前退出不调用 completeLesson，不计完成。 */}
       {courseId && (
@@ -459,7 +464,7 @@ function Quiz({
             {t("correctCount", { count: correctCount })}
           </span>
         </div>
-        <Progress value={progress} className="h-4" />
+        <Progress value={progress} aria-label={t("progressLabel")} className="h-4" />
       </div>
 
       {/* Word Card */}
@@ -471,7 +476,7 @@ function Quiz({
               <WordIllustration word={item.word.text} />
             </div>
             <div className="space-y-2">
-              <h1 className="text-4xl tracking-tight" data-component="QuizWordText">{item.word.text}</h1>
+              <h2 className="text-4xl tracking-tight" data-component="QuizWordText"><span className="sr-only">{t("currentWord")}</span>{item.word.text}</h2>
               <p className="text-kids-muted">{item.word.meaning}</p>
               {difficultyMap && difficultyMap.get(item.word.id) && (
                 <span
@@ -505,7 +510,7 @@ function Quiz({
                 style={{ background: colorHex(item.color) }}
                 aria-label={`color ${item.color}`}
               />
-              <h1 className="text-3xl tracking-tight" data-component="QuizWordText">{item.promptText}</h1>
+              <h2 className="text-3xl tracking-tight" data-component="QuizWordText"><span className="sr-only">{t("currentWord")}</span>{item.promptText}</h2>
             </div>
             <p className="text-kids-muted">{t("findMatch")}</p>
           </div>
@@ -514,6 +519,7 @@ function Quiz({
         {/* 听音选图：音频优先，隐藏文字 */}
         {mode === "listen" && (
           <div className="space-y-3" data-component="ListenPrompt">
+            <h2 className="sr-only">{t("listenPromptHeading")}</h2>
             <div className="w-full h-40 rounded-card bg-gradient-to-b from-[var(--color-primary-wash)] to-kids-secondary flex items-center justify-center">
               <Volume2 size={64} className="text-[var(--seed-primary)]" />
             </div>
@@ -662,8 +668,9 @@ function PracticeInner() {
         className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4"
         data-component="PracticeEmpty"
       >
+        <h1 className="sr-only">{t("practiceTitle")}</h1>
         <Mascot expression="encouraging" size="large" />
-        <h1 className="text-2xl">{t("emptyWords")}</h1>
+        <h2 className="text-2xl">{t("emptyWords")}</h2>
         <p className="text-kids-muted">
           {t("emptyWordsHint")}
         </p>

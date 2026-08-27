@@ -6,7 +6,7 @@ import RoleGuard from "@/components/RoleGuard";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { AuthProvider } from "@/lib/auth-context";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 
@@ -54,17 +54,28 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   const messages = await getMessages();
+  const t = await getTranslations("TabNav");
 
   return (
     <html lang={locale} className={nunito.variable}>
       <body className="min-h-screen bg-seed-bg pb-32">
+        {/* 键盘用户首个可聚焦元素：跳到主内容区，跳过导航 */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-control focus:bg-[var(--seed-primary)] focus:px-4 focus:py-2 focus:font-bold focus:text-white focus:shadow-button"
+        >
+          {t("skipToContent")}
+        </a>
         <NextIntlClientProvider messages={messages}>
           <LocaleSwitcher />
           <AuthProvider>
             <RoleGuard>
-              <main className="mx-auto w-full max-w-5xl px-5 pt-6 sm:px-6 lg:max-w-6xl xl:max-w-7xl">
-            {children}
-          </main>
+              <main
+                id="main"
+                className="mx-auto w-full max-w-5xl px-5 pt-6 sm:px-6 lg:max-w-6xl xl:max-w-7xl"
+              >
+                {children}
+              </main>
               <TabNav />
             </RoleGuard>
           </AuthProvider>

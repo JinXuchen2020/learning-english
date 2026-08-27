@@ -55,12 +55,12 @@ export default function LevelRing({
           cy={center}
           r={radius}
           fill="none"
-          stroke="var(--seed-primary, #F59E0B)"
+          stroke="var(--seed-primary, #0b7a70)"
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.5s ease" }}
+          className="ring-progress"
         />
         <text
           x={center}
